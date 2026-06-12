@@ -1,0 +1,42 @@
+{
+  "name": "creator-app-backend",
+  "type": "nodejs",
+  "runtime": "14",
+  "handler": "src/server.js",
+  "environment": {
+    "CATALYST_ENABLE_DATASTORE": true,
+    "NODE_ENV": "production"
+  },
+  "datastore": {
+    "tables": [
+      {
+        "name": "creators",
+        "columns": [
+          {
+            "name": "CREATORID",
+            "type": "bigint",
+            "primary_key": true,
+            "auto_increment": true
+          },
+          {
+            "name": "user_id",
+            "type": "string",
+            "unique": true
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "email",
+            "type": "string"
+          },
+          {
+            "name": "created_at",
+            "type": "string"
+          }
+        ]
+      }
+    ]
+  }
+}
