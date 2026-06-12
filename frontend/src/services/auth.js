@@ -1,3 +1,5 @@
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
 export function getAuthToken() {
   return localStorage.getItem('authToken')
 }
@@ -16,7 +18,7 @@ export function isAuthenticated() {
 
 export async function verifyToken(token) {
   try {
-    const response = await fetch('/api/health', {
+    const response = await fetch(`${API_BASE_URL}/api/health`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }
