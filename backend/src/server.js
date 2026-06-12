@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const catalyst = require('zcatalyst-sdk');
 
 const app = express();
@@ -9,6 +10,10 @@ const PORT = process.env.PORT || 8000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Serve frontend static files
+const frontendPath = path.join(__dirname, '../../frontend/dist');
+app.use(express.static(frontendPath));
 
 // Initialize Catalyst
 catalyst.initialize();
@@ -64,6 +69,11 @@ app.post('/api/creator/profile', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Failed to create profile', details: error.message });
   }
+});
+
+// SPA fallback - serve index.html for non-API routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 app.listen(PORT, () => {
