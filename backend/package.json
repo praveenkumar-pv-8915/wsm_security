@@ -2,11 +2,18 @@
   "name": "team-management-backend",
   "version": "1.0.0",
   "description": "Team Management App Backend - Catalyst Serverless",
+  "main": "src/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
   },
   "dependencies": {
-    "axios": "^1.6.0"
+    "express": "^4.22.2",
+    "cors": "^2.8.6",
+    "axios": "^1.6.0",
+    "dotenv": "^16.6.1"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
 }
