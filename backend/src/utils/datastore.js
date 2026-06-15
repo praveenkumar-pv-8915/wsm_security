@@ -1,5 +1,4 @@
-const { DataStore } = require('@zohocorp/catalyst-sdk');
-
+// Catalyst provides DataStore globally in the runtime
 const datastore = new DataStore();
 
 async function getCreatorProfile(userId) {
