@@ -1,8 +1,7 @@
 {
-  "name": "creator-app-backend",
+  "name": "team-management-app",
   "type": "nodejs",
-  "runtime": "14",
-  "handler": "src/server.js",
+  "runtime": "18",
   "environment": {
     "CATALYST_ENABLE_DATASTORE": true,
     "NODE_ENV": "production"
@@ -33,6 +32,49 @@
           },
           {
             "name": "created_at",
+            "type": "string"
+          }
+        ]
+      },
+      {
+        "name": "tasks",
+        "columns": [
+          {
+            "name": "task_id",
+            "type": "bigint",
+            "primary_key": true,
+            "auto_increment": true
+          },
+          {
+            "name": "user_id",
+            "type": "string"
+          },
+          {
+            "name": "title",
+            "type": "string"
+          },
+          {
+            "name": "description",
+            "type": "string"
+          },
+          {
+            "name": "status",
+            "type": "string"
+          },
+          {
+            "name": "priority",
+            "type": "string"
+          },
+          {
+            "name": "due_date",
+            "type": "string"
+          },
+          {
+            "name": "created_at",
+            "type": "string"
+          },
+          {
+            "name": "updated_at",
             "type": "string"
           }
         ]
