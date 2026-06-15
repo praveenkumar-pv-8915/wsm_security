@@ -1,20 +1,13 @@
 {
-  "name": "creator-app-backend",
+  "name": "team-management-backend",
   "version": "1.0.0",
-  "description": "Creator App Backend",
-  "main": "src/server.js",
+  "description": "Team Management App Backend - Catalyst Serverless",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "axios": "^1.6.0",
-    "cors": "^2.8.6",
-    "dotenv": "^16.6.1",
-    "express": "^4.22.2",
-    "zcatalyst-sdk": "^1.2.1"
+    "@zohocorp/catalyst-sdk": "^1.0.0",
+    "axios": "^1.6.0"
   },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
-  }
+  "devDependencies": {}
 }
