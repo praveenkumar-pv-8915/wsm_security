@@ -1,0 +1,10 @@
+{
+  "name": "team-management-app-frontend",
+  "type": "static",
+  "buildCommand": "npm run build",
+  "buildDirectory": "dist",
+  "environment": {
+    "VITE_API_URL": "${API_ENDPOINT}",
+    "VITE_SAS_AUTH_URL": "${SAS_AUTH_URL}"
+  }
+}
