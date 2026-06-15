@@ -2,6 +2,7 @@
   "name": "team-management-app",
   "type": "nodejs",
   "runtime": "18",
+  "handler": "src/server.js",
   "environment": {
     "CATALYST_ENABLE_DATASTORE": true,
     "NODE_ENV": "production"

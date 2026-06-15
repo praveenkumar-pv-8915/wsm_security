@@ -8,6 +8,11 @@ export default function App() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Allow local testing without auth
+    const devMode = import.meta.env.DEV
+    if (devMode && !getAuthToken()) {
+      localStorage.setItem('authToken', 'dev-token')
+    }
     const token = getAuthToken()
     setIsAuthenticated(!!token)
     setLoading(false)
