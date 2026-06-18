@@ -55,4 +55,11 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
-module.exports = app;
+module.exports = async (request, response) => {
+  return new Promise((resolve, reject) => {
+    app(request, response, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+};
