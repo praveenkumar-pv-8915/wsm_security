@@ -11,8 +11,7 @@
     "express": "^4.22.2",
     "cors": "^2.8.6",
     "axios": "^1.6.0",
-    "dotenv": "^16.6.1",
-    "zcatalyst-sdk": "^1.0.0"
+    "dotenv": "^16.6.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
