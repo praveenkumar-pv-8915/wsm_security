@@ -1,0 +1,75 @@
+name: Deploy WSM-Security to Catalyst
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x]
+
+    steps:
+      # 1. Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 2. Setup Node.js
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      # 3. Install backend dependencies
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: npm install
+
+      # 4. Install frontend dependencies
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm install
+
+      # 5. Build frontend
+      - name: Build frontend
+        working-directory: ./frontend
+        run: npm run build
+
+      # 6. Validate function code
+      - name: Validate function code
+        working-directory: ./backend/functions/server
+        run: |
+          npm install
+          node -c index.js
+
+      # 7. Install Catalyst CLI
+      - name: Install Catalyst CLI
+        run: npm install -g zcatalyst-cli
+
+      # 8. Deploy to Catalyst (on main branch only)
+      - name: Deploy to Catalyst
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        working-directory: ./backend
+        run: |
+          echo "Deploying to Catalyst..."
+          catalyst deploy -p WSM-Security
+        env:
+          CATALYST_TOKEN: ${{ secrets.CATALYST_TOKEN }}
+
+      # 9. Deployment Success
+      - name: Deployment Success
+        if: success()
+        run: echo "✅ WSM-Security deployed successfully!"
+
+      # 10. Deployment Failed
+      - name: Deployment Failed
+        if: failure()
+        run: echo "❌ Deployment failed. Check logs above."
