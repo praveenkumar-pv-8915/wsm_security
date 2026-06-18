@@ -1,7 +1,0 @@
-{
-  "name": "server",
-  "handler": "index.js",
-  "description": "Team Management App Server",
-  "timeout": 30,
-  "memory": 256
-}

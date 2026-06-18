@@ -1,5 +1,8 @@
 {
   "name": "wsm-security",
+  "functions": {
+    "targets": ["server"]
+  },
   "datastore": {
     "tables": [
       {

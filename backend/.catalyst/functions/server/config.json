@@ -1,0 +1,8 @@
+{
+  "name": "server",
+  "type": "basicio",
+  "runtime": "nodejs18",
+  "handler": "index.js",
+  "memorySize": 256,
+  "timeout": 30
+}

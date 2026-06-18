@@ -1,6 +1,4 @@
 {
-  "projectId": "wsm-security",
-  "projectName": "wsm-security",
   "defaults": {
     "project": 1,
     "env": 1
@@ -12,11 +10,11 @@
   "projects": [
     {
       "idx": 1,
-      "id": "47976000000013030",
-      "name": "Project-Rainfall",
+      "id": "47976000000030001",
+      "name": "WSM-Security",
       "domain": {
-        "id": "50043005743",
-        "name": "project-rainfall-60073792083.development"
+        "id": "50043248550",
+        "name": "wsm-security-60073792083.development"
       },
       "timezone": "Asia/Kolkata",
       "env": [
@@ -24,7 +22,15 @@
           "idx": 1,
           "id": "60073792083",
           "name": "Development",
-          "type": 3
+          "type": 3,
+          "env_status": "Active",
+          "project_details": {
+            "project_name": "WSM-Security",
+            "id": "47976000000030001",
+            "project_type": "Live"
+          },
+          "is_default": true,
+          "action_required": false
         }
       ]
     }
