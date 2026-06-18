@@ -1,0 +1,12 @@
+{
+  "name": "wsm-security-server",
+  "version": "1.0.0",
+  "description": "Team Management App Server",
+  "main": "index.js",
+  "dependencies": {
+    "express": "^4.22.2",
+    "cors": "^2.8.6",
+    "axios": "^1.6.0",
+    "dotenv": "^16.6.1"
+  }
+}
