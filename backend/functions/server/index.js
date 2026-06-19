@@ -1,3 +1,8 @@
+// Load environment variables from .env file (for local development)
+if (process.env.ENVIRONMENT !== 'production') {
+  require('dotenv').config();
+}
+
 const express = require('express');
 const config = require('./config');
 const { validateToken, optionalAuth } = require('./auth-middleware');
@@ -5,6 +10,19 @@ const { exchangeCodeForToken, getUserProfile, prepareUserData } = require('./oau
 
 const app = express();
 app.use(express.json());
+
+// Enable CORS for local development
+if (process.env.ENVIRONMENT !== 'production') {
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+}
 
 // Validate environment on startup
 const isConfigValid = config.validate();
@@ -32,21 +50,25 @@ if (config.isOAuthEnabled()) {
       const { code } = req.body;
 
       if (!code) {
+        console.warn('⚠️  Missing authorization code in callback');
         return res.status(400).json({ error: 'Missing authorization code' });
       }
 
-      // Step 1: Exchange code for access token
-      console.log('📝 Exchanging code for token...');
+      console.log('📝 Step 1: Exchanging code for token...');
       const tokenData = await exchangeCodeForToken(code);
+      console.log('✓ Token received from Zoho');
 
-      // Step 2: Get user profile
-      console.log('👤 Fetching user profile...');
+      console.log('👤 Step 2: Fetching user profile...');
       const userProfile = await getUserProfile(tokenData.access_token);
+      console.log(`✓ Profile fetched: ${userProfile.email}`);
 
-      // Step 3: Prepare user data for storage
+      console.log('💾 Step 3: Preparing user data for storage...');
       const userData = prepareUserData(userProfile, tokenData);
 
-      // Step 4: Store in Catalyst Datastore (TODO: implement)
+      console.log('⏳ Step 4: Store in Catalyst Datastore (TODO)');
+      // TODO: Save to Catalyst Datastore
+      // await db.users.create(userData);
+
       console.log(`✅ User authenticated: ${userData.email}`);
 
       // Step 5: Return encrypted token to frontend
@@ -61,12 +83,15 @@ if (config.isOAuthEnabled()) {
       });
     } catch (error) {
       console.error('❌ OAuth callback error:', error.message);
+      console.error('Stack trace:', error.stack);
       res.status(401).json({
         error: 'Authentication failed',
         message: error.message,
       });
     }
   });
+} else {
+  console.warn('⚠️  OAuth not enabled - set ZOHO_CLIENT_ID to enable');
 }
 
 // OAuth Login URL - provides link for frontend to redirect to Zoho
@@ -141,6 +166,20 @@ app.post('/api/tasks', profileMiddleware, (req, res) => {
 app.all('*', (req, res) => {
   res.status(404).json({ message: 'Not found' });
 });
+
+// Start server (only in local development mode when run directly)
+if (require.main === module) {
+  const port = config.port;
+  app.listen(port, () => {
+    console.log(`\n🚀 Server listening on http://localhost:${port}`);
+    console.log(`📋 Health check: http://localhost:${port}/api/health`);
+    console.log(`🔐 OAuth enabled: ${config.isOAuthEnabled() ? 'Yes' : 'No'}`);
+    if (config.isOAuthEnabled()) {
+      console.log(`🔗 Redirect URI: ${config.zoho.redirectUri}`);
+    }
+    console.log(`\n`);
+  });
+}
 
 // Export as default - Catalyst expects this for BasicIO
 module.exports = app;
