@@ -1,0 +1,48 @@
+{
+  "services": {
+    "wsm-security": {
+      "scope": "userprofile.read",
+      "redirect_port": 8000
+    }
+  },
+  "profiles": {
+    "in": {
+      "dc_domain": "in",
+      "accounts_domain": "accounts.zoho.in",
+      "api_domain": "www.zohoapis.in",
+      "appid": "1234567890",
+      "service": "wsm-security",
+      "timezone": "Asia/Kolkata"
+    },
+    "us": {
+      "dc_domain": "com",
+      "accounts_domain": "accounts.zoho.com",
+      "api_domain": "www.zohoapis.com",
+      "appid": "0987654321",
+      "service": "wsm-security",
+      "timezone": "America/New_York"
+    },
+    "eu": {
+      "dc_domain": "eu",
+      "accounts_domain": "accounts.zoho.eu",
+      "api_domain": "www.zohoapis.eu",
+      "appid": "1111111111",
+      "service": "wsm-security",
+      "timezone": "Europe/Berlin"
+    }
+  },
+  "credentials": {
+    "in": {
+      "client_id": "${ZOHO_CLIENT_ID_IN}",
+      "client_secret": "${ZOHO_CLIENT_SECRET_IN}"
+    },
+    "us": {
+      "client_id": "${ZOHO_CLIENT_ID_US}",
+      "client_secret": "${ZOHO_CLIENT_SECRET_US}"
+    },
+    "eu": {
+      "client_id": "${ZOHO_CLIENT_ID_EU}",
+      "client_secret": "${ZOHO_CLIENT_SECRET_EU}"
+    }
+  }
+}

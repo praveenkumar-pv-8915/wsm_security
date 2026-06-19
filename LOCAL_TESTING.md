@@ -1,144 +1,157 @@
-# Local Testing Guide - WSM-Security OAuth Flow
+# Local Testing Guide - WSM-Security OAuth Flow (Connections Pattern)
 
-Test the complete OAuth flow on your local machine before deploying to Catalyst.
+Test the OAuth flow locally using the Connections Manager pattern (similar to agent-knowledge-kit).
 
 ## **Prerequisites**
 
 - Node.js v18+ (check with `node -v`)
-- npm or yarn
-- A Zoho account for testing
-- Port 3000 (frontend) and 8000 (backend) available locally
+- npm
+- A Zoho account for testing (India datacenter)
+- Ports 3000 (frontend) and 8000 (backend) available
 
 ---
 
-## **Step 1: Create Local OAuth Test Application**
+## **Step 1: Create Test OAuth Application**
 
-### Register OAuth App for Localhost
+### Register OAuth App for Your Zoho Region
 
-1. Go to **Zoho API Console** → https://api.console.zoho.in
-2. Create a new OAuth application:
-   - **Application Name:** `WSM-Security-Local` (or similar)
+1. Go to **Zoho API Console** → https://api.console.zoho.in (for India)
+   - Or https://api.console.zoho.com (for US)
+   - Or https://api.console.zoho.eu (for Europe)
+
+2. Create new OAuth application:
+   - **Application Name:** `WSM-Security-Local`
    - **Homepage URL:** `http://localhost:3000`
-   - **Authorized Redirect URLs:**
-     ```
-     http://localhost:8000/api/auth/callback
-     ```
+   - **Authorized Redirect URLs:** `http://localhost:8000/api/auth/callback`
 
-3. **Copy the generated:**
-   - `Client ID` (save it)
-   - `Client Secret` (save it)
-
-⚠️ **Keep these credentials safe!** They're for local testing only.
+3. **Copy:**
+   - `Client ID`
+   - `Client Secret`
 
 ---
 
 ## **Step 2: Create Backend .env File**
 
-Create `backend/.env` (copy from `.env.example` and update):
-
-```bash
-cd /Users/praveen-8915/otherProducts/wsm_security/backend
-
-# Copy the template
-cp functions/server/.env.example .env
-
-# Wait, the .env needs to be in functions/server/ directory
-# Let me create it there instead
-```
-
-**Actually, create it here:**
-
 ```bash
 cd /Users/praveen-8915/otherProducts/wsm_security/backend/functions/server
 
 cat > .env << 'ENVEOF'
-# Catalyst Configuration
 CATALYST_PROJECT_ID=47976000000030001
 ENVIRONMENT=development
 PORT=8000
 
-# OAuth 2.0 (Local Testing)
-ZOHO_CLIENT_ID=your_test_client_id_here
-ZOHO_CLIENT_SECRET=your_test_client_secret_here
-ZOHO_REDIRECT_URI=http://localhost:8000/api/auth/callback
-ZOHO_AUTH_URL=https://accounts.zoho.in/oauth/v2/auth
-ZOHO_TOKEN_URL=https://accounts.zoho.in/oauth/v2/token
-ZOHO_API_URL=https://www.zohoapis.in
+# Select your Zoho region
+ZOHO_PROFILE=in
 
-# Token Configuration
+# Your test credentials (from Step 1)
+ZOHO_CLIENT_ID_IN=paste_your_client_id_here
+ZOHO_CLIENT_SECRET_IN=paste_your_client_secret_here
+
 TOKEN_EXPIRY_HOURS=24
 REFRESH_TOKEN_EXPIRY_DAYS=30
 TOKEN_ENCRYPTION_KEY=test-key-change-in-production
 ENVEOF
 ```
 
-**Replace with your test credentials:**
-- `your_test_client_id_here` → Paste your Client ID from Step 1
-- `your_test_client_secret_here` → Paste your Client Secret from Step 1
+**Replace:**
+- `paste_your_client_id_here` → Your Client ID
+- `paste_your_client_secret_here` → Your Client Secret
 
 ---
 
-## **Step 3: Install Dependencies**
+## **Step 3: How It Works**
 
-### Backend
-```bash
-cd /Users/praveen-8915/otherProducts/wsm_security/backend/functions/server
-npm install dotenv
-npm install
+The Connections Manager loads `connections.config.json` which defines:
+
+```json
+{
+  "services": {
+    "wsm-security": {
+      "scope": "userprofile.read",
+      "redirect_port": 8000
+    }
+  },
+  "profiles": {
+    "in": {
+      "accounts_domain": "accounts.zoho.in",
+      "api_domain": "www.zohoapis.in"
+    },
+    "us": {
+      "accounts_domain": "accounts.zoho.com",
+      "api_domain": "www.zohoapis.com"
+    }
+  },
+  "credentials": {
+    "in": {
+      "client_id": "${ZOHO_CLIENT_ID_IN}",
+      "client_secret": "${ZOHO_CLIENT_SECRET_IN}"
+    }
+  }
+}
 ```
 
-### Frontend
+The Connection Manager:
+1. ✅ Reads from `connections.config.json`
+2. ✅ Selects profile based on `ZOHO_PROFILE` env var
+3. ✅ Resolves credentials from environment variables
+4. ✅ Handles OAuth flow for multiple regions
+5. ✅ Automatically uses correct Zoho endpoints
+
+---
+
+## **Step 4: Install Dependencies**
+
 ```bash
-cd /Users/praveen-8915/otherProducts/wsm_security/frontend
-npm install
+cd /Users/praveen-8915/otherProducts/wsm_security
+
+# Install everything
+./setup-local.sh
+
+# Or manually:
+cd backend/functions/server && npm install dotenv && npm install
+cd ../../.. && cd frontend && npm install
 ```
 
 ---
 
-## **Step 4: Start Backend (Terminal 1)**
+## **Step 5: Start Backend**
 
 ```bash
-cd /Users/praveen-8915/otherProducts/wsm_security/backend/functions/server
-
-# Start the Express server
-node index.js
+./start-backend.sh
 ```
 
 **Expected output:**
 ```
-🚀 WSM-Security API initialized
-📋 Config: { projectId: '✓ set', oauth: '✓ enabled', ... }
-Listening on port 8000
+✅ Connection Manager initialized
+📋 Connection Info: { 
+  profile: 'in',
+  service: 'wsm-security',
+  datacenter: 'in',
+  timezone: 'Asia/Kolkata',
+  redirect_port: 8000
+}
+🔐 OAuth 2.0 enabled via Connection Manager
+🚀 Server listening on http://localhost:8000
+📋 Health check: http://localhost:8000/api/health
 ```
-
-✅ If you see this, backend is running!
 
 ---
 
-## **Step 5: Start Frontend (Terminal 2)**
+## **Step 6: Start Frontend**
 
 ```bash
-cd /Users/praveen-8915/otherProducts/wsm_security/frontend
-
-# Start Vite dev server
-npm run dev
+./start-frontend.sh
 ```
 
 **Expected output:**
 ```
-  VITE v5.x.x  ready in xxx ms
-
+VITE v5.x.x ready in xxx ms
   ➜  Local:   http://localhost:3000/
-  ➜  press h to show help
 ```
-
-✅ If you see this, frontend is running!
 
 ---
 
-## **Step 6: Test Health Endpoint**
-
-In a new terminal, verify the backend is responding:
+## **Step 7: Test Health Endpoint**
 
 ```bash
 curl http://localhost:8000/api/health
@@ -149,55 +162,38 @@ curl http://localhost:8000/api/health
 {
   "status": "ok",
   "message": "WSM-Security API Running",
-  "config": {
-    "projectId": "✓ set",
-    "oauth": "✓ enabled",
-    "apiKey": "✗ missing",
-    "environment": "development",
-    "apiUrl": "https://api.zoho.in"
+  "oauth_enabled": true,
+  "connection": {
+    "profile": "in",
+    "service": "wsm-security",
+    "datacenter": "in",
+    "timezone": "Asia/Kolkata",
+    "redirect_port": 8000
   }
 }
 ```
 
-✅ If you see `"oauth": "✓ enabled"`, OAuth is configured correctly!
+✅ If you see this, Connection Manager is working!
 
 ---
 
-## **Step 7: Test OAuth Flow in Browser**
+## **Step 8: Test OAuth Flow**
 
-1. Open your browser to **http://localhost:3000/**
-2. You should see the login page with "Sign In with Zoho" button
-3. Click **"Sign In with Zoho"**
-4. You'll be redirected to Zoho login
-5. **Sign in with your Zoho account** (email + password)
-6. After authentication, you'll be redirected back to **http://localhost:3000/**
-7. The page should now show "Welcome" (authenticated)
+1. Open **http://localhost:3000/**
+2. Click **"Sign In with Zoho"**
+3. Sign in with your Zoho account
+4. After login, should see authenticated content
 
-✅ If you see this, OAuth flow is working!
-
----
-
-## **Step 8: Verify Token Storage**
-
-After successful login, check browser localStorage:
-
-1. Open browser DevTools (F12)
-2. Go to **Application** → **Local Storage** → **http://localhost:3000**
-3. You should see:
-   - `authToken` - Encrypted token
-   - `user` - User profile JSON
-
-✅ If you see these, token storage is working!
+✅ If login works, OAuth is configured correctly!
 
 ---
 
 ## **Step 9: Test Protected Endpoints**
 
-Get your token and test an authenticated endpoint:
+Get your token from localStorage and test:
 
 ```bash
-# Get the authToken from localStorage and run:
-curl -H "Authorization: Bearer <paste-authToken-here>" \
+curl -H "Authorization: Bearer <encrypted-token>" \
   http://localhost:8000/api/profile
 ```
 
@@ -206,8 +202,8 @@ curl -H "Authorization: Bearer <paste-authToken-here>" \
 {
   "profile": {
     "user_id": "user123",
-    "name": "Creator",
-    "email": "creator@example.com"
+    "name": "Your Name",
+    "email": "your.email@zoho.in"
   }
 }
 ```
@@ -216,109 +212,95 @@ curl -H "Authorization: Bearer <paste-authToken-here>" \
 
 ---
 
-## **Troubleshooting Local Testing**
+## **Switching Regions (Optional)**
 
-### ❌ "Cannot GET /api/health"
+To test with different Zoho datacenters:
 
-**Problem:** Backend not running
-**Solution:**
+### **For US:**
 ```bash
-cd backend/functions/server
-node index.js
+# In .env:
+ZOHO_PROFILE=us
+ZOHO_CLIENT_ID_US=your_us_client_id
+ZOHO_CLIENT_SECRET_US=your_us_client_secret
+
+# Create US OAuth app at: https://api.console.zoho.com
 ```
 
-### ❌ "EADDRINUSE: address already in use :::8000"
-
-**Problem:** Port 8000 is already in use
-**Solution:**
+### **For Europe:**
 ```bash
-# Find what's using port 8000
-lsof -i :8000
+# In .env:
+ZOHO_PROFILE=eu
+ZOHO_CLIENT_ID_EU=your_eu_client_id
+ZOHO_CLIENT_SECRET_EU=your_eu_client_secret
 
-# Kill the process
-kill -9 <PID>
-
-# Or start backend on different port:
-PORT=9000 node index.js
+# Create EU OAuth app at: https://api.console.zoho.eu
 ```
 
-### ❌ "Failed to get login URL" or "Cannot fetch /api/auth/login-url"
+Then restart backend: `Ctrl+C` and `./start-backend.sh`
 
-**Problem:** Frontend can't reach backend
+---
+
+## **Troubleshooting**
+
+### ❌ "Connection Manager not available"
+
+**Problem:** `connections.config.json` not found
 **Solution:**
-1. Check backend is running (`node index.js` in terminal 1)
-2. Check `VITE_API_URL` in `.env.development` is set to `http://localhost:8000/api`
-3. Verify Vite dev server proxy is working in `vite.config.js`
+```bash
+ls -la backend/connections.config.json
+# Should exist in backend directory (not functions/server)
+```
 
-### ❌ "Invalid client ID" from Zoho
+### ❌ "Invalid profile: in"
 
-**Problem:** OAuth credentials don't match
+**Problem:** Profile name doesn't match
 **Solution:**
-1. Copy Client ID & Secret again from Zoho API Console
-2. Update `.env` file
-3. Restart backend (`Ctrl+C` then `node index.js`)
+```bash
+# Check available profiles in connections.config.json
+# Valid: in, us, eu
+# In .env, set: ZOHO_PROFILE=in
+```
+
+### ❌ "Environment variable not set: ZOHO_CLIENT_ID_IN"
+
+**Problem:** Missing environment variable
+**Solution:**
+```bash
+# Check .env file has:
+ZOHO_CLIENT_ID_IN=your_actual_client_id
+ZOHO_CLIENT_SECRET_IN=your_actual_secret
+
+# Restart backend after editing .env
+```
 
 ### ❌ "Redirect URI mismatch"
 
 **Problem:** Registered redirect URI doesn't match
 **Solution:**
-1. Check Zoho API Console has: `http://localhost:8000/api/auth/callback`
-2. Check `.env` file has: `ZOHO_REDIRECT_URI=http://localhost:8000/api/auth/callback`
-3. Should match exactly (including http:// and port)
-
-### ❌ Token appears but can't call protected endpoints
-
-**Problem:** Token encryption/decryption issue
-**Solution:**
-1. Check `TOKEN_ENCRYPTION_KEY` in `.env` is set
-2. Verify `crypto.js` encryption/decryption functions work
-3. Try clearing localStorage and login again
+1. Zoho API Console: `http://localhost:8000/api/auth/callback`
+2. Backend: Automatically uses correct URI from connections config
+3. Should match automatically!
 
 ---
 
-## **Next Steps After Local Testing**
+## **Connection Manager Features**
 
-Once local testing works:
+The Connections Manager (similar to agent-knowledge-kit):
 
-1. ✅ Test OAuth locally
-2. ✅ Test token storage & encryption
-3. ✅ Test protected endpoints
-4. 📋 Deploy to Catalyst (Slate + Serverless)
-5. 📋 Update environment variables in Catalyst
-6. 📋 Test in production
-
----
-
-## **Quick Commands Reference**
-
-```bash
-# Terminal 1: Start Backend
-cd backend/functions/server && node index.js
-
-# Terminal 2: Start Frontend
-cd frontend && npm run dev
-
-# Terminal 3: Test Health
-curl http://localhost:8000/api/health
-
-# Terminal 3: Test Login URL
-curl http://localhost:8000/api/auth/login-url
-
-# Terminal 3: Test Protected Endpoint (with token)
-curl -H "Authorization: Bearer <token>" \
-  http://localhost:8000/api/profile
-```
+✅ **Multi-Region Support** — Switch between in/us/eu with one env var  
+✅ **Service Definitions** — Scopes and configuration per service  
+✅ **Profile-Based** — Automatic datacenter & timezone management  
+✅ **Credential Resolution** — Environment variable placeholders  
+✅ **OAuth Standardization** — Consistent flow across all regions  
+✅ **State Protection** — CSRF tokens for OAuth security  
 
 ---
 
-## **Files You Need to Create**
+## **Next Steps**
 
-```
-backend/functions/server/.env       ← Create this (copy from .env.example)
-```
+1. ✅ Test locally with Connections Manager
+2. 📋 Deploy to Catalyst
+3. 📋 Connect Catalyst Datastore
+4. 📋 Build features (tasks, documents, team)
 
-Everything else is already in git!
-
----
-
-Ready to test locally? Follow the steps above and let me know if you hit any issues!
+Good luck! 🚀

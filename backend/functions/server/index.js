@@ -4,9 +4,10 @@ if (process.env.ENVIRONMENT !== 'production') {
 }
 
 const express = require('express');
-const config = require('./config');
+const path = require('path');
+const ConnectionManager = require('./connections');
 const { validateToken, optionalAuth } = require('./auth-middleware');
-const { exchangeCodeForToken, getUserProfile, prepareUserData } = require('./oauth');
+const { encryptToken, generateTokenHash } = require('./crypto');
 
 const app = express();
 app.use(express.json());
@@ -24,94 +25,150 @@ if (process.env.ENVIRONMENT !== 'production') {
   });
 }
 
-// Validate environment on startup
-const isConfigValid = config.validate();
-if (!isConfigValid && config.environment === 'production') {
-  console.error('❌ Critical: Missing required environment variables');
-  process.exit(1);
+// Initialize Connection Manager
+let connManager = null;
+try {
+  const configPath = path.join(__dirname, '..', '..', 'connections.config.json');
+  connManager = new ConnectionManager(configPath);
+  console.log('✅ Connection Manager initialized');
+  console.log('📋 Connection Info:', connManager.getInfo());
+} catch (error) {
+  console.warn('⚠️  Connection Manager not available:', error.message);
 }
 
-console.log('🚀 WSM-Security API initialized');
-console.log('📋 Config:', config.summary());
+const isOAuthEnabled = () => {
+  try {
+    const creds = connManager.getCredentials();
+    return !!(creds.clientId && creds.clientSecret);
+  } catch (error) {
+    return false;
+  }
+};
 
-// Health check endpoint - includes config status
+if (isOAuthEnabled()) {
+  console.log('🔐 OAuth 2.0 enabled via Connection Manager');
+} else {
+  console.warn('⚠️  OAuth 2.0 not fully configured');
+}
+
+// Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({
+  const health = {
     status: 'ok',
     message: 'WSM-Security API Running',
-    config: config.summary(),
-  });
+    oauth_enabled: isOAuthEnabled(),
+  };
+
+  if (connManager) {
+    try {
+      health.connection = connManager.getInfo();
+    } catch (error) {
+      health.connection_error = error.message;
+    }
+  }
+
+  res.json(health);
 });
 
 // OAuth Callback - Exchange authorization code for token
-if (config.isOAuthEnabled()) {
-  app.post('/api/auth/callback', async (req, res) => {
-    try {
-      const { code } = req.body;
-
-      if (!code) {
-        console.warn('⚠️  Missing authorization code in callback');
-        return res.status(400).json({ error: 'Missing authorization code' });
-      }
-
-      console.log('📝 Step 1: Exchanging code for token...');
-      const tokenData = await exchangeCodeForToken(code);
-      console.log('✓ Token received from Zoho');
-
-      console.log('👤 Step 2: Fetching user profile...');
-      const userProfile = await getUserProfile(tokenData.access_token);
-      console.log(`✓ Profile fetched: ${userProfile.email}`);
-
-      console.log('💾 Step 3: Preparing user data for storage...');
-      const userData = prepareUserData(userProfile, tokenData);
-
-      console.log('⏳ Step 4: Store in Catalyst Datastore (TODO)');
-      // TODO: Save to Catalyst Datastore
-      // await db.users.create(userData);
-
-      console.log(`✅ User authenticated: ${userData.email}`);
-
-      // Step 5: Return encrypted token to frontend
-      res.json({
-        success: true,
-        token: userData.auth_token, // This is encrypted
-        user: {
-          id: userData.user_id,
-          email: userData.email,
-          name: userData.name,
-        },
-      });
-    } catch (error) {
-      console.error('❌ OAuth callback error:', error.message);
-      console.error('Stack trace:', error.stack);
-      res.status(401).json({
-        error: 'Authentication failed',
-        message: error.message,
+app.post('/api/auth/callback', async (req, res) => {
+  try {
+    if (!isOAuthEnabled()) {
+      return res.status(503).json({
+        error: 'OAuth not configured',
+        message: 'Set ZOHO_CLIENT_ID_* environment variables',
       });
     }
-  });
-} else {
-  console.warn('⚠️  OAuth not enabled - set ZOHO_CLIENT_ID to enable');
-}
+
+    const { code } = req.body;
+
+    if (!code) {
+      console.warn('⚠️  Missing authorization code in callback');
+      return res.status(400).json({ error: 'Missing authorization code' });
+    }
+
+    console.log('📝 Step 1: Exchanging code for token...');
+    const tokenData = await connManager.exchangeCodeForToken(code);
+    console.log('✓ Token received from Zoho');
+
+    console.log('👤 Step 2: Fetching user profile...');
+    const userProfile = await connManager.getUserProfile(tokenData.access_token);
+    console.log(`✓ Profile fetched: ${userProfile.email}`);
+
+    console.log('💾 Step 3: Preparing user data for storage...');
+    const userData = {
+      user_id: userProfile.id,
+      email: userProfile.email,
+      name: userProfile.full_name,
+      zoho_user_id: userProfile.id,
+      auth_token: encryptToken(tokenData.access_token),
+      refresh_token: encryptToken(tokenData.refresh_token),
+      token_hash: generateTokenHash(tokenData.access_token),
+      token_expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
+      refresh_token_expires_at: new Date(
+        Date.now() + 30 * 24 * 60 * 60 * 1000 // 30 days
+      ).toISOString(),
+      last_login: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    };
+
+    console.log('⏳ Step 4: Store in Catalyst Datastore (TODO)');
+    // TODO: Save to Catalyst Datastore
+    // await db.users.create(userData);
+
+    console.log(`✅ User authenticated: ${userData.email}`);
+
+    // Step 5: Return encrypted token to frontend
+    res.json({
+      success: true,
+      token: userData.auth_token, // This is encrypted
+      user: {
+        id: userData.user_id,
+        email: userData.email,
+        name: userData.name,
+      },
+    });
+  } catch (error) {
+    console.error('❌ OAuth callback error:', error.message);
+    console.error('Stack trace:', error.stack);
+    res.status(401).json({
+      error: 'Authentication failed',
+      message: error.message,
+    });
+  }
+});
 
 // OAuth Login URL - provides link for frontend to redirect to Zoho
-if (config.isOAuthEnabled()) {
-  app.get('/api/auth/login-url', (req, res) => {
-    const loginUrl = `${config.zoho.authUrl}?` +
-      `client_id=${config.zoho.clientId}` +
-      `&response_type=code` +
-      `&scope=userprofile.read` +
-      `&redirect_uri=${encodeURIComponent(config.zoho.redirectUri)}`;
+app.get('/api/auth/login-url', (req, res) => {
+  try {
+    if (!isOAuthEnabled()) {
+      return res.status(503).json({
+        error: 'OAuth not configured',
+        oauth_enabled: false,
+      });
+    }
+
+    const redirectUri = req.query.redirect_uri ||
+      `${req.protocol}://${req.get('host')}/api/auth/callback`;
+
+    const loginUrl = connManager.getAuthorizationUrl(redirectUri);
 
     res.json({
       login_url: loginUrl,
       oauth_enabled: true,
+      profile: connManager.getInfo(),
     });
-  });
-}
+  } catch (error) {
+    console.error('Failed to generate login URL:', error.message);
+    res.status(500).json({
+      error: 'Failed to generate login URL',
+      message: error.message,
+    });
+  }
+});
 
 // Profile endpoints (requires authentication if OAuth is enabled)
-const profileMiddleware = config.isOAuthEnabled() ? validateToken : optionalAuth;
+const profileMiddleware = isOAuthEnabled() ? validateToken : optionalAuth;
 
 app.get('/api/profile', profileMiddleware, (req, res) => {
   // TODO: Fetch from Catalyst Datastore using user_id from token
