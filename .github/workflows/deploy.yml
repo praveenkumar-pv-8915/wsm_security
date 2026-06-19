@@ -54,15 +54,13 @@ jobs:
       - name: Install Catalyst CLI
         run: npm install -g zcatalyst-cli
 
-      # 8. Deploy to Catalyst (on main branch only)
-      - name: Deploy to Catalyst
+      # 8. Deployment Status
+      - name: Deployment Status
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        working-directory: ./backend
         run: |
-          echo "Deploying to Catalyst..."
-          catalyst deploy -p WSM-Security
-        env:
-          CATALYST_TOKEN: ${{ secrets.CATALYST_TOKEN }}
+          echo "✅ Build validation passed"
+          echo "📤 Catalyst GitHub integration will auto-deploy to WSM-Security"
+          echo "🚀 Watch deployment at: https://catalyst.zoho.com"
 
       # 9. Deployment Success
       - name: Deployment Success
