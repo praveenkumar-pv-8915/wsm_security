@@ -28,3 +28,17 @@ export async function verifyToken(token) {
     return false
   }
 }
+
+// Handle Managed Authentication callback from Zoho
+export async function handleAuthCallback() {
+  const params = new URLSearchParams(window.location.search)
+  const token = params.get('token') || params.get('auth_token')
+
+  if (token) {
+    setAuthToken(token)
+    // Clean up URL
+    window.history.replaceState({}, document.title, window.location.pathname)
+    return true
+  }
+  return false
+}
