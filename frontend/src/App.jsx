@@ -31,26 +31,25 @@ export default function App() {
 
 function LoginPrompt() {
   const handleLogin = () => {
-    const redirectUri = `${window.location.origin}/auth/callback`
-    const clientId = import.meta.env.VITE_ZOHO_CLIENT_ID
+    const orgId = import.meta.env.VITE_ZOHO_ORG_ID
     const authUrl = import.meta.env.VITE_SAS_AUTH_URL
 
-    if (!clientId) {
-      alert('OAuth Client ID not configured. Please set VITE_ZOHO_CLIENT_ID')
+    if (!orgId) {
+      alert('Organization ID not configured. Please set VITE_ZOHO_ORG_ID')
       return
     }
 
-    const sasAuthUrl = `${authUrl}?client_id=${clientId}&response_type=code&scope=userprofile.read&redirect_uri=${encodeURIComponent(redirectUri)}`
-    window.location.href = sasAuthUrl
+    const managedAuthUrl = `${authUrl}?orgId=${orgId}`
+    window.location.href = managedAuthUrl
   }
 
   return (
     <div className="login-container">
       <div className="login-card">
-        <h1>Creator App</h1>
-        <p>Sign in to get started</p>
+        <h1>WSM-Security</h1>
+        <p>Sign in with your Zoho account</p>
         <button className="login-btn" onClick={handleLogin}>
-          Sign In with Zoho
+          Sign In
         </button>
       </div>
     </div>
