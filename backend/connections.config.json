@@ -3,6 +3,11 @@
     "wsm-security": {
       "scope": "userprofile.read",
       "redirect_port": 8000
+    },
+    "hacksaw": {
+      "scope": "Hacksaw.repository.READ",
+      "redirect_port": 8000,
+      "api_base": "/api/v1"
     }
   },
   "profiles": {
@@ -10,6 +15,7 @@
       "dc_domain": "in",
       "accounts_domain": "accounts.zoho.in",
       "api_domain": "www.zohoapis.in",
+      "hacksaw_domain": "hacksaw.zoho.in",
       "appid": "1234567890",
       "service": "wsm-security",
       "timezone": "Asia/Kolkata"
@@ -18,6 +24,7 @@
       "dc_domain": "com",
       "accounts_domain": "accounts.zoho.com",
       "api_domain": "www.zohoapis.com",
+      "hacksaw_domain": "hacksaw.zoho.com",
       "appid": "0987654321",
       "service": "wsm-security",
       "timezone": "America/New_York"
@@ -26,6 +33,7 @@
       "dc_domain": "eu",
       "accounts_domain": "accounts.zoho.eu",
       "api_domain": "www.zohoapis.eu",
+      "hacksaw_domain": "hacksaw.zoho.eu",
       "appid": "1111111111",
       "service": "wsm-security",
       "timezone": "Europe/Berlin"
@@ -34,15 +42,21 @@
   "credentials": {
     "in": {
       "client_id": "${ZOHO_CLIENT_ID_IN}",
-      "client_secret": "${ZOHO_CLIENT_SECRET_IN}"
+      "client_secret": "${ZOHO_CLIENT_SECRET_IN}",
+      "hacksaw_client_id": "${ZOHO_HACKSAW_CLIENT_ID_IN}",
+      "hacksaw_client_secret": "${ZOHO_HACKSAW_CLIENT_SECRET_IN}"
     },
     "us": {
       "client_id": "${ZOHO_CLIENT_ID_US}",
-      "client_secret": "${ZOHO_CLIENT_SECRET_US}"
+      "client_secret": "${ZOHO_CLIENT_SECRET_US}",
+      "hacksaw_client_id": "${ZOHO_HACKSAW_CLIENT_ID_US}",
+      "hacksaw_client_secret": "${ZOHO_HACKSAW_CLIENT_SECRET_US}"
     },
     "eu": {
       "client_id": "${ZOHO_CLIENT_ID_EU}",
-      "client_secret": "${ZOHO_CLIENT_SECRET_EU}"
+      "client_secret": "${ZOHO_CLIENT_SECRET_EU}",
+      "hacksaw_client_id": "${ZOHO_HACKSAW_CLIENT_ID_EU}",
+      "hacksaw_client_secret": "${ZOHO_HACKSAW_CLIENT_SECRET_EU}"
     }
   }
 }

@@ -270,6 +270,65 @@ class ConnectionManager {
       scope: service.scope,
     };
   }
+
+  /**
+   * Get Hacksaw service credentials
+   */
+  getHacksawCredentials() {
+    const creds = this.config.credentials[this.profile];
+    if (!creds || !creds.hacksaw_client_id) {
+      throw new Error(`No Hacksaw credentials found for profile: ${this.profile}`);
+    }
+
+    return {
+      clientId: this.resolveEnvVar(creds.hacksaw_client_id),
+      clientSecret: this.resolveEnvVar(creds.hacksaw_client_secret),
+    };
+  }
+
+  /**
+   * Fetch list of products from Hacksaw
+   */
+  async fetchHacksawProducts(accessToken) {
+    const profile = this.getProfile();
+    const service = this.getService('hacksaw');
+
+    return new Promise((resolve, reject) => {
+      const options = {
+        hostname: profile.hacksaw_domain,
+        path: `${service.api_base}/products`,
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      };
+
+      const req = https.request(options, (res) => {
+        let data = '';
+
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+
+        res.on('end', () => {
+          try {
+            const response = JSON.parse(data);
+            if (res.statusCode >= 400) {
+              reject(new Error(`Hacksaw API error: ${response.message || response.error}`));
+            } else {
+              resolve(response);
+            }
+          } catch (error) {
+            reject(new Error(`Failed to parse Hacksaw response: ${error.message}`));
+          }
+        });
+      });
+
+      req.on('error', reject);
+      req.end();
+    });
+  }
 }
 
 module.exports = ConnectionManager;
