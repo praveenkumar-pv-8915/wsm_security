@@ -1,20 +1,8 @@
 const express = require('express');
-const cors = require('cors');
 
 const app = express();
 
-app.use(cors());
 app.use(express.json());
-
-// Auth middleware
-app.use((req, res, next) => {
-  const authToken = req.headers.authorization?.split(' ')[1];
-  if (req.path.startsWith('/api') && !authToken && !req.path.includes('/health')) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  req.authToken = authToken;
-  next();
-});
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -56,22 +44,5 @@ app.all('*', (req, res) => {
   res.status(404).json({ message: 'WSM-Security API - Use /api/* endpoints' });
 });
 
-// Catalyst BasicIO handler
-exports.wsm_security = async (request, response) => {
-  try {
-    return new Promise((resolve, reject) => {
-      app(request, response, (err) => {
-        if (err) {
-          response.statusCode = 500;
-          response.end(JSON.stringify({ error: err.message }));
-          reject(err);
-        } else {
-          resolve();
-        }
-      });
-    });
-  } catch (error) {
-    response.statusCode = 500;
-    response.end(JSON.stringify({ error: 'Internal Server Error' }));
-  }
-};
+// Default export for Catalyst BasicIO
+module.exports = app;
