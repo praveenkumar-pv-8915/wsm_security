@@ -32,7 +32,15 @@ export default function App() {
 function LoginPrompt() {
   const handleLogin = () => {
     const redirectUri = `${window.location.origin}/auth/callback`
-    const sasAuthUrl = `${import.meta.env.VITE_SAS_AUTH_URL}?redirect_uri=${encodeURIComponent(redirectUri)}`
+    const clientId = import.meta.env.VITE_ZOHO_CLIENT_ID
+    const authUrl = import.meta.env.VITE_SAS_AUTH_URL
+
+    if (!clientId) {
+      alert('OAuth Client ID not configured. Please set VITE_ZOHO_CLIENT_ID')
+      return
+    }
+
+    const sasAuthUrl = `${authUrl}?client_id=${clientId}&response_type=code&scope=userprofile.read&redirect_uri=${encodeURIComponent(redirectUri)}`
     window.location.href = sasAuthUrl
   }
 
