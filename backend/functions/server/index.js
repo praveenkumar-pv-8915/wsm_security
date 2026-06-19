@@ -6,12 +6,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Set timeout
-app.use((req, res, next) => {
-  res.setTimeout(55000);
-  next();
-});
-
 // Auth middleware
 app.use((req, res, next) => {
   const authToken = req.headers.authorization?.split(' ')[1];
@@ -28,7 +22,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Profile endpoints
-app.get('/api/profile', async (req, res) => {
+app.get('/api/profile', (req, res) => {
   try {
     const userId = req.headers['x-user-id'];
     res.json({ profile: { user_id: userId, name: 'Creator', email: 'creator@example.com' } });
@@ -37,7 +31,7 @@ app.get('/api/profile', async (req, res) => {
   }
 });
 
-app.post('/api/profile', async (req, res) => {
+app.post('/api/profile', (req, res) => {
   try {
     const userId = req.headers['x-user-id'];
     const { name, email } = req.body;
@@ -48,25 +42,36 @@ app.post('/api/profile', async (req, res) => {
 });
 
 // Task endpoints
-app.get('/api/tasks', async (req, res) => {
+app.get('/api/tasks', (req, res) => {
   res.json({ tasks: [] });
 });
 
-app.post('/api/tasks', async (req, res) => {
+app.post('/api/tasks', (req, res) => {
   const { title } = req.body;
   res.json({ success: true, data: { title, created_at: new Date().toISOString() } });
 });
 
-// Health response for all other routes
+// Catch all
 app.all('*', (req, res) => {
-  res.json({ message: 'WSM-Security API - Use /api/* endpoints' });
+  res.status(404).json({ message: 'WSM-Security API - Use /api/* endpoints' });
 });
 
-module.exports = async (request, response) => {
-  return new Promise((resolve, reject) => {
-    app(request, response, (err) => {
-      if (err) reject(err);
-      else resolve();
+// Catalyst BasicIO handler
+exports.wsm_security = async (request, response) => {
+  try {
+    return new Promise((resolve, reject) => {
+      app(request, response, (err) => {
+        if (err) {
+          response.statusCode = 500;
+          response.end(JSON.stringify({ error: err.message }));
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
     });
-  });
+  } catch (error) {
+    response.statusCode = 500;
+    response.end(JSON.stringify({ error: 'Internal Server Error' }));
+  }
 };
