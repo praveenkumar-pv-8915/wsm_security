@@ -1,33 +1,74 @@
 const express = require('express');
+const config = require('./config');
 
 const app = express();
 app.use(express.json());
 
-// API Routes
+// Validate environment on startup
+const isConfigValid = config.validate();
+if (!isConfigValid && config.environment === 'production') {
+  console.error('❌ Critical: Missing required environment variables');
+  process.exit(1);
+}
+
+// Health check endpoint - includes config status
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'WSM-Security App Running' });
+  res.json({
+    status: 'ok',
+    message: 'WSM-Security API Running',
+    config: config.summary(),
+  });
 });
 
 // TODO: Add Managed Authentication callback when ready
+// app.post('/api/auth/callback', (req, res) => { ... })
 
+// Profile endpoints
 app.get('/api/profile', (req, res) => {
   const userId = req.headers['x-user-id'];
-  res.json({ profile: { user_id: userId, name: 'Creator', email: 'creator@example.com' } });
+  res.json({
+    profile: {
+      user_id: userId,
+      name: 'Creator',
+      email: 'creator@example.com',
+      org_id: config.orgId,
+    },
+  });
 });
 
 app.post('/api/profile', (req, res) => {
   const userId = req.headers['x-user-id'];
   const { name, email } = req.body;
-  res.json({ success: true, data: { user_id: userId, name, email, created_at: new Date().toISOString() } });
+  res.json({
+    success: true,
+    data: {
+      user_id: userId,
+      name,
+      email,
+      org_id: config.orgId,
+      created_at: new Date().toISOString(),
+    },
+  });
 });
 
+// Tasks endpoints
 app.get('/api/tasks', (req, res) => {
-  res.json({ tasks: [] });
+  res.json({
+    tasks: [],
+    org_id: config.orgId,
+  });
 });
 
 app.post('/api/tasks', (req, res) => {
   const { title } = req.body;
-  res.json({ success: true, data: { title, created_at: new Date().toISOString() } });
+  res.json({
+    success: true,
+    data: {
+      title,
+      org_id: config.orgId,
+      created_at: new Date().toISOString(),
+    },
+  });
 });
 
 app.all('*', (req, res) => {
