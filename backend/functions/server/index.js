@@ -1,65 +1,36 @@
-// Simple handler without Express for Catalyst BasicIO
-exports.handler = async (request, response) => {
-  try {
-    const url = new URL(request.url, `http://${request.headers.host}`);
-    const pathname = url.pathname;
-    const method = request.method;
+const express = require('express');
 
-    // Parse JSON body
-    let body = '';
-    if (method === 'POST' || method === 'PUT') {
-      body = await new Promise((resolve) => {
-        let data = '';
-        request.on('data', chunk => { data += chunk; });
-        request.on('end', () => { resolve(data); });
-      });
-    }
+const app = express();
+app.use(express.json());
 
-    // Health check
-    if (pathname === '/api/health' && method === 'GET') {
-      response.writeHead(200, { 'Content-Type': 'application/json' });
-      response.end(JSON.stringify({ status: 'ok', message: 'WSM-Security App Running' }));
-      return;
-    }
+// API Routes
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', message: 'WSM-Security App Running' });
+});
 
-    // Get profile
-    if (pathname === '/api/profile' && method === 'GET') {
-      const userId = request.headers['x-user-id'];
-      response.writeHead(200, { 'Content-Type': 'application/json' });
-      response.end(JSON.stringify({ profile: { user_id: userId, name: 'Creator', email: 'creator@example.com' } }));
-      return;
-    }
+app.get('/api/profile', (req, res) => {
+  const userId = req.headers['x-user-id'];
+  res.json({ profile: { user_id: userId, name: 'Creator', email: 'creator@example.com' } });
+});
 
-    // Create profile
-    if (pathname === '/api/profile' && method === 'POST') {
-      const userId = request.headers['x-user-id'];
-      const data = JSON.parse(body);
-      response.writeHead(201, { 'Content-Type': 'application/json' });
-      response.end(JSON.stringify({ success: true, data: { user_id: userId, ...data, created_at: new Date().toISOString() } }));
-      return;
-    }
+app.post('/api/profile', (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const { name, email } = req.body;
+  res.json({ success: true, data: { user_id: userId, name, email, created_at: new Date().toISOString() } });
+});
 
-    // Get tasks
-    if (pathname === '/api/tasks' && method === 'GET') {
-      response.writeHead(200, { 'Content-Type': 'application/json' });
-      response.end(JSON.stringify({ tasks: [] }));
-      return;
-    }
+app.get('/api/tasks', (req, res) => {
+  res.json({ tasks: [] });
+});
 
-    // Create task
-    if (pathname === '/api/tasks' && method === 'POST') {
-      const data = JSON.parse(body);
-      response.writeHead(201, { 'Content-Type': 'application/json' });
-      response.end(JSON.stringify({ success: true, data: { ...data, created_at: new Date().toISOString() } }));
-      return;
-    }
+app.post('/api/tasks', (req, res) => {
+  const { title } = req.body;
+  res.json({ success: true, data: { title, created_at: new Date().toISOString() } });
+});
 
-    // Not found
-    response.writeHead(404, { 'Content-Type': 'application/json' });
-    response.end(JSON.stringify({ message: 'WSM-Security API - Use /api/* endpoints' }));
+app.all('*', (req, res) => {
+  res.status(404).json({ message: 'Not found' });
+});
 
-  } catch (error) {
-    response.writeHead(500, { 'Content-Type': 'application/json' });
-    response.end(JSON.stringify({ error: error.message }));
-  }
-};
+// Export as default - Catalyst expects this for BasicIO
+module.exports = app;
