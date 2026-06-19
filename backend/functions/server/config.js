@@ -4,9 +4,8 @@
  */
 
 const config = {
-  // Project & Organization
+  // Project
   projectId: process.env.CATALYST_PROJECT_ID,
-  orgId: process.env.ZOHO_ORGID,
 
   // API & Authentication
   apiKey: process.env.CATALYST_API_KEY,
@@ -23,7 +22,7 @@ const config = {
    * Validate that all required environment variables are set
    */
   validate() {
-    const required = ['CATALYST_PROJECT_ID', 'ZOHO_ORGID'];
+    const required = ['CATALYST_PROJECT_ID'];
     const missing = required.filter(key => !process.env[key]);
 
     if (missing.length > 0) {
@@ -43,7 +42,6 @@ const config = {
   summary() {
     return {
       projectId: this.projectId ? '✓ set' : '✗ missing',
-      orgId: this.orgId ? '✓ set' : '✗ missing',
       apiKey: this.apiKey ? '✓ set' : '✗ missing',
       environment: this.environment,
       apiUrl: this.apiUrl,

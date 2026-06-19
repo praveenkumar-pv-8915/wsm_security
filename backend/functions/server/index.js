@@ -31,7 +31,6 @@ app.get('/api/profile', (req, res) => {
       user_id: userId,
       name: 'Creator',
       email: 'creator@example.com',
-      org_id: config.orgId,
     },
   });
 });
@@ -45,7 +44,6 @@ app.post('/api/profile', (req, res) => {
       user_id: userId,
       name,
       email,
-      org_id: config.orgId,
       created_at: new Date().toISOString(),
     },
   });
@@ -55,7 +53,6 @@ app.post('/api/profile', (req, res) => {
 app.get('/api/tasks', (req, res) => {
   res.json({
     tasks: [],
-    org_id: config.orgId,
   });
 });
 
@@ -65,7 +62,6 @@ app.post('/api/tasks', (req, res) => {
     success: true,
     data: {
       title,
-      org_id: config.orgId,
       created_at: new Date().toISOString(),
     },
   });
