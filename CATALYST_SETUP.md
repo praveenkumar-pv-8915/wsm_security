@@ -9,12 +9,9 @@ The backend requires these environment variables to be set in Catalyst:
 | Variable | Description | Example | Required |
 |----------|-------------|---------|----------|
 | `CATALYST_PROJECT_ID` | Your Catalyst project ID | `47976000000030001` | ✅ Yes |
-| `ZOHO_ORGID` | Your Zoho organization ID | `1234567890000000001` | ✅ Yes |
-| `CATALYST_API_KEY` | API key for Catalyst services | (provided by Zoho) | ⚠️ Optional* |
+| `CATALYST_API_KEY` | API key for Catalyst services | (provided by Zoho) | ⚠️ Optional |
 | `CATALYST_API_URL` | API endpoint URL | `https://api.zoho.in` | ❌ No (defaults to India DC) |
 | `ENVIRONMENT` | Deployment environment | `production` | ❌ No (defaults to development) |
-
-*Only needed if you're using external APIs; not needed for Catalyst Datastore access.
 
 ---
 
@@ -27,16 +24,7 @@ The backend requires these environment variables to be set in Catalyst:
 
 ---
 
-## Step 2: Find Your Zoho Organization ID
-
-1. Go to **Zoho Admin** → https://accounts.zoho.in/adminmanagement
-2. Click **Organization Settings** (left sidebar)
-3. Copy your **Organization ID** from the top of the page
-4. Example: `1234567890000000001`
-
----
-
-## Step 3: Set Environment Variables in Catalyst Console
+## Step 2: Set Environment Variables in Catalyst Console
 
 ### **For the `server` Function:**
 
@@ -50,21 +38,14 @@ The backend requires these environment variables to be set in Catalyst:
    Value: 47976000000030001
    ```
 
-5. Click **Add Variable** again for the organization ID:
-
-   ```
-   Variable Name: ZOHO_ORGID
-   Value: 1234567890000000001
-   ```
-
-6. (Optional) Add API key if needed:
+5. (Optional) Add API key if needed:
 
    ```
    Variable Name: CATALYST_API_KEY
    Value: (your API key)
    ```
 
-7. (Optional) Specify data center:
+6. (Optional) Specify data center:
 
    ```
    Variable Name: CATALYST_API_URL
@@ -80,11 +61,11 @@ The backend requires these environment variables to be set in Catalyst:
    - `https://api.zoho.jp` — Japan
    - `https://api.zoho.com.au` — Australia
 
-8. Click **Save**
+7. Click **Save**
 
 ---
 
-## Step 4: Verify Configuration
+## Step 3: Verify Configuration
 
 Call the health endpoint to verify environment variables are loaded:
 
@@ -99,7 +80,6 @@ Expected response:
   "message": "WSM-Security API Running",
   "config": {
     "projectId": "✓ set",
-    "orgId": "✓ set",
     "apiKey": "✗ missing",
     "environment": "development",
     "apiUrl": "https://api.zoho.in"
@@ -107,20 +87,21 @@ Expected response:
 }
 ```
 
-If any required variables show `✗ missing`, go back to Step 3 and add them.
+If `projectId` shows `✗ missing`, go back to Step 2 and add it.
 
 ---
 
-## Step 5: Local Development (Optional)
+## Step 4: Local Development (Optional)
 
 For local testing, create a `.env` file in `backend/`:
 
 ```bash
 # backend/.env
 CATALYST_PROJECT_ID=47976000000030001
-ZOHO_ORGID=1234567890000000001
-CATALYST_API_KEY=(your API key)
+CATALYST_API_KEY=
+CATALYST_API_URL=https://api.zoho.in
 ENVIRONMENT=development
+PORT=8000
 ```
 
 **Important:** Add `.env` to `.gitignore` so credentials aren't committed:
@@ -133,7 +114,7 @@ ENVIRONMENT=development
 node_modules/
 ```
 
-Install dotenv in the backend:
+Install dotenv in the backend (optional for local testing):
 
 ```bash
 cd backend/functions/server
@@ -154,7 +135,7 @@ require('dotenv').config();
 
 **Solution:**
 1. Go to Catalyst Console → Functions → Environment Variables
-2. Verify that `CATALYST_PROJECT_ID` and `ZOHO_ORGID` are set
+2. Verify that `CATALYST_PROJECT_ID` is set
 3. Check for typos (variable names are case-sensitive)
 4. Redeploy the function after changes
 
@@ -168,9 +149,9 @@ require('dotenv').config();
 ### ✓ Health endpoint shows all required variables
 
 Great! Your configuration is correct. You can now:
-- Connect to Catalyst Datastore
-- Call Zoho APIs with your org credentials
-- Deploy confidently knowing credentials are secure
+- Deploy the API to Catalyst
+- Call API endpoints
+- Extend with Datastore when needed
 
 ---
 
@@ -185,7 +166,7 @@ Great! Your configuration is correct. You can now:
 ❌ **Don't:**
 - Hardcode credentials in source files
 - Commit `.env` files to version control
-- Share your Project ID and Org ID publicly
+- Share your Project ID publicly
 - Use the same credentials across environments
 
 ---
@@ -194,9 +175,7 @@ Great! Your configuration is correct. You can now:
 
 Once environment variables are configured:
 
-1. **Deploy the function** to Catalyst
+1. **Deploy the function** to Catalyst (via GitHub auto-deployment)
 2. **Test the API** by calling `/api/health`
-3. **Connect to Catalyst Datastore** for task/user storage
-4. **Implement authentication** when ready
-
-See [CATALYST_DATASTORE.md](./CATALYST_DATASTORE.md) for database setup instructions (create this when ready).
+3. **Build features** (task tracking, documents, etc.)
+4. **Add org isolation** when needed (for multi-tenant support)
