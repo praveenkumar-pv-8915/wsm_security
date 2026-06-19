@@ -220,19 +220,51 @@ app.post('/api/tasks', profileMiddleware, (req, res) => {
   });
 });
 
+// Hacksaw Products - Fetch all products from Hacksaw
+app.get('/api/hacksaw/products', validateToken, async (req, res) => {
+  try {
+    if (!connManager) {
+      return res.status(503).json({ error: 'Connection manager not available' });
+    }
+
+    // TODO: Get Hacksaw access token from storage or current OAuth session
+    // For now, this is a placeholder endpoint
+    res.json({
+      products: [],
+      message: 'Hacksaw connection configured. Use your Hacksaw OAuth token to fetch products.',
+      connection_info: {
+        service: 'hacksaw',
+        profile: connManager.profile,
+        endpoint: `https://${connManager.getProfile().hacksaw_domain}/api/v1/products`,
+      },
+    });
+  } catch (error) {
+    console.error('Hacksaw products error:', error.message);
+    res.status(400).json({
+      error: 'Failed to fetch Hacksaw products',
+      message: error.message,
+    });
+  }
+});
+
 app.all('*', (req, res) => {
   res.status(404).json({ message: 'Not found' });
 });
 
 // Start server (only in local development mode when run directly)
 if (require.main === module) {
-  const port = config.port;
+  const port = process.env.PORT || 8000;
   app.listen(port, () => {
     console.log(`\n🚀 Server listening on http://localhost:${port}`);
     console.log(`📋 Health check: http://localhost:${port}/api/health`);
-    console.log(`🔐 OAuth enabled: ${config.isOAuthEnabled() ? 'Yes' : 'No'}`);
-    if (config.isOAuthEnabled()) {
-      console.log(`🔗 Redirect URI: ${config.zoho.redirectUri}`);
+    console.log(`🔐 OAuth enabled: ${isOAuthEnabled() ? 'Yes' : 'No'}`);
+    if (connManager) {
+      try {
+        const profile = connManager.getProfile();
+        console.log(`🔗 Hacksaw API: https://${profile.hacksaw_domain}`);
+      } catch (e) {
+        // Silent
+      }
     }
     console.log(`\n`);
   });
