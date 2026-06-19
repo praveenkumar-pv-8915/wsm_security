@@ -179,3 +179,101 @@ Once environment variables are configured:
 2. **Test the API** by calling `/api/health`
 3. **Build features** (task tracking, documents, etc.)
 4. **Add org isolation** when needed (for multi-tenant support)
+
+---
+
+## OAuth 2.0 Setup (Optional - For User Authentication)
+
+To enable OAuth authentication with Zoho accounts:
+
+### **Step 1: Register Application in Zoho API Console**
+
+1. Go to **Zoho API Console** → https://api.console.zoho.in
+2. Create a new **OAuth Application**:
+   - **Application Name:** WSM-Security
+   - **Homepage URL:** `https://your-catalyst-domain`
+   - **Authorized Redirect URLs:** `https://your-catalyst-domain/api/auth/callback`
+3. Copy the generated **Client ID** and **Client Secret**
+
+### **Step 2: Set OAuth Environment Variables in Catalyst**
+
+Go to **Catalyst Console** → **Functions** → **server** → **Environment Variables**
+
+Add the following:
+
+```
+Variable Name: ZOHO_CLIENT_ID
+Value: (your client ID from Step 1)
+
+Variable Name: ZOHO_CLIENT_SECRET
+Value: (your client secret from Step 1)
+
+Variable Name: ZOHO_REDIRECT_URI
+Value: https://your-catalyst-domain/api/auth/callback
+
+Variable Name: ZOHO_AUTH_URL
+Value: https://accounts.zoho.in/oauth/v2/auth
+
+Variable Name: ZOHO_TOKEN_URL
+Value: https://accounts.zoho.in/oauth/v2/token
+
+Variable Name: ZOHO_API_URL
+Value: https://www.zohoapis.in
+
+Variable Name: TOKEN_ENCRYPTION_KEY
+Value: (change to a secure random string in production)
+```
+
+### **Step 3: Test OAuth Login**
+
+1. Navigate to your app in the browser
+2. Click **"Sign In with Zoho"**
+3. You should be redirected to Zoho login
+4. After login, you should return to the app authenticated
+
+### **Token Storage Flow**
+
+```
+User clicks "Sign In"
+    ↓
+Frontend calls /api/auth/login-url (gets Zoho auth URL)
+    ↓
+Frontend redirects to Zoho login (user enters credentials)
+    ↓
+Zoho redirects back with authorization code
+    ↓
+Frontend receives code & calls /api/auth/callback
+    ↓
+Backend exchanges code for token (server-side, secret is safe)
+    ↓
+Backend encrypts token & returns to frontend
+    ↓
+Frontend stores encrypted token in localStorage
+    ↓
+All API requests include token in Authorization header
+    ↓
+Backend validates token on each request
+```
+
+### **Token Encryption Details**
+
+- Tokens are encrypted with AES-256-GCM before storage
+- Encryption key from `TOKEN_ENCRYPTION_KEY` environment variable
+- Frontend stores encrypted token (safe even if localStorage is compromised)
+- Backend decrypts token on each request
+
+### **Security Checklist**
+
+✅ **Do:**
+- Use strong `TOKEN_ENCRYPTION_KEY` in production
+- Rotate encryption keys periodically
+- Use HTTPS only (Catalyst provides this)
+- Store refresh tokens server-side (TODO: implement)
+- Validate token expiry
+
+❌ **Don't:**
+- Share Client Secret publicly
+- Hardcode credentials in frontend code
+- Use default encryption key in production
+- Store unencrypted tokens
+

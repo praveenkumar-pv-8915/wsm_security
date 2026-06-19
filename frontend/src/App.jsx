@@ -8,14 +8,12 @@ export default function App() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // TODO: Implement Managed Authentication callback when needed
-    // const hasAuth = handleAuthCallback()
+    // Handle OAuth callback (when Zoho redirects back with authorization code)
+    handleAuthCallback()
 
-    // Skip auth for now - set dummy token to allow app to function
-    if (!getAuthToken()) {
-      localStorage.setItem('authToken', 'temp-token')
-    }
-    setIsAuthenticated(true)
+    // Check if user is authenticated
+    const token = getAuthToken()
+    setIsAuthenticated(!!token)
     setLoading(false)
   }, [])
 
@@ -31,17 +29,29 @@ export default function App() {
 }
 
 function LoginPrompt() {
-  const handleLogin = () => {
-    const orgId = import.meta.env.VITE_ZOHO_ORG_ID
-    const authUrl = import.meta.env.VITE_SAS_AUTH_URL
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
 
-    if (!orgId) {
-      alert('Organization ID not configured. Please set VITE_ZOHO_ORG_ID')
-      return
+  const handleLogin = async () => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      // Get OAuth login URL from backend
+      const response = await fetch('/api/auth/login-url')
+      const data = await response.json()
+
+      if (data.login_url) {
+        // Redirect to Zoho login
+        window.location.href = data.login_url
+      } else {
+        setError('OAuth not configured on server. Please set ZOHO_CLIENT_ID.')
+      }
+    } catch (err) {
+      setError(`Login failed: ${err.message}`)
+    } finally {
+      setLoading(false)
     }
-
-    const managedAuthUrl = `${authUrl}?orgId=${orgId}`
-    window.location.href = managedAuthUrl
   }
 
   return (
@@ -49,9 +59,18 @@ function LoginPrompt() {
       <div className="login-card">
         <h1>WSM-Security</h1>
         <p>Sign in with your Zoho account</p>
-        <button className="login-btn" onClick={handleLogin}>
-          Sign In
+
+        {error && <div className="error-message">{error}</div>}
+
+        <button
+          className="login-btn"
+          onClick={handleLogin}
+          disabled={loading}
+        >
+          {loading ? 'Signing In...' : 'Sign In with Zoho'}
         </button>
+
+        <p className="login-note">Secure OAuth 2.0 authentication with Zoho</p>
       </div>
     </div>
   )
