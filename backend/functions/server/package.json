@@ -1,10 +1,7 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "description": "WSM-Security Server",
+  "description": "WSM-Security API Server",
   "main": "index.js",
-  "dependencies": {
-    "express": "^4.22.2",
-    "cors": "^2.8.6"
-  }
+  "dependencies": {}
 }
