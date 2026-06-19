@@ -8,6 +8,22 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'WSM-Security App Running' });
 });
 
+a// Managed Authentication callback - Zoho will pass auth token here
+app.post('/api/auth/callback', (req, res) => {
+  const { token, user_id, email } = req.body;
+
+  if (!token) {
+    return res.status(401).json({ error: 'No auth token provided' });
+  }
+
+  // Store token in session/client (frontend handles localStorage)
+  res.json({
+    success: true,
+    token,
+    user: { id: user_id, email }
+  });
+});
+
 app.get('/api/profile', (req, res) => {
   const userId = req.headers['x-user-id'];
   res.json({ profile: { user_id: userId, name: 'Creator', email: 'creator@example.com' } });

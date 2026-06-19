@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import Welcome from './pages/Welcome'
-import { getAuthToken } from './services/auth'
+import { getAuthToken, handleAuthCallback } from './services/auth'
 import './App.css'
 
 export default function App() {
@@ -8,6 +8,9 @@ export default function App() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Handle Managed Authentication callback from Zoho
+    const hasAuth = handleAuthCallback()
+
     // Allow local testing without auth
     const devMode = import.meta.env.DEV
     if (devMode && !getAuthToken()) {
