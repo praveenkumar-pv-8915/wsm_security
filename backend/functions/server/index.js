@@ -7,6 +7,7 @@ const express = require('express');
 const path = require('path');
 const ConnectionManager = require('./connections');
 const CredentialsManager = require('./credentials-manager');
+const HacksawOAuthManager = require('./hacksaw-oauth');
 const { validateToken, optionalAuth } = require('./auth-middleware');
 const { encryptToken, generateTokenHash } = require('./crypto');
 
@@ -39,6 +40,15 @@ try {
 
 // Initialize Credentials Manager
 const credsManager = new CredentialsManager();
+
+// Initialize Hacksaw OAuth Manager
+let hacksawOAuth = null;
+try {
+  hacksawOAuth = new HacksawOAuthManager(connManager, credsManager);
+  console.log('✅ Hacksaw OAuth Manager initialized');
+} catch (error) {
+  console.warn('⚠️  Hacksaw OAuth Manager initialization failed:', error.message);
+}
 
 const isOAuthEnabled = () => {
   try {
@@ -619,6 +629,162 @@ app.delete('/api/hacksaw/credentials', async (req, res) => {
     console.error('❌ Error deleting credentials:', error.message);
     res.status(400).json({
       success: false,
+      message: error.message,
+    });
+  }
+});
+
+// Hacksaw OAuth 2.0 - Start Authorization Flow
+app.get('/api/hacksaw/oauth/authorize', (req, res) => {
+  try {
+    if (!hacksawOAuth) {
+      return res.status(503).json({ error: 'OAuth not available' });
+    }
+
+    const redirectUri = req.query.redirect_uri || `${req.protocol}://${req.get('host')}/api/hacksaw/oauth/callback`;
+    const authUrl = hacksawOAuth.getAuthorizationUrl(redirectUri);
+
+    console.log('🔐 Generating Hacksaw OAuth authorization URL');
+    console.log(`   Redirect URI: ${redirectUri}`);
+
+    res.json({
+      success: true,
+      message: 'OAuth authorization URL generated',
+      auth_url: authUrl,
+      redirect_uri: redirectUri,
+    });
+  } catch (error) {
+    console.error('❌ OAuth authorization error:', error.message);
+    res.status(400).json({
+      error: 'Failed to generate authorization URL',
+      message: error.message,
+    });
+  }
+});
+
+// Hacksaw OAuth 2.0 - OAuth Callback
+app.get('/api/hacksaw/oauth/callback', async (req, res) => {
+  try {
+    if (!hacksawOAuth) {
+      return res.status(503).json({ error: 'OAuth not available' });
+    }
+
+    const { code, state, error } = req.query;
+
+    if (error) {
+      console.error('❌ OAuth error:', error);
+      return res.status(400).json({
+        error: 'OAuth authorization failed',
+        message: error,
+      });
+    }
+
+    if (!code) {
+      return res.status(400).json({
+        error: 'Missing authorization code',
+      });
+    }
+
+    console.log('🔐 Exchanging authorization code for token');
+
+    const redirectUri = `${req.protocol}://${req.get('host')}/api/hacksaw/oauth/callback`;
+    const tokenData = await hacksawOAuth.exchangeCodeForToken(code, redirectUri);
+
+    console.log('✅ Token received from Zoho');
+
+    // Get user ID from session or use default
+    const userId = req.query.user_id || 'default_user';
+
+    // Store OAuth token
+    await hacksawOAuth.storeOAuthToken(userId, tokenData);
+
+    res.json({
+      success: true,
+      message: 'OAuth authorization successful',
+      user_id: userId,
+      expires_in: tokenData.expires_in,
+      token_type: tokenData.token_type,
+      scope: tokenData.scope,
+    });
+  } catch (error) {
+    console.error('❌ OAuth callback error:', error.message);
+    res.status(400).json({
+      error: 'OAuth authentication failed',
+      message: error.message,
+    });
+  }
+});
+
+// Hacksaw OAuth 2.0 - Check Authorization Status
+app.get('/api/hacksaw/oauth/status', (req, res) => {
+  try {
+    if (!hacksawOAuth) {
+      return res.status(503).json({ error: 'OAuth not available' });
+    }
+
+    const userId = req.query.user_id || 'default_user';
+    const token = hacksawOAuth.getOAuthToken(userId);
+
+    if (!token) {
+      return res.json({
+        success: false,
+        message: 'No valid OAuth token',
+        authorized: false,
+        user_id: userId,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'OAuth token is valid',
+      authorized: true,
+      user_id: userId,
+      token_type: token.token_type,
+    });
+  } catch (error) {
+    console.error('❌ OAuth status error:', error.message);
+    res.status(400).json({
+      error: 'Failed to check authorization status',
+      message: error.message,
+    });
+  }
+});
+
+// Hacksaw OAuth 2.0 - Revoke Authorization
+app.post('/api/hacksaw/oauth/revoke', async (req, res) => {
+  try {
+    if (!hacksawOAuth) {
+      return res.status(503).json({ error: 'OAuth not available' });
+    }
+
+    const userId = req.query.user_id || req.body.user_id || 'default_user';
+    const token = hacksawOAuth.getOAuthToken(userId);
+
+    if (!token) {
+      return res.status(400).json({
+        error: 'No token to revoke',
+      });
+    }
+
+    console.log(`🔐 Revoking OAuth token for user: ${userId}`);
+
+    // Revoke token
+    await hacksawOAuth.revokeToken(token.access_token);
+
+    // Clear stored token
+    if (global.hacksawOAuthTokens) {
+      delete global.hacksawOAuthTokens[userId];
+    }
+
+    res.json({
+      success: true,
+      message: 'OAuth token revoked successfully',
+      user_id: userId,
+    });
+  } catch (error) {
+    console.error('❌ OAuth revoke error:', error.message);
+    res.status(400).json({
+      error: 'Failed to revoke token',
       message: error.message,
     });
   }
