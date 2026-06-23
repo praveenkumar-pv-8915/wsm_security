@@ -368,7 +368,11 @@ class ConnectionManager {
       console.log(`   Hostname: ${profile.hacksaw_domain}`);
       console.log(`   Path: ${path}`);
       console.log(`   Auth: Basic ${auth.substring(0, 10)}...`);
+      console.log(`   Client ID (first 10 chars): ${credentials.clientId.substring(0, 10)}...`);
+      console.log(`   Client Secret (first 10 chars): ${credentials.clientSecret.substring(0, 10)}...`);
       console.log(`   Organisation: ${organisation}`);
+      console.log(`   Product: ${productName}`);
+      console.log(`   Report Label: ${reportLabel}`);
       console.log(`   Filter: ${JSON.stringify(filter)}`);
 
       const options = {
