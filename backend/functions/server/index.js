@@ -863,7 +863,7 @@ app.get('/api/hacksaw/violations', async (req, res) => {
     }
 
     // Get all required parameters from query string
-    const { organisation, productname, reportlabel, filter } = req.query;
+    const { organisation, productname, reportlabel, filter, user_id } = req.query;
 
     // Validate required parameters
     if (!organisation) {
@@ -887,19 +887,40 @@ app.get('/api/hacksaw/violations', async (req, res) => {
 
     console.log(`🔍 Fetching Hacksaw violations for organisation: ${organisation}`);
 
-    // Get Hacksaw credentials - try stored credentials first, then fall back to env vars
+    // Try OAuth token first, fall back to stored credentials
     let hacksawCreds = null;
-    const storedCreds = await credsManager.getCredentials('in');
+    let authSource = null;
 
-    if (storedCreds) {
-      console.log('📦 Using stored Hacksaw credentials');
-      hacksawCreds = {
-        clientId: storedCreds.clientId,
-        clientSecret: storedCreds.clientSecret,
-      };
-    } else {
-      console.log('📦 Using environment variable Hacksaw credentials');
-      hacksawCreds = connManager.getHacksawCredentials();
+    // Check for OAuth token (prefer OAuth over Basic Auth)
+    if (zohoOAuth) {
+      const userId = user_id || 'default_user';
+      const oauthToken = zohoOAuth.getOAuthToken('hacksaw', userId);
+
+      if (oauthToken) {
+        console.log(`🔐 Using OAuth token for user: ${userId}`);
+        hacksawCreds = {
+          access_token: oauthToken.access_token,
+        };
+        authSource = 'oauth';
+      }
+    }
+
+    // Fall back to stored credentials if no OAuth token
+    if (!hacksawCreds) {
+      const storedCreds = await credsManager.getCredentials('in');
+
+      if (storedCreds) {
+        console.log('📦 Using stored Hacksaw credentials');
+        hacksawCreds = {
+          clientId: storedCreds.clientId,
+          clientSecret: storedCreds.clientSecret,
+        };
+        authSource = 'datastore';
+      } else {
+        console.log('📦 Using environment variable Hacksaw credentials');
+        hacksawCreds = connManager.getHacksawCredentials();
+        authSource = 'environment';
+      }
     }
 
     // Parse filter if provided (should be JSON string)
@@ -915,7 +936,7 @@ app.get('/api/hacksaw/violations', async (req, res) => {
       }
     }
 
-    // Fetch violations using credentials with all query parameters
+    // Fetch violations using credentials/token with all query parameters
     const violations = await connManager.fetchHacksawViolations(
       hacksawCreds,
       organisation,
@@ -938,7 +959,7 @@ app.get('/api/hacksaw/violations', async (req, res) => {
       status: violations.STATUS,
       components: violations.CONTENT || [],
       total_count: componentCount,
-      credentialsSource: storedCreds ? 'datastore' : 'environment',
+      authSource: authSource,
     });
   } catch (error) {
     console.error('❌ Hacksaw violations error:', error.message);
