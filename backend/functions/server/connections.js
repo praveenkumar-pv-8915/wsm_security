@@ -338,7 +338,7 @@ class ConnectionManager {
   /**
    * Fetch vulnerable components (violations) from Hacksaw
    */
-  async fetchHacksawViolations(credentials, organisation, filter = {}) {
+  async fetchHacksawViolations(credentials, organisation, productName = 'WSM-Security', filter = {}) {
     const profile = this.getProfile();
 
     return new Promise((resolve, reject) => {
@@ -347,12 +347,23 @@ class ConnectionManager {
 
       // Build query string
       const queryParams = new URLSearchParams();
+      queryParams.append('action', 'fetchvulnerablecomponents');
       queryParams.append('organisation', organisation);
+      queryParams.append('Productname', productName);
       queryParams.append('filter', JSON.stringify(filter));
+
+      const path = `/api/vulnerablecomponentsreport?${queryParams.toString()}`;
+
+      console.log('🔍 Hacksaw Request Details:');
+      console.log(`   Hostname: ${profile.hacksaw_domain}`);
+      console.log(`   Path: ${path}`);
+      console.log(`   Auth: Basic ${auth.substring(0, 10)}...`);
+      console.log(`   Organisation: ${organisation}`);
+      console.log(`   Filter: ${JSON.stringify(filter)}`);
 
       const options = {
         hostname: profile.hacksaw_domain,
-        path: `/api/vulnerablecomponentsreport?${queryParams.toString()}`,
+        path: path,
         method: 'GET',
         headers: {
           'Authorization': `Basic ${auth}`,

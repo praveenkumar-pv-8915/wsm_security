@@ -703,10 +703,14 @@ app.get('/api/hacksaw/violations', async (req, res) => {
       }
     }
 
+    // Get product name from query or use default
+    const productName = req.query.product || 'WSM-Security';
+
     // Fetch violations using credentials
     const violations = await connManager.fetchHacksawViolations(
       hacksawCreds,
       organisation,
+      productName,
       parsedFilter
     );
 
