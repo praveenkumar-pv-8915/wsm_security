@@ -27,3 +27,4 @@ target/
 
 # Catalyst-specific
 .catalyst-session
+.credentials/

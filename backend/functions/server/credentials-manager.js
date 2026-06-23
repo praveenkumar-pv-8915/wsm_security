@@ -1,14 +1,54 @@
 /**
  * Credentials Manager - Secure storage of Hacksaw credentials
- * Encrypts and stores credentials in Catalyst datastore
+ * Encrypts and stores credentials in file-based persistent storage
  */
 
 const { encryptToken, decryptToken } = require('./crypto');
+const fs = require('fs');
+const path = require('path');
 
 class CredentialsManager {
-  constructor(dbConnection = null) {
+  constructor(dbConnection = null, storageDir = null) {
     this.db = dbConnection;
     this.tableName = 'hacksaw_credentials';
+    this.storageDir = storageDir || path.join(__dirname, '..', '..', '.credentials');
+    this.storageFile = path.join(this.storageDir, 'hacksaw.json');
+
+    // Ensure storage directory exists
+    if (!fs.existsSync(this.storageDir)) {
+      fs.mkdirSync(this.storageDir, { recursive: true });
+    }
+
+    // Load credentials from file on startup
+    this.loadFromFile();
+  }
+
+  /**
+   * Load credentials from persistent storage file
+   */
+  loadFromFile() {
+    try {
+      if (fs.existsSync(this.storageFile)) {
+        const data = fs.readFileSync(this.storageFile, 'utf8');
+        global.hacksawCredentialsStore = JSON.parse(data);
+        console.log('✅ Credentials loaded from persistent storage');
+      }
+    } catch (error) {
+      console.warn('⚠️  Could not load credentials from file:', error.message);
+      global.hacksawCredentialsStore = {};
+    }
+  }
+
+  /**
+   * Save credentials to persistent storage file
+   */
+  saveToFile() {
+    try {
+      fs.writeFileSync(this.storageFile, JSON.stringify(global.hacksawCredentialsStore || {}, null, 2));
+      console.log('✅ Credentials saved to persistent storage');
+    } catch (error) {
+      console.error('❌ Failed to save credentials to file:', error.message);
+    }
   }
 
   /**
@@ -41,6 +81,9 @@ class CredentialsManager {
         created_at: now,
         updated_at: now,
       };
+
+      // Persist to file
+      this.saveToFile();
 
       console.log(`✅ Credentials stored successfully for organisation: ${organisation}`);
 
@@ -137,6 +180,9 @@ class CredentialsManager {
       }
 
       delete global.hacksawCredentialsStore[key];
+
+      // Persist to file
+      this.saveToFile();
 
       console.log(`✅ Credentials deleted for profile: ${profile}`);
 
