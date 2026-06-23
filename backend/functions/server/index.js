@@ -665,7 +665,8 @@ app.get('/api/hacksaw/violations', async (req, res) => {
     }
 
     // Get all required parameters from query string
-    const { organisation, productname, reportlabel, slaprofile, filter } = req.query;
+    const { organisation, productname, reportlabel, filter } = req.query;
+    const slaprofile = req.query.slaprofile || 'ZOHOCORP';
 
     // Validate required parameters
     if (!organisation) {
@@ -684,12 +685,6 @@ app.get('/api/hacksaw/violations', async (req, res) => {
       return res.status(400).json({
         error: 'Missing required parameter',
         message: 'reportlabel parameter is required',
-      });
-    }
-    if (!slaprofile) {
-      return res.status(400).json({
-        error: 'Missing required parameter',
-        message: 'slaprofile parameter is required',
       });
     }
 

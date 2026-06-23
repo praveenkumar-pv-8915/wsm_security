@@ -342,10 +342,10 @@ class ConnectionManager {
    * - organisation: Organization name
    * - productname: Product name (e.g., Logs360cloud)
    * - reportlabel: Report label (e.g., production_Jun_22_2026_Log360Cloud)
-   * - slaprofile: SLA Profile (e.g., ZOHOCORP)
+   * - slaprofile: SLA Profile (default: ZOHOCORP)
    * - filter: Optional filter criteria
    */
-  async fetchHacksawViolations(credentials, organisation, productName, reportLabel, slaProfile, filter = {}) {
+  async fetchHacksawViolations(credentials, organisation, productName, reportLabel, slaProfile = 'ZOHOCORP', filter = {}) {
     const profile = this.getProfile();
 
     return new Promise((resolve, reject) => {
