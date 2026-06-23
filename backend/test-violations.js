@@ -16,7 +16,7 @@ const https = require('https');
 const ConnectionManager = require('./functions/server/connections');
 const path = require('path');
 
-async function testViolationsAPI() {
+(async () => {
   const args = process.argv.slice(2);
   const organisation = args[0];
   const filterArg = args[1];
@@ -84,6 +84,4 @@ async function testViolationsAPI() {
     console.error('3. Verify network connectivity to Hacksaw');
     process.exit(1);
   }
-}
-
-testViolationsAPI();
+})();
