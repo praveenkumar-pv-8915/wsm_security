@@ -75,6 +75,46 @@
             "type": "string"
           }
         ]
+      },
+      {
+        "name": "hacksaw_credentials",
+        "columns": [
+          {
+            "name": "credential_id",
+            "type": "bigint",
+            "primary_key": true,
+            "auto_increment": true
+          },
+          {
+            "name": "service",
+            "type": "string",
+            "unique": true
+          },
+          {
+            "name": "organisation",
+            "type": "string"
+          },
+          {
+            "name": "client_id_encrypted",
+            "type": "string"
+          },
+          {
+            "name": "client_secret_encrypted",
+            "type": "string"
+          },
+          {
+            "name": "profile",
+            "type": "string"
+          },
+          {
+            "name": "created_at",
+            "type": "string"
+          },
+          {
+            "name": "updated_at",
+            "type": "string"
+          }
+        ]
       }
     ]
   }
