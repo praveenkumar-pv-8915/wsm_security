@@ -666,7 +666,6 @@ app.get('/api/hacksaw/violations', async (req, res) => {
 
     // Get all required parameters from query string
     const { organisation, productname, reportlabel, filter } = req.query;
-    const slaprofile = req.query.slaprofile || 'ZOHOCORP';
 
     // Validate required parameters
     if (!organisation) {
@@ -724,7 +723,6 @@ app.get('/api/hacksaw/violations', async (req, res) => {
       organisation,
       productname,
       reportlabel,
-      slaprofile,
       parsedFilter
     );
 
@@ -738,7 +736,6 @@ app.get('/api/hacksaw/violations', async (req, res) => {
       organisation: organisation,
       productname: productname,
       reportlabel: reportlabel,
-      slaprofile: slaprofile,
       filter: parsedFilter,
       status: violations.STATUS,
       components: violations.CONTENT || [],
