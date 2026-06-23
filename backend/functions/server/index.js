@@ -7,7 +7,7 @@ const express = require('express');
 const path = require('path');
 const ConnectionManager = require('./connections');
 const CredentialsManager = require('./credentials-manager');
-const HacksawOAuthManager = require('./hacksaw-oauth');
+const ZohoOAuthManager = require('./zoho-oauth');
 const { validateToken, optionalAuth } = require('./auth-middleware');
 const { encryptToken, generateTokenHash } = require('./crypto');
 
@@ -41,13 +41,13 @@ try {
 // Initialize Credentials Manager
 const credsManager = new CredentialsManager();
 
-// Initialize Hacksaw OAuth Manager
-let hacksawOAuth = null;
+// Initialize Zoho OAuth Manager (generic for all Zoho services)
+let zohoOAuth = null;
 try {
-  hacksawOAuth = new HacksawOAuthManager(connManager, credsManager);
-  console.log('✅ Hacksaw OAuth Manager initialized');
+  zohoOAuth = new ZohoOAuthManager(connManager);
+  console.log('✅ Zoho OAuth Manager initialized');
 } catch (error) {
-  console.warn('⚠️  Hacksaw OAuth Manager initialization failed:', error.message);
+  console.warn('⚠️  Zoho OAuth Manager initialization failed:', error.message);
 }
 
 const isOAuthEnabled = () => {
@@ -634,32 +634,68 @@ app.delete('/api/hacksaw/credentials', async (req, res) => {
   }
 });
 
-// Hacksaw OAuth 2.0 - Start Authorization Flow
-app.get('/api/hacksaw/oauth/authorize', (req, res) => {
+// Zoho OAuth 2.0 - List Supported Services
+app.get('/api/oauth/services', (req, res) => {
   try {
-    if (!hacksawOAuth) {
+    if (!zohoOAuth) {
       return res.status(503).json({ error: 'OAuth not available' });
     }
 
-    const redirectUri = req.query.redirect_uri || `${req.protocol}://${req.get('host')}/api/hacksaw/oauth/callback`;
+    const services = zohoOAuth.listServices();
+
+    res.json({
+      success: true,
+      services: services,
+      total_services: services.length,
+    });
+  } catch (error) {
+    console.error('❌ OAuth services error:', error.message);
+    res.status(400).json({
+      error: 'Failed to list services',
+      message: error.message,
+    });
+  }
+});
+
+// Zoho OAuth 2.0 - Start Authorization Flow
+app.get('/api/oauth/authorize', (req, res) => {
+  try {
+    if (!zohoOAuth) {
+      return res.status(503).json({ error: 'OAuth not available' });
+    }
+
+    const serviceName = req.query.service || 'hacksaw';
+
+    if (!zohoOAuth.getServiceInfo(serviceName)) {
+      return res.status(400).json({
+        error: 'Service not supported',
+        message: `Service '${serviceName}' is not registered`,
+        available_services: zohoOAuth.listServices().map(s => s.service_id),
+      });
+    }
+
+    const redirectUri = req.query.redirect_uri || `${req.protocol}://${req.get('host')}/api/oauth/callback`;
 
     // Parse additional scopes from query parameter (comma-separated)
     const additionalScopes = req.query.scopes
       ? req.query.scopes.split(',').map(s => s.trim()).filter(s => s)
       : [];
 
-    const authUrl = hacksawOAuth.getAuthorizationUrl(redirectUri, additionalScopes);
+    const authUrl = zohoOAuth.getAuthorizationUrl(serviceName, redirectUri, additionalScopes);
+    const serviceInfo = zohoOAuth.getServiceInfo(serviceName);
 
-    console.log('🔐 Generating Hacksaw OAuth authorization URL');
+    console.log(`🔐 Generating OAuth authorization URL for ${serviceName}`);
     console.log(`   Redirect URI: ${redirectUri}`);
-    console.log(`   Additional Scopes: ${additionalScopes.join(', ') || 'none'}`);
 
     res.json({
       success: true,
       message: 'OAuth authorization URL generated',
+      service: serviceName,
+      service_name: serviceInfo.name,
       auth_url: authUrl,
       redirect_uri: redirectUri,
-      scopes: 'All Hacksaw read scopes included',
+      scopes: serviceInfo.scopes,
+      scope_count: serviceInfo.scope_count,
       additional_scopes: additionalScopes,
     });
   } catch (error) {
@@ -671,14 +707,15 @@ app.get('/api/hacksaw/oauth/authorize', (req, res) => {
   }
 });
 
-// Hacksaw OAuth 2.0 - OAuth Callback
-app.get('/api/hacksaw/oauth/callback', async (req, res) => {
+// Zoho OAuth 2.0 - OAuth Callback (service-agnostic)
+app.get('/api/oauth/callback', async (req, res) => {
   try {
-    if (!hacksawOAuth) {
+    if (!zohoOAuth) {
       return res.status(503).json({ error: 'OAuth not available' });
     }
 
     const { code, state, error } = req.query;
+    const serviceName = req.query.service || 'hacksaw';
 
     if (error) {
       console.error('❌ OAuth error:', error);
@@ -694,22 +731,23 @@ app.get('/api/hacksaw/oauth/callback', async (req, res) => {
       });
     }
 
-    console.log('🔐 Exchanging authorization code for token');
+    console.log(`🔐 Exchanging authorization code for token (service: ${serviceName})`);
 
-    const redirectUri = `${req.protocol}://${req.get('host')}/api/hacksaw/oauth/callback`;
-    const tokenData = await hacksawOAuth.exchangeCodeForToken(code, redirectUri);
+    const redirectUri = `${req.protocol}://${req.get('host')}/api/oauth/callback`;
+    const tokenData = await zohoOAuth.exchangeCodeForToken(code, redirectUri);
 
     console.log('✅ Token received from Zoho');
 
     // Get user ID from session or use default
     const userId = req.query.user_id || 'default_user';
 
-    // Store OAuth token
-    await hacksawOAuth.storeOAuthToken(userId, tokenData);
+    // Store OAuth token for the service
+    await zohoOAuth.storeOAuthToken(serviceName, userId, tokenData);
 
     res.json({
       success: true,
       message: 'OAuth authorization successful',
+      service: serviceName,
       user_id: userId,
       expires_in: tokenData.expires_in,
       token_type: tokenData.token_type,
@@ -724,31 +762,26 @@ app.get('/api/hacksaw/oauth/callback', async (req, res) => {
   }
 });
 
-// Hacksaw OAuth 2.0 - Check Authorization Status
-app.get('/api/hacksaw/oauth/status', (req, res) => {
+// Zoho OAuth 2.0 - Check Authorization Status
+app.get('/api/oauth/status', (req, res) => {
   try {
-    if (!hacksawOAuth) {
+    if (!zohoOAuth) {
       return res.status(503).json({ error: 'OAuth not available' });
     }
 
+    const serviceName = req.query.service || 'hacksaw';
     const userId = req.query.user_id || 'default_user';
-    const token = hacksawOAuth.getOAuthToken(userId);
 
-    if (!token) {
-      return res.json({
-        success: false,
-        message: 'No valid OAuth token',
-        authorized: false,
-        user_id: userId,
-      });
-    }
+    const isAuthorized = zohoOAuth.isAuthorized(serviceName, userId);
+    const token = zohoOAuth.getOAuthToken(serviceName, userId);
 
     res.json({
       success: true,
-      message: 'OAuth token is valid',
-      authorized: true,
+      service: serviceName,
       user_id: userId,
-      token_type: token.token_type,
+      authorized: isAuthorized,
+      token_type: token ? token.token_type : null,
+      expires_at: token ? token.expires_at : null,
     });
   } catch (error) {
     console.error('❌ OAuth status error:', error.message);
@@ -759,41 +792,31 @@ app.get('/api/hacksaw/oauth/status', (req, res) => {
   }
 });
 
-// Hacksaw OAuth 2.0 - Revoke Authorization
-app.post('/api/hacksaw/oauth/revoke', async (req, res) => {
+// Zoho OAuth 2.0 - Revoke Authorization
+app.post('/api/oauth/revoke', async (req, res) => {
   try {
-    if (!hacksawOAuth) {
+    if (!zohoOAuth) {
       return res.status(503).json({ error: 'OAuth not available' });
     }
 
+    const serviceName = req.query.service || req.body.service || 'hacksaw';
     const userId = req.query.user_id || req.body.user_id || 'default_user';
-    const token = hacksawOAuth.getOAuthToken(userId);
 
-    if (!token) {
-      return res.status(400).json({
-        error: 'No token to revoke',
-      });
-    }
+    console.log(`🔐 Revoking OAuth token for ${serviceName}/${userId}`);
 
-    console.log(`🔐 Revoking OAuth token for user: ${userId}`);
-
-    // Revoke token
-    await hacksawOAuth.revokeToken(token.access_token);
-
-    // Clear stored token
-    if (global.hacksawOAuthTokens) {
-      delete global.hacksawOAuthTokens[userId];
-    }
+    // Revoke authorization
+    await zohoOAuth.revokeAuthorization(serviceName, userId);
 
     res.json({
       success: true,
-      message: 'OAuth token revoked successfully',
+      message: 'OAuth authorization revoked successfully',
+      service: serviceName,
       user_id: userId,
     });
   } catch (error) {
     console.error('❌ OAuth revoke error:', error.message);
     res.status(400).json({
-      error: 'Failed to revoke token',
+      error: 'Failed to revoke authorization',
       message: error.message,
     });
   }
