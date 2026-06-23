@@ -29,7 +29,7 @@ const path = require('path');
 
   try {
     console.log('🔧 Initializing ConnectionManager...');
-    const configPath = path.join(__dirname, '..', '..', 'connections.config.json');
+    const configPath = path.join(__dirname, 'connections.config.json');
     const connManager = new ConnectionManager(configPath);
     console.log('✅ ConnectionManager initialized');
 
