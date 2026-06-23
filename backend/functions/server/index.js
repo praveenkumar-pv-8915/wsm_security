@@ -6,6 +6,7 @@ if (process.env.ENVIRONMENT !== 'production') {
 const express = require('express');
 const path = require('path');
 const ConnectionManager = require('./connections');
+const CredentialsManager = require('./credentials-manager');
 const { validateToken, optionalAuth } = require('./auth-middleware');
 const { encryptToken, generateTokenHash } = require('./crypto');
 
@@ -35,6 +36,9 @@ try {
 } catch (error) {
   console.warn('⚠️  Connection Manager not available:', error.message);
 }
+
+// Initialize Credentials Manager
+const credsManager = new CredentialsManager();
 
 const isOAuthEnabled = () => {
   try {
@@ -220,6 +224,406 @@ app.post('/api/tasks', profileMiddleware, (req, res) => {
   });
 });
 
+// Hacksaw Credentials - UI Form
+app.get('/api/hacksaw/credentials-form', (req, res) => {
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hacksaw Credentials Setup</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 500px;
+      width: 100%;
+      padding: 40px;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      color: #333;
+      font-weight: 500;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+      font-family: 'Courier New', monospace;
+    }
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    .form-group.readonly input {
+      background: #f5f5f5;
+      cursor: not-allowed;
+    }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 30px;
+    }
+    button {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .btn-save {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    .btn-save:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+    }
+    .btn-delete {
+      background: #ff6b6b;
+      color: white;
+    }
+    .btn-delete:hover {
+      background: #ff5252;
+      transform: translateY(-2px);
+    }
+    .btn-check {
+      background: #51cf66;
+      color: white;
+    }
+    .btn-check:hover {
+      background: #40c057;
+      transform: translateY(-2px);
+    }
+    .message {
+      padding: 12px;
+      border-radius: 6px;
+      margin-top: 20px;
+      display: none;
+      font-size: 14px;
+    }
+    .message.success {
+      background: #d3f9d8;
+      color: #2f8659;
+      border: 1px solid #69db7c;
+    }
+    .message.error {
+      background: #ffe0e0;
+      color: #862e2e;
+      border: 1px solid #ff8787;
+    }
+    .message.info {
+      background: #d0ebff;
+      color: #1c4d6d;
+      border: 1px solid #74c0fc;
+    }
+    .info-box {
+      background: #f0f4ff;
+      border-left: 4px solid #667eea;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #333;
+      line-height: 1.6;
+    }
+    .loader {
+      display: none;
+      text-align: center;
+      margin-top: 10px;
+    }
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #667eea;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .status {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f5f5f5;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔐 Hacksaw Credentials</h1>
+    <p class="subtitle">Securely store your Hacksaw API credentials</p>
+
+    <div class="info-box">
+      <strong>ℹ️ How it works:</strong><br>
+      Your credentials are encrypted and stored securely in the database. They're never logged or displayed in plain text.
+    </div>
+
+    <form id="credentialsForm">
+      <div class="form-group readonly">
+        <label>Service</label>
+        <input type="text" value="hacksaw-in" readonly>
+      </div>
+
+      <div class="form-group">
+        <label>Organization Name</label>
+        <input type="text" id="organisation" name="organisation" placeholder="e.g., zoho" required>
+      </div>
+
+      <div class="form-group">
+        <label>Client ID</label>
+        <input type="password" id="clientId" name="clientId" placeholder="Your Hacksaw Client ID" required>
+      </div>
+
+      <div class="form-group">
+        <label>Client Secret</label>
+        <input type="password" id="clientSecret" name="clientSecret" placeholder="Your Hacksaw Client Secret" required>
+      </div>
+
+      <div class="button-group">
+        <button type="button" class="btn-check" onclick="checkStatus()">Check Status</button>
+        <button type="submit" class="btn-save">Save Credentials</button>
+        <button type="button" class="btn-delete" onclick="deleteCredentials()">Delete</button>
+      </div>
+
+      <div class="loader" id="loader">
+        <div class="spinner"></div>
+      </div>
+
+      <div class="message" id="message"></div>
+      <div class="status" id="status" style="display:none;"></div>
+    </form>
+  </div>
+
+  <script>
+    const form = document.getElementById('credentialsForm');
+    const messageEl = document.getElementById('message');
+    const loaderEl = document.getElementById('loader');
+    const statusEl = document.getElementById('status');
+
+    function showMessage(text, type) {
+      messageEl.textContent = text;
+      messageEl.className = 'message ' + type;
+      messageEl.style.display = 'block';
+      setTimeout(() => { messageEl.style.display = 'none'; }, 5000);
+    }
+
+    function showLoader(show) {
+      loaderEl.style.display = show ? 'block' : 'none';
+    }
+
+    async function checkStatus() {
+      try {
+        showLoader(true);
+        const response = await fetch('/api/hacksaw/credentials', { method: 'GET' });
+        const data = await response.json();
+
+        if (data.success && data.data) {
+          const meta = data.data;
+          statusEl.innerHTML = \`
+            <strong>✅ Credentials Configured</strong><br>
+            Organization: <strong>\${meta.organisation}</strong><br>
+            Profile: <strong>\${meta.profile}</strong><br>
+            Updated: <strong>\${new Date(meta.updatedAt).toLocaleString()}</strong>
+          \`;
+          statusEl.style.display = 'block';
+          showMessage('Credentials are properly configured', 'success');
+        } else {
+          statusEl.innerHTML = '<strong>❌ No credentials configured</strong>';
+          statusEl.style.display = 'block';
+          showMessage('No credentials found. Please save them first.', 'info');
+        }
+      } catch (error) {
+        showMessage('Error checking status: ' + error.message, 'error');
+      } finally {
+        showLoader(false);
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const organisation = document.getElementById('organisation').value.trim();
+      const clientId = document.getElementById('clientId').value.trim();
+      const clientSecret = document.getElementById('clientSecret').value.trim();
+
+      if (!organisation || !clientId || !clientSecret) {
+        showMessage('All fields are required', 'error');
+        return;
+      }
+
+      try {
+        showLoader(true);
+        const response = await fetch('/api/hacksaw/credentials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ organisation, clientId, clientSecret })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) throw new Error(data.message || 'Failed to save credentials');
+
+        showMessage('✅ Credentials saved successfully!', 'success');
+        form.reset();
+        statusEl.style.display = 'none';
+
+        // Auto-check status after saving
+        setTimeout(checkStatus, 1000);
+      } catch (error) {
+        showMessage('❌ Error: ' + error.message, 'error');
+      } finally {
+        showLoader(false);
+      }
+    });
+
+    async function deleteCredentials() {
+      if (!confirm('Are you sure you want to delete the stored credentials?')) return;
+
+      try {
+        showLoader(true);
+        const response = await fetch('/api/hacksaw/credentials', { method: 'DELETE' });
+        const data = await response.json();
+
+        if (!response.ok) throw new Error(data.message || 'Failed to delete credentials');
+
+        showMessage('✅ Credentials deleted successfully', 'success');
+        form.reset();
+        statusEl.style.display = 'none';
+      } catch (error) {
+        showMessage('❌ Error: ' + error.message, 'error');
+      } finally {
+        showLoader(false);
+      }
+    }
+
+    // Check status on page load
+    window.addEventListener('load', checkStatus);
+  </script>
+</body>
+</html>
+  `;
+  res.setHeader('Content-Type', 'text/html');
+  res.send(html);
+});
+
+// Hacksaw Credentials - Save/Update
+app.post('/api/hacksaw/credentials', async (req, res) => {
+  try {
+    const { organisation, clientId, clientSecret } = req.body;
+
+    if (!organisation || !clientId || !clientSecret) {
+      return res.status(400).json({
+        success: false,
+        message: 'organisation, clientId, and clientSecret are required',
+      });
+    }
+
+    const result = await credsManager.storeCredentials(
+      organisation,
+      clientId,
+      clientSecret,
+      'in'
+    );
+
+    res.json({
+      success: true,
+      message: 'Credentials saved successfully',
+      data: result.data,
+    });
+  } catch (error) {
+    console.error('❌ Error saving credentials:', error.message);
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// Hacksaw Credentials - Retrieve metadata
+app.get('/api/hacksaw/credentials', async (req, res) => {
+  try {
+    const metadata = await credsManager.getCredentialMetadata('in');
+
+    if (!metadata) {
+      return res.json({
+        success: false,
+        message: 'No credentials configured',
+        data: null,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Credentials found',
+      data: metadata,
+    });
+  } catch (error) {
+    console.error('❌ Error retrieving credentials:', error.message);
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// Hacksaw Credentials - Delete
+app.delete('/api/hacksaw/credentials', async (req, res) => {
+  try {
+    await credsManager.deleteCredentials('in');
+    res.json({
+      success: true,
+      message: 'Credentials deleted successfully',
+    });
+  } catch (error) {
+    console.error('❌ Error deleting credentials:', error.message);
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
 // Hacksaw Products - Fetch all products available in Hacksaw
 app.get('/api/hacksaw/products', async (req, res) => {
   try {
@@ -271,8 +675,20 @@ app.get('/api/hacksaw/violations', async (req, res) => {
 
     console.log(`🔍 Fetching Hacksaw violations for organisation: ${organisation}`);
 
-    // Get Hacksaw credentials from config (org-wide)
-    const hacksawCreds = connManager.getHacksawCredentials();
+    // Get Hacksaw credentials - try stored credentials first, then fall back to env vars
+    let hacksawCreds = null;
+    const storedCreds = await credsManager.getCredentials('in');
+
+    if (storedCreds) {
+      console.log('📦 Using stored Hacksaw credentials');
+      hacksawCreds = {
+        clientId: storedCreds.clientId,
+        clientSecret: storedCreds.clientSecret,
+      };
+    } else {
+      console.log('📦 Using environment variable Hacksaw credentials');
+      hacksawCreds = connManager.getHacksawCredentials();
+    }
 
     // Parse filter if provided (should be JSON string)
     let parsedFilter = {};
@@ -287,7 +703,7 @@ app.get('/api/hacksaw/violations', async (req, res) => {
       }
     }
 
-    // Fetch violations using org credentials
+    // Fetch violations using credentials
     const violations = await connManager.fetchHacksawViolations(
       hacksawCreds,
       organisation,
@@ -306,6 +722,7 @@ app.get('/api/hacksaw/violations', async (req, res) => {
       status: violations.STATUS,
       components: violations.CONTENT || [],
       total_count: componentCount,
+      credentialsSource: storedCreds ? 'datastore' : 'environment',
     });
   } catch (error) {
     console.error('❌ Hacksaw violations error:', error.message);
