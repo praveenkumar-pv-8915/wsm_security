@@ -339,13 +339,13 @@ class ConnectionManager {
    * Fetch vulnerable components (violations) from Hacksaw
    *
    * Required Hacksaw API parameters:
+   * - action: fetchvulnerablecomponents
    * - organisation: Organization name
    * - productname: Product name (e.g., Logs360cloud)
    * - reportlabel: Report label (e.g., production_Jun_22_2026_Log360Cloud)
-   * - slaprofile: SLA Profile (default: ZOHOCORP)
-   * - filter: Optional filter criteria
+   * - filter: Optional filter criteria (JSON object)
    */
-  async fetchHacksawViolations(credentials, organisation, productName, reportLabel, slaProfile = 'ZOHOCORP', filter = {}) {
+  async fetchHacksawViolations(credentials, organisation, productName, reportLabel, filter = {}) {
     const profile = this.getProfile();
 
     return new Promise((resolve, reject) => {
@@ -358,7 +358,6 @@ class ConnectionManager {
       queryParams.append('organisation', organisation);
       queryParams.append('productname', productName);
       queryParams.append('reportlabel', reportLabel);
-      queryParams.append('slaprofile', slaProfile);
       if (Object.keys(filter).length > 0) {
         queryParams.append('filter', JSON.stringify(filter));
       }
