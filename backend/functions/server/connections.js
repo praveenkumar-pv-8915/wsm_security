@@ -349,8 +349,20 @@ class ConnectionManager {
     const profile = this.getProfile();
 
     return new Promise((resolve, reject) => {
-      // Create Basic Auth header from credentials
-      const auth = Buffer.from(`${credentials.clientId}:${credentials.clientSecret}`).toString('base64');
+      // Support both OAuth Bearer tokens and Basic Auth
+      let authHeader = null;
+      let authType = null;
+
+      if (credentials.access_token) {
+        // OAuth Bearer token
+        authHeader = `Bearer ${credentials.access_token}`;
+        authType = 'OAuth Bearer';
+      } else {
+        // Basic Auth with clientId and clientSecret
+        const auth = Buffer.from(`${credentials.clientId}:${credentials.clientSecret}`).toString('base64');
+        authHeader = `Basic ${auth}`;
+        authType = 'Basic Auth';
+      }
 
       // Build query string with all required Hacksaw API parameters
       const queryParams = new URLSearchParams();
@@ -367,9 +379,13 @@ class ConnectionManager {
       console.log('🔍 Hacksaw Request Details:');
       console.log(`   Hostname: ${profile.hacksaw_domain}`);
       console.log(`   Path: ${path}`);
-      console.log(`   Auth: Basic ${auth.substring(0, 10)}...`);
-      console.log(`   Client ID (first 10 chars): ${credentials.clientId.substring(0, 10)}...`);
-      console.log(`   Client Secret (first 10 chars): ${credentials.clientSecret.substring(0, 10)}...`);
+      console.log(`   Auth Type: ${authType}`);
+      if (authType === 'Basic Auth') {
+        console.log(`   Client ID (first 10 chars): ${credentials.clientId.substring(0, 10)}...`);
+        console.log(`   Client Secret (first 10 chars): ${credentials.clientSecret.substring(0, 10)}...`);
+      } else {
+        console.log(`   OAuth Token (first 20 chars): ${credentials.access_token.substring(0, 20)}...`);
+      }
       console.log(`   Organisation: ${organisation}`);
       console.log(`   Product: ${productName}`);
       console.log(`   Report Label: ${reportLabel}`);
@@ -380,7 +396,7 @@ class ConnectionManager {
         path: path,
         method: 'GET',
         headers: {
-          'Authorization': `Basic ${auth}`,
+          'Authorization': authHeader,
           'Content-Type': 'application/json',
         },
       };
