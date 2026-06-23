@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
   console.log(`🚀 Backend server running on http://localhost:${PORT}`);
   console.log(`📚 API Endpoints:`);
-  console.log(`   OAuth Services: GET /api/oauth/services`);
-  console.log(`   Authorization: GET /api/oauth/authorize?service=hacksaw`);
+  console.log(`   Products: GET /api/hacksaw/products`);
   console.log(`   Violations: GET /api/hacksaw/violations?organisation=...&productname=...&reportlabel=...`);
+  console.log(`   Credentials: POST/GET/DELETE /api/hacksaw/credentials`);
 });
