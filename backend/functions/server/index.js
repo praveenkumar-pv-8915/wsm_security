@@ -664,12 +664,32 @@ app.get('/api/hacksaw/violations', async (req, res) => {
       return res.status(503).json({ error: 'Connection manager not available' });
     }
 
-    const { organisation, filter } = req.query;
+    // Get all required parameters from query string
+    const { organisation, productname, reportlabel, slaprofile, filter } = req.query;
 
+    // Validate required parameters
     if (!organisation) {
       return res.status(400).json({
         error: 'Missing required parameter',
         message: 'organisation parameter is required',
+      });
+    }
+    if (!productname) {
+      return res.status(400).json({
+        error: 'Missing required parameter',
+        message: 'productname parameter is required',
+      });
+    }
+    if (!reportlabel) {
+      return res.status(400).json({
+        error: 'Missing required parameter',
+        message: 'reportlabel parameter is required',
+      });
+    }
+    if (!slaprofile) {
+      return res.status(400).json({
+        error: 'Missing required parameter',
+        message: 'slaprofile parameter is required',
       });
     }
 
@@ -703,14 +723,13 @@ app.get('/api/hacksaw/violations', async (req, res) => {
       }
     }
 
-    // Get product name from query or use default
-    const productName = req.query.product || 'WSM-Security';
-
-    // Fetch violations using credentials
+    // Fetch violations using credentials with all query parameters
     const violations = await connManager.fetchHacksawViolations(
       hacksawCreds,
       organisation,
-      productName,
+      productname,
+      reportlabel,
+      slaprofile,
       parsedFilter
     );
 
@@ -722,6 +741,9 @@ app.get('/api/hacksaw/violations', async (req, res) => {
       profile: connManager.profile,
       service: 'hacksaw',
       organisation: organisation,
+      productname: productname,
+      reportlabel: reportlabel,
+      slaprofile: slaprofile,
       filter: parsedFilter,
       status: violations.STATUS,
       components: violations.CONTENT || [],

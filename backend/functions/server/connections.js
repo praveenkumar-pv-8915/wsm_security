@@ -337,20 +337,31 @@ class ConnectionManager {
 
   /**
    * Fetch vulnerable components (violations) from Hacksaw
+   *
+   * Required Hacksaw API parameters:
+   * - organisation: Organization name
+   * - productname: Product name (e.g., Logs360cloud)
+   * - reportlabel: Report label (e.g., production_Jun_22_2026_Log360Cloud)
+   * - slaprofile: SLA Profile (e.g., ZOHOCORP)
+   * - filter: Optional filter criteria
    */
-  async fetchHacksawViolations(credentials, organisation, productName = 'WSM-Security', filter = {}) {
+  async fetchHacksawViolations(credentials, organisation, productName, reportLabel, slaProfile, filter = {}) {
     const profile = this.getProfile();
 
     return new Promise((resolve, reject) => {
       // Create Basic Auth header from credentials
       const auth = Buffer.from(`${credentials.clientId}:${credentials.clientSecret}`).toString('base64');
 
-      // Build query string
+      // Build query string with all required Hacksaw API parameters
       const queryParams = new URLSearchParams();
       queryParams.append('action', 'fetchvulnerablecomponents');
       queryParams.append('organisation', organisation);
-      queryParams.append('Productname', productName);
-      queryParams.append('filter', JSON.stringify(filter));
+      queryParams.append('productname', productName);
+      queryParams.append('reportlabel', reportLabel);
+      queryParams.append('slaprofile', slaProfile);
+      if (Object.keys(filter).length > 0) {
+        queryParams.append('filter', JSON.stringify(filter));
+      }
 
       const path = `/api/vulnerablecomponentsreport?${queryParams.toString()}`;
 
@@ -382,12 +393,24 @@ class ConnectionManager {
           try {
             const response = JSON.parse(data);
             if (res.statusCode >= 400) {
-              reject(new Error(`Hacksaw API error (${res.statusCode}): ${response.message || response.error || 'Unknown error'}`));
+              // Extract detailed error info from Hacksaw API
+              const errorMsg = response.ERROR_MESSAGE || response.message || response.error || 'Unknown error';
+              const errorDesc = response.DESCRIPTION || '';
+              const errorCode = response.ERROR_CODE || '';
+              const fullError = errorCode ? `${errorMsg} (${errorCode})` : errorMsg;
+              const detail = errorDesc ? ` - ${errorDesc}` : '';
+
+              console.error(`❌ Hacksaw API Error (${res.statusCode}): ${fullError}${detail}`);
+              console.error(`Response: ${data}`);
+
+              reject(new Error(`Hacksaw API error (${res.statusCode}): ${fullError}${detail}`));
             } else {
               resolve(response);
             }
           } catch (error) {
-            reject(new Error(`Failed to parse Hacksaw response: ${error.message}`));
+            console.error(`❌ Failed to parse Hacksaw response: ${error.message}`);
+            console.error(`Raw data: ${data}`);
+            reject(new Error(`Failed to parse Hacksaw response: ${error.message}\nRaw: ${data}`));
           }
         });
       });
