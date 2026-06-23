@@ -4,6 +4,14 @@
 
 This integration fetches vulnerable components (violations) from Hacksaw, a Zoho internal security scanning product. The API retrieves Software Composition Analysis (SCA) data about vulnerable dependencies in your application.
 
+### Key Features
+
+✅ **Secure Credential Management** - Store and encrypt credentials via web UI  
+✅ **No .env File Required** - No need to manually edit configuration files  
+✅ **Encrypted Storage** - Credentials are encrypted at rest in the datastore  
+✅ **Easy Updates** - Change credentials anytime through the UI  
+✅ **Fallback Support** - Works with environment variables as backup
+
 ## API Endpoint
 
 ```
@@ -138,21 +146,98 @@ curl "http://localhost:8000/api/hacksaw/violations?organisation=my-org&filter={\
 | FILE_HASH | JSONArray | Hash details of the component |
 | IDENTIFIERS | JSONObject | Additional identifiers |
 
+## Credential Management
+
+### Option 1: Web UI (Recommended) ⭐
+
+The easiest and most secure way to configure credentials.
+
+**Step 1:** Start the backend server
+```bash
+cd backend
+npm install
+node functions/server/index.js
+```
+
+**Step 2:** Open the credential form in your browser
+```
+http://localhost:8000/api/hacksaw/credentials-form
+```
+
+**Step 3:** Fill in your credentials
+- **Organization Name**: `zoho`
+- **Client ID**: Your Hacksaw Client ID
+- **Client Secret**: Your Hacksaw Client Secret
+
+**Step 4:** Click "Save Credentials"
+- Credentials are encrypted and stored securely
+- You'll see a success message
+
+**Features:**
+- ✅ Check status of stored credentials
+- ✅ Update credentials anytime
+- ✅ Delete credentials when needed
+- ✅ Real-time validation and status checking
+
+### Option 2: Environment Variables (Fallback)
+
+If you prefer not to use the UI, you can still use `.env`:
+
+```bash
+ZOHO_HACKSAW_CLIENT_ID_IN=your_credentials
+ZOHO_HACKSAW_CLIENT_SECRET_IN=your_credentials
+```
+
+The API will automatically use stored credentials if available, otherwise fall back to environment variables.
+
+### Credential Management Endpoints
+
+#### Check Credential Status
+```bash
+curl http://localhost:8000/api/hacksaw/credentials
+```
+
+Response:
+```json
+{
+  "success": true,
+  "message": "Credentials found",
+  "data": {
+    "service": "hacksaw-in",
+    "organisation": "zoho",
+    "profile": "in",
+    "createdAt": "2026-06-23T10:30:00.000Z",
+    "updatedAt": "2026-06-23T10:30:00.000Z",
+    "isConfigured": true
+  }
+}
+```
+
+#### Delete Credentials
+```bash
+curl -X DELETE http://localhost:8000/api/hacksaw/credentials
+```
+
 ## Local Testing
 
-### Setup
+### Setup (No .env Required!)
 
-1. Ensure Hacksaw credentials are set in `.env`:
-   ```
-   ZOHO_HACKSAW_CLIENT_ID_IN=your_credentials
-   ZOHO_HACKSAW_CLIENT_SECRET_IN=your_credentials
-   ```
-
-2. Install dependencies:
+1. Install dependencies:
    ```bash
    cd backend
    npm install
    ```
+
+2. Start the server:
+   ```bash
+   node functions/server/index.js
+   ```
+
+3. **Add credentials via web UI** (recommended):
+   ```
+   http://localhost:8000/api/hacksaw/credentials-form
+   ```
+   OR add them to `.env` if preferred
 
 ### Test Script
 
