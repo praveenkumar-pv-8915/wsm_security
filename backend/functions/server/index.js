@@ -642,16 +642,25 @@ app.get('/api/hacksaw/oauth/authorize', (req, res) => {
     }
 
     const redirectUri = req.query.redirect_uri || `${req.protocol}://${req.get('host')}/api/hacksaw/oauth/callback`;
-    const authUrl = hacksawOAuth.getAuthorizationUrl(redirectUri);
+
+    // Parse additional scopes from query parameter (comma-separated)
+    const additionalScopes = req.query.scopes
+      ? req.query.scopes.split(',').map(s => s.trim()).filter(s => s)
+      : [];
+
+    const authUrl = hacksawOAuth.getAuthorizationUrl(redirectUri, additionalScopes);
 
     console.log('🔐 Generating Hacksaw OAuth authorization URL');
     console.log(`   Redirect URI: ${redirectUri}`);
+    console.log(`   Additional Scopes: ${additionalScopes.join(', ') || 'none'}`);
 
     res.json({
       success: true,
       message: 'OAuth authorization URL generated',
       auth_url: authUrl,
       redirect_uri: redirectUri,
+      scopes: 'All Hacksaw read scopes included',
+      additional_scopes: additionalScopes,
     });
   } catch (error) {
     console.error('❌ OAuth authorization error:', error.message);
