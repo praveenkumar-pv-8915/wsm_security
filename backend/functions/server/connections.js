@@ -287,19 +287,22 @@ class ConnectionManager {
   }
 
   /**
-   * Fetch list of products from Hacksaw
+   * Fetch list of products from Hacksaw using org credentials
    */
-  async fetchHacksawProducts(accessToken) {
+  async fetchHacksawProducts(credentials) {
     const profile = this.getProfile();
     const service = this.getService('hacksaw');
 
     return new Promise((resolve, reject) => {
+      // Create Basic Auth header from credentials
+      const auth = Buffer.from(`${credentials.clientId}:${credentials.clientSecret}`).toString('base64');
+
       const options = {
         hostname: profile.hacksaw_domain,
         path: `${service.api_base}/products`,
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
+          'Authorization': `Basic ${auth}`,
           'Content-Type': 'application/json',
         },
       };
@@ -315,7 +318,60 @@ class ConnectionManager {
           try {
             const response = JSON.parse(data);
             if (res.statusCode >= 400) {
-              reject(new Error(`Hacksaw API error: ${response.message || response.error}`));
+              reject(new Error(`Hacksaw API error (${res.statusCode}): ${response.message || response.error}`));
+            } else {
+              // Handle both array and object responses
+              const products = Array.isArray(response) ? response : response.products || response.data || [];
+              resolve(products);
+            }
+          } catch (error) {
+            reject(new Error(`Failed to parse Hacksaw response: ${error.message}`));
+          }
+        });
+      });
+
+      req.on('error', reject);
+      req.end();
+    });
+  }
+
+  /**
+   * Fetch vulnerable components (violations) from Hacksaw
+   */
+  async fetchHacksawViolations(credentials, organisation, filter = {}) {
+    const profile = this.getProfile();
+
+    return new Promise((resolve, reject) => {
+      // Create Basic Auth header from credentials
+      const auth = Buffer.from(`${credentials.clientId}:${credentials.clientSecret}`).toString('base64');
+
+      // Build query string
+      const queryParams = new URLSearchParams();
+      queryParams.append('organisation', organisation);
+      queryParams.append('filter', JSON.stringify(filter));
+
+      const options = {
+        hostname: profile.hacksaw_domain,
+        path: `/api/vulnerablecomponentsreport?${queryParams.toString()}`,
+        method: 'GET',
+        headers: {
+          'Authorization': `Basic ${auth}`,
+          'Content-Type': 'application/json',
+        },
+      };
+
+      const req = https.request(options, (res) => {
+        let data = '';
+
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+
+        res.on('end', () => {
+          try {
+            const response = JSON.parse(data);
+            if (res.statusCode >= 400) {
+              reject(new Error(`Hacksaw API error (${res.statusCode}): ${response.message || response.error || 'Unknown error'}`));
             } else {
               resolve(response);
             }

@@ -220,28 +220,97 @@ app.post('/api/tasks', profileMiddleware, (req, res) => {
   });
 });
 
-// Hacksaw Products - Fetch all products from Hacksaw
-app.get('/api/hacksaw/products', validateToken, async (req, res) => {
+// Hacksaw Products - Fetch all products available in Hacksaw
+app.get('/api/hacksaw/products', async (req, res) => {
   try {
     if (!connManager) {
       return res.status(503).json({ error: 'Connection manager not available' });
     }
 
-    // TODO: Get Hacksaw access token from storage or current OAuth session
-    // For now, this is a placeholder endpoint
+    console.log('📦 Fetching Hacksaw products...');
+
+    // Get Hacksaw credentials from config (org-wide)
+    const hacksawCreds = connManager.getHacksawCredentials();
+
+    // Fetch products using org credentials
+    const products = await connManager.fetchHacksawProducts(hacksawCreds);
+
+    console.log(`✅ Fetched ${products.length || 0} Hacksaw products`);
+
     res.json({
-      products: [],
-      message: 'Hacksaw connection configured. Use your Hacksaw OAuth token to fetch products.',
-      connection_info: {
-        service: 'hacksaw',
-        profile: connManager.profile,
-        endpoint: `https://${connManager.getProfile().hacksaw_domain}/api/v1/products`,
-      },
+      success: true,
+      profile: connManager.profile,
+      service: 'hacksaw',
+      products: products,
+      total_count: products.length || 0,
     });
   } catch (error) {
-    console.error('Hacksaw products error:', error.message);
+    console.error('❌ Hacksaw products error:', error.message);
     res.status(400).json({
       error: 'Failed to fetch Hacksaw products',
+      message: error.message,
+    });
+  }
+});
+
+// Hacksaw Violations - Fetch vulnerable components (violations) from Hacksaw
+app.get('/api/hacksaw/violations', async (req, res) => {
+  try {
+    if (!connManager) {
+      return res.status(503).json({ error: 'Connection manager not available' });
+    }
+
+    const { organisation, filter } = req.query;
+
+    if (!organisation) {
+      return res.status(400).json({
+        error: 'Missing required parameter',
+        message: 'organisation parameter is required',
+      });
+    }
+
+    console.log(`🔍 Fetching Hacksaw violations for organisation: ${organisation}`);
+
+    // Get Hacksaw credentials from config (org-wide)
+    const hacksawCreds = connManager.getHacksawCredentials();
+
+    // Parse filter if provided (should be JSON string)
+    let parsedFilter = {};
+    if (filter) {
+      try {
+        parsedFilter = typeof filter === 'string' ? JSON.parse(filter) : filter;
+      } catch (e) {
+        return res.status(400).json({
+          error: 'Invalid filter parameter',
+          message: 'filter must be valid JSON',
+        });
+      }
+    }
+
+    // Fetch violations using org credentials
+    const violations = await connManager.fetchHacksawViolations(
+      hacksawCreds,
+      organisation,
+      parsedFilter
+    );
+
+    const componentCount = violations.CONTENT ? violations.CONTENT.length : 0;
+    console.log(`✅ Fetched ${componentCount} components with violations`);
+
+    res.json({
+      success: true,
+      profile: connManager.profile,
+      service: 'hacksaw',
+      organisation: organisation,
+      filter: parsedFilter,
+      status: violations.STATUS,
+      components: violations.CONTENT || [],
+      total_count: componentCount,
+    });
+  } catch (error) {
+    console.error('❌ Hacksaw violations error:', error.message);
+    res.status(400).json({
+      error: 'Failed to fetch Hacksaw violations',
       message: error.message,
     });
   }
