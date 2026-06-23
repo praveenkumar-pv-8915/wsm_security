@@ -8,6 +8,27 @@ OAuth 2.0 provides secure, delegated access to Hacksaw API without storing clien
 
 ---
 
+## OAuth Scopes
+
+The following read scopes are automatically requested:
+
+| Scope | Purpose |
+|-------|---------|
+| `Hacksaw.repository.READ` | Repository and component data |
+| `Hacksaw.scan.READ` | Scan results and history |
+| `Hacksaw.report.READ` | Reports and summaries |
+| `Hacksaw.product.READ` | Products list and information |
+| `Hacksaw.component.READ` | Component details and metadata |
+| `Hacksaw.vulnerability.READ` | Vulnerability data and details |
+| `Hacksaw.sla.READ` | SLA profiles and settings |
+| `Hacksaw.organization.READ` | Organization data and info |
+| `Hacksaw.user.READ` | User information and permissions |
+| `Hacksaw.api.READ` | API access permissions |
+
+**Custom Scopes:** You can add additional scopes via the `scopes` query parameter.
+
+---
+
 ## OAuth 2.0 Flow Diagram
 
 ```
@@ -22,10 +43,10 @@ OAuth 2.0 provides secure, delegated access to Hacksaw API without storing clien
        │ 2. Redirect to authorization endpoint             │
        │ GET /api/hacksaw/oauth/authorize                  │
        │                                                    │
-       │ 3. Get authorization URL                          │
+       │ 3. Get authorization URL (with all scopes)        │
        │←────────────────────────────────────────────────  │
        │                                                    │
-       │ 4. Redirect user to Zoho                          │
+       │ 4. Redirect user to Zoho with scopes              │
        ├───────────────────────────────────────────────→   │
        │                                                    │
        │                                          (User grants permission)
@@ -39,7 +60,7 @@ OAuth 2.0 provides secure, delegated access to Hacksaw API without storing clien
        │ 7. Exchange code for access token                 │
        │                                    (Behind the scenes)
        │                                                    │
-       │ 8. Return access token                            │
+       │ 8. Return access token (with all scopes)          │
        │←────────────────────────────────────────────────  │
        │                                                    │
        │ 9. Store token & redirect to dashboard            │
@@ -141,10 +162,23 @@ curl -X POST "http://localhost:8000/api/hacksaw/oauth/revoke?user_id=user123"
 GET /api/hacksaw/oauth/authorize
 Query Parameters:
   - redirect_uri (optional): Custom redirect URI
+  - scopes (optional): Comma-separated additional scopes
 
 Response:
-  - auth_url: OAuth authorization URL
+  - auth_url: OAuth authorization URL (includes all read scopes)
   - redirect_uri: Callback URI to use
+  - scopes: "All Hacksaw read scopes included"
+  - additional_scopes: Any extra scopes requested
+
+Examples:
+  # Default (all read scopes)
+  GET /api/hacksaw/oauth/authorize
+
+  # With custom redirect URI
+  GET /api/hacksaw/oauth/authorize?redirect_uri=https://example.com/callback
+
+  # With additional scopes
+  GET /api/hacksaw/oauth/authorize?scopes=Hacksaw.custom.READ,Hacksaw.admin.READ
 ```
 
 ### 2. OAuth Callback Handler

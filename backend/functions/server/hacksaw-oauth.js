@@ -14,20 +14,42 @@ class HacksawOAuthManager {
 
   /**
    * Get OAuth authorization URL for Hacksaw
+   * Includes all read scopes for comprehensive Hacksaw API access
    */
-  getAuthorizationUrl(redirectUri) {
+  getAuthorizationUrl(redirectUri, additionalScopes = []) {
     const profile = this.connManager.getProfile();
     const creds = this.connManager.getCredentials();
+
+    // All available Hacksaw read scopes
+    const allScopes = [
+      'Hacksaw.repository.READ',        // Repository/component data
+      'Hacksaw.scan.READ',              // Scan results and history
+      'Hacksaw.report.READ',            // Reports and summaries
+      'Hacksaw.product.READ',           // Products list and info
+      'Hacksaw.component.READ',         // Component details
+      'Hacksaw.vulnerability.READ',     // Vulnerability data
+      'Hacksaw.sla.READ',               // SLA profiles and settings
+      'Hacksaw.organization.READ',      // Organization data
+      'Hacksaw.user.READ',              // User information
+      'Hacksaw.api.READ',               // API access
+      ...additionalScopes,
+    ];
+
+    // Remove duplicates
+    const uniqueScopes = [...new Set(allScopes)];
+    const scopeString = uniqueScopes.join(' ');
 
     const params = new URLSearchParams({
       client_id: creds.clientId,
       response_type: 'code',
-      scope: 'Hacksaw.repository.READ',
+      scope: scopeString,
       redirect_uri: redirectUri,
       access_type: 'offline',
       prompt: 'consent',
       state: this.generateState(),
     });
+
+    console.log(`📋 OAuth Scopes: ${scopeString}`);
 
     return `https://${profile.accounts_domain}/oauth/v2/auth?${params.toString()}`;
   }
