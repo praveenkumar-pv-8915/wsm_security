@@ -12,6 +12,10 @@ const SensitiveDataManager = require('./sensitive-data-manager');
 const app = express();
 app.use(express.json());
 
+// Serve frontend static files
+const frontendPath = path.join(__dirname, '../../../frontend/dist');
+app.use(express.static(frontendPath));
+
 // Enable CORS for local development
 if (process.env.ENVIRONMENT !== 'production') {
   app.use((req, res, next) => {
@@ -854,8 +858,13 @@ app.get('/api/secrets/audit-logs', requireUserId, async (req, res) => {
   }
 });
 
-app.all('*', (req, res) => {
-  res.status(404).json({ message: 'Not found' });
+// SPA fallback - serve index.html for non-API routes
+app.get('*', (req, res) => {
+  if (!req.path.startsWith('/api') && !req.path.startsWith('/webhook')) {
+    res.sendFile(path.join(frontendPath, 'index.html'));
+  } else {
+    res.status(404).json({ message: 'Not found' });
+  }
 });
 
 // Start server (only in local development mode when run directly)
