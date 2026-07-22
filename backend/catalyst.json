@@ -115,6 +115,84 @@
             "type": "string"
           }
         ]
+      },
+      {
+        "name": "user_credentials",
+        "columns": [
+          {
+            "name": "credential_id",
+            "type": "bigint",
+            "primary_key": true,
+            "auto_increment": true
+          },
+          {
+            "name": "user_id",
+            "type": "string"
+          },
+          {
+            "name": "credential_name",
+            "type": "string"
+          },
+          {
+            "name": "credential_type",
+            "type": "string"
+          },
+          {
+            "name": "encrypted_value",
+            "type": "string"
+          },
+          {
+            "name": "description",
+            "type": "string"
+          },
+          {
+            "name": "created_at",
+            "type": "string"
+          },
+          {
+            "name": "updated_at",
+            "type": "string"
+          }
+        ]
+      },
+      {
+        "name": "credential_audit_logs",
+        "columns": [
+          {
+            "name": "log_id",
+            "type": "bigint",
+            "primary_key": true,
+            "auto_increment": true
+          },
+          {
+            "name": "user_id",
+            "type": "string"
+          },
+          {
+            "name": "credential_id",
+            "type": "bigint"
+          },
+          {
+            "name": "action",
+            "type": "string"
+          },
+          {
+            "name": "status",
+            "type": "string"
+          },
+          {
+            "name": "ip_address",
+            "type": "string"
+          },
+          {
+            "name": "user_agent",
+            "type": "string"
+          },
+          {
+            "name": "timestamp",
+            "type": "string"
+          }
+        ]
       }
     ]
   }

@@ -7,6 +7,7 @@ const express = require('express');
 const path = require('path');
 const ConnectionManager = require('./connections');
 const CredentialsManager = require('./credentials-manager');
+const SensitiveDataManager = require('./sensitive-data-manager');
 
 const app = express();
 app.use(express.json());
@@ -24,6 +25,14 @@ if (process.env.ENVIRONMENT !== 'production') {
   });
 }
 
+// Middleware to extract user ID from request
+app.use((req, res, next) => {
+  req.userId = req.headers['x-user-id'] || req.query.user_id || null;
+  req.ipAddress = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  req.userAgent = req.headers['user-agent'] || 'unknown';
+  next();
+});
+
 // Initialize Connection Manager
 let connManager = null;
 try {
@@ -37,6 +46,9 @@ try {
 
 // Initialize Credentials Manager
 const credsManager = new CredentialsManager();
+
+// Initialize Sensitive Data Manager
+const sensitiveDataManager = new SensitiveDataManager();
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -458,6 +470,56 @@ app.delete('/api/hacksaw/credentials', async (req, res) => {
 });
 
 
+// Zoho Repository Webhook - Receive events from Zoho Repository
+app.post('/webhook/zoho/repository', async (req, res) => {
+  try {
+    console.log('📨 Webhook received from Zoho Repository');
+
+    const payload = req.body;
+
+    // Validate webhook payload
+    if (!payload || typeof payload !== 'object') {
+      return res.status(400).json({
+        error: 'Invalid payload',
+        message: 'Webhook payload must be a valid JSON object',
+      });
+    }
+
+    console.log('📋 Payload:', JSON.stringify(payload, null, 2).substring(0, 500));
+
+    // Extract event type and data
+    const eventType = payload.event_type || payload.type || 'unknown';
+    const eventData = {
+      webhook_id: payload.webhook_id || `webhook_${Date.now()}`,
+      event_type: eventType,
+      timestamp: new Date().toISOString(),
+      raw_payload: payload,
+      status: 'received',
+    };
+
+    console.log(`✅ Event Type: ${eventType}`);
+
+    // TODO: Store in Catalyst Datastore
+    // const result = await db.webhookEvents.create(eventData);
+
+    // Acknowledge receipt
+    res.status(200).json({
+      success: true,
+      webhook_id: eventData.webhook_id,
+      event_type: eventType,
+      timestamp: eventData.timestamp,
+      message: 'Webhook received and queued for processing',
+    });
+
+  } catch (error) {
+    console.error('❌ Webhook error:', error.message);
+    res.status(500).json({
+      error: 'Webhook processing failed',
+      message: error.message,
+    });
+  }
+});
+
 // Hacksaw Products - Fetch all products available in Hacksaw
 app.get('/api/hacksaw/products', async (req, res) => {
   try {
@@ -583,6 +645,210 @@ app.get('/api/hacksaw/violations', async (req, res) => {
     console.error('❌ Hacksaw violations error:', error.message);
     res.status(400).json({
       error: 'Failed to fetch Hacksaw violations',
+      message: error.message,
+    });
+  }
+});
+
+// ============================================================================
+// SENSITIVE DATA MANAGEMENT ENDPOINTS
+// ============================================================================
+
+// Validate user context middleware
+const requireUserId = (req, res, next) => {
+  if (!req.userId) {
+    return res.status(401).json({
+      success: false,
+      message: 'User ID is required. Provide via x-user-id header or user_id query parameter',
+    });
+  }
+  next();
+};
+
+// Store a sensitive secret
+app.post('/api/secrets/store', requireUserId, async (req, res) => {
+  try {
+    const { credentialName, credentialType, secretValue, description } = req.body;
+
+    if (!credentialName || !credentialType || !secretValue) {
+      return res.status(400).json({
+        success: false,
+        message: 'credentialName, credentialType, and secretValue are required',
+      });
+    }
+
+    const result = await sensitiveDataManager.storeSecret(
+      req.userId,
+      credentialName,
+      credentialType,
+      secretValue,
+      description,
+      req.ipAddress,
+      req.userAgent
+    );
+
+    res.json({
+      success: true,
+      message: 'Secret stored successfully',
+      data: result,
+    });
+  } catch (error) {
+    console.error('❌ Error storing secret:', error.message);
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// Retrieve a sensitive secret
+app.get('/api/secrets/:credentialName', requireUserId, async (req, res) => {
+  try {
+    const { credentialName } = req.params;
+
+    if (!credentialName) {
+      return res.status(400).json({
+        success: false,
+        message: 'credentialName is required',
+      });
+    }
+
+    const secret = await sensitiveDataManager.getSecret(
+      req.userId,
+      credentialName,
+      req.ipAddress,
+      req.userAgent
+    );
+
+    if (!secret) {
+      return res.status(404).json({
+        success: false,
+        message: 'Secret not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Secret retrieved successfully',
+      data: secret,
+    });
+  } catch (error) {
+    console.error('❌ Error retrieving secret:', error.message);
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// List user's secrets (metadata only, no values)
+app.get('/api/secrets', requireUserId, async (req, res) => {
+  try {
+    const secrets = await sensitiveDataManager.listSecrets(req.userId);
+
+    res.json({
+      success: true,
+      message: 'Secrets retrieved successfully',
+      data: secrets,
+      total_count: secrets.length,
+    });
+  } catch (error) {
+    console.error('❌ Error listing secrets:', error.message);
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// Delete a sensitive secret
+app.delete('/api/secrets/:credentialName', requireUserId, async (req, res) => {
+  try {
+    const { credentialName } = req.params;
+
+    if (!credentialName) {
+      return res.status(400).json({
+        success: false,
+        message: 'credentialName is required',
+      });
+    }
+
+    const result = await sensitiveDataManager.deleteSecret(
+      req.userId,
+      credentialName,
+      req.ipAddress,
+      req.userAgent
+    );
+
+    res.json({
+      success: true,
+      message: 'Secret deleted successfully',
+      data: result,
+    });
+  } catch (error) {
+    console.error('❌ Error deleting secret:', error.message);
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// Get audit logs for a credential
+app.get('/api/secrets/:credentialName/audit-logs', requireUserId, async (req, res) => {
+  try {
+    const { credentialName } = req.params;
+    const { limit = '50' } = req.query;
+
+    if (!credentialName) {
+      return res.status(400).json({
+        success: false,
+        message: 'credentialName is required',
+      });
+    }
+
+    const auditLogs = await sensitiveDataManager.getAuditLogs(
+      req.userId,
+      credentialName,
+      parseInt(limit)
+    );
+
+    res.json({
+      success: true,
+      message: 'Audit logs retrieved successfully',
+      data: auditLogs,
+      total_count: auditLogs.length,
+    });
+  } catch (error) {
+    console.error('❌ Error retrieving audit logs:', error.message);
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// Get all audit logs for user
+app.get('/api/secrets/audit-logs', requireUserId, async (req, res) => {
+  try {
+    const { limit = '100' } = req.query;
+
+    const auditLogs = await sensitiveDataManager.getAuditLogs(
+      req.userId,
+      null,
+      parseInt(limit)
+    );
+
+    res.json({
+      success: true,
+      message: 'Audit logs retrieved successfully',
+      data: auditLogs,
+      total_count: auditLogs.length,
+    });
+  } catch (error) {
+    console.error('❌ Error retrieving audit logs:', error.message);
+    res.status(400).json({
+      success: false,
       message: error.message,
     });
   }
