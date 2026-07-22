@@ -1,36 +1,10 @@
 {
   "name": "wsm-security",
-  "type": "node",
-  "runtime": "20",
   "functions": {
-    "targets": ["server"],
-    "source": "backend/functions"
+    "source": "functions",
+    "targets": ["server"]
   },
-  "datastore": {
-    "tables": [
-      {
-        "name": "products",
-        "columns": [
-          {
-            "name": "product_id",
-            "type": "bigint",
-            "primary_key": true,
-            "auto_increment": true
-          },
-          {
-            "name": "name",
-            "type": "string"
-          },
-          {
-            "name": "price",
-            "type": "decimal"
-          },
-          {
-            "name": "created_at",
-            "type": "string"
-          }
-        ]
-      }
-    ]
+  "client": {
+    "source": "frontend/dist"
   }
 }
