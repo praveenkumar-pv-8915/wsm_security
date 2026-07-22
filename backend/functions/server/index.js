@@ -72,6 +72,68 @@ app.get('/api/health', (req, res) => {
   res.json(health);
 });
 
+// ============================================================================
+// CATALYST DATABASE TEST ENDPOINTS
+// ============================================================================
+
+// Test: Get all products
+app.get('/api/test/products', async (req, res) => {
+  try {
+    const catalyst = require('zcatalyst-sdk');
+    const zcql = catalyst.getZCQL();
+
+    const result = await zcql.executeZCQLQuery('SELECT * FROM products LIMIT 300');
+
+    res.json({
+      success: true,
+      message: 'Products fetched',
+      data: result || [],
+      count: result ? result.length : 0
+    });
+  } catch (error) {
+    console.error('❌ Database error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Test: Add a product
+app.post('/api/test/add', async (req, res) => {
+  try {
+    const { name, price } = req.body;
+
+    if (!name || price === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: 'name and price are required'
+      });
+    }
+
+    const catalyst = require('zcatalyst-sdk');
+    const datastore = catalyst.getDatastore();
+
+    const result = await datastore.insert('products', {
+      name,
+      price,
+      created_at: new Date().toISOString()
+    });
+
+    res.json({
+      success: true,
+      message: 'Product added successfully',
+      data: result
+    });
+  } catch (error) {
+    console.error('❌ Database error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 
 // Hacksaw Credentials - UI Form
 app.get('/api/hacksaw/credentials-form', (req, res) => {
