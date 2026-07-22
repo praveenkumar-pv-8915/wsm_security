@@ -12,9 +12,7 @@ const SensitiveDataManager = require('./sensitive-data-manager');
 const app = express();
 app.use(express.json());
 
-// Serve frontend static files
 const frontendPath = path.join(__dirname, '../../../frontend/dist');
-app.use(express.static(frontendPath));
 
 // Enable CORS for local development
 if (process.env.ENVIRONMENT !== 'production') {
@@ -79,16 +77,17 @@ app.get('/api/health', (req, res) => {
 // Test: Get all products
 app.get('/api/test/products', async (req, res) => {
   try {
-    const catalyst = require('zcatalyst-sdk');
-    const zcql = catalyst.getZCQL();
+    const CatalystApp = require('zcatalyst-sdk-node');
+    const catalyst = CatalystApp.getInstance();
 
-    const result = await zcql.executeZCQLQuery('SELECT * FROM products LIMIT 300');
+    const datastore = catalyst.getDatastore();
+    const products = await datastore.query().from('products').limit(300).build().fetch();
 
     res.json({
       success: true,
       message: 'Products fetched',
-      data: result || [],
-      count: result ? result.length : 0
+      data: products || [],
+      count: products ? products.length : 0
     });
   } catch (error) {
     console.error('❌ Database error:', error.message);
@@ -111,7 +110,8 @@ app.post('/api/test/add', async (req, res) => {
       });
     }
 
-    const catalyst = require('zcatalyst-sdk');
+    const CatalystApp = require('zcatalyst-sdk-node');
+    const catalyst = CatalystApp.getInstance();
     const datastore = catalyst.getDatastore();
 
     const result = await datastore.insert('products', {
@@ -920,13 +920,12 @@ app.get('/api/secrets/audit-logs', requireUserId, async (req, res) => {
   }
 });
 
+// Serve static files (CSS, JS, etc)
+app.use(express.static(frontendPath));
+
 // SPA fallback - serve index.html for non-API routes
 app.get('*', (req, res) => {
-  if (!req.path.startsWith('/api') && !req.path.startsWith('/webhook')) {
-    res.sendFile(path.join(frontendPath, 'index.html'));
-  } else {
-    res.status(404).json({ message: 'Not found' });
-  }
+  res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 // Start server (only in local development mode when run directly)

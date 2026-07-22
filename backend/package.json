@@ -13,7 +13,7 @@
     "dotenv": "^16.6.1",
     "express": "^4.22.2",
     "sqlite3": "^5.1.7",
-    "zcatalyst-sdk": "^1.2.1"
+    "zcatalyst-sdk-node": "^3.4.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
