@@ -18,7 +18,12 @@ app.get('/health', (req, res) => {
 
 // Root redirect to dashboard (Catalyst will handle login redirect)
 app.get('/', (req, res) => {
-  res.redirect('/dashboard');
+  res.redirect('/server/welcome/dashboard');
+});
+
+// Redirect /app to dashboard (post-login redirect from Catalyst)
+app.get('/app/', (req, res) => {
+  res.redirect('/server/welcome/dashboard');
 });
 
 // Logout route - clears session and redirects to login
