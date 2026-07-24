@@ -15,6 +15,12 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Landing page (no auth required)
+app.get('/', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(getLandingPage());
+});
+
 // Catalyst Authentication Middleware
 app.use((req, res, next) => {
   try {
@@ -61,12 +67,6 @@ app.get('/credentials', async (req, res) => {
 app.delete('/credentials/:id', async (req, res) => {
   const result = await deactivateCredential(req, parseInt(req.params.id));
   res.status(result.success ? 200 : 400).json(result);
-});
-
-// Landing page (root, before auth)
-app.get('/', (req, res) => {
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(getLandingPage());
 });
 
 // Dashboard (after auth)
