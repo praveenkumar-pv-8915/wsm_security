@@ -15,36 +15,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-// API routing - forward /api/* requests (used by frontend)
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    message: 'Credential Management API Running',
-    version: '1.0.0'
-  });
-});
-
-app.post('/api/credentials/add', async (req, res) => {
-  const result = await addCredential(req, req.body);
-  res.status(result.success ? 201 : 400).json(result);
-});
-
-app.get('/api/credentials/:name', async (req, res) => {
-  const result = await getCredential(req, req.params.name);
-  res.status(result.success ? 200 : 400).json(result);
-});
-
-app.get('/api/credentials', async (req, res) => {
-  const result = await listCredentials(req);
-  res.status(result.success ? 200 : 400).json(result);
-});
-
-app.delete('/api/credentials/:id', async (req, res) => {
-  const result = await deactivateCredential(req, parseInt(req.params.id));
-  res.status(result.success ? 200 : 400).json(result);
-});
-
-
 // Root redirect to dashboard (Catalyst will handle login redirect)
 app.get('/', (req, res) => {
   res.redirect('/server/welcome/dashboard');
@@ -71,6 +41,11 @@ app.use((req, res, next) => {
 
 // Catalyst Authentication Middleware
 app.use((req, res, next) => {
+  // Skip auth for /api/health (health check doesn't need auth)
+  if (req.path === '/api/health') {
+    return next();
+  }
+
   try {
     const catalystApp = catalyst.initialize(req);
 
@@ -109,6 +84,35 @@ app.use((req, res, next) => {
       error: 'Authentication failed: ' + error.message
     });
   }
+});
+
+// API routes (used by frontend)
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'Credential Management API Running',
+    version: '1.0.0'
+  });
+});
+
+app.post('/api/credentials/add', async (req, res) => {
+  const result = await addCredential(req, req.body);
+  res.status(result.success ? 201 : 400).json(result);
+});
+
+app.get('/api/credentials/:name', async (req, res) => {
+  const result = await getCredential(req, req.params.name);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.get('/api/credentials', async (req, res) => {
+  const result = await listCredentials(req);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.delete('/api/credentials/:id', async (req, res) => {
+  const result = await deactivateCredential(req, parseInt(req.params.id));
+  res.status(result.success ? 200 : 400).json(result);
 });
 
 // Add credential
