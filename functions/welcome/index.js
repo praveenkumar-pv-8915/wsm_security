@@ -15,6 +15,7 @@ app.get('/health', (req, res) => {
   });
 });
 
+
 // Root redirect to dashboard (Catalyst will handle login redirect)
 app.get('/', (req, res) => {
   res.redirect('/dashboard');
@@ -25,17 +26,12 @@ app.use((req, res, next) => {
   try {
     const catalystApp = catalyst.initialize(req);
 
-    // Try different methods to get user ID
-    let userId = catalystApp.getCurrentUser?.() ||
-                 catalystApp.user?.() ||
-                 req.headers['x-zohocatalyst-user'] ||
-                 req.headers['x-user-id'];
+    // Get user ID from Catalyst header (injected by Catalyst Hosted Authentication)
+    const userId = req.headers['x-zc-user-id'];
 
     if (!userId) {
-      // Redirect to Catalyst login with return URL
-      const returnUrl = `${req.protocol}://${req.hostname}${req.originalUrl}`;
-      const loginUrl = `/__catalyst/auth/login?redirect_url=${encodeURIComponent(returnUrl)}`;
-      return res.redirect(loginUrl);
+      // Redirect to Catalyst login page if not authenticated
+      return res.redirect('/__catalyst/auth/login');
     }
 
     req.userId = userId;
