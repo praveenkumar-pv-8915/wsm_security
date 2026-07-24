@@ -1,4 +1,7 @@
 {
+  "client": {
+    "source": "frontend/dist"
+  },
   "functions": {
     "source": "functions",
     "targets": ["welcome"]
