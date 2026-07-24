@@ -21,21 +21,31 @@ app.get('/', (req, res) => {
 });
 
 // Catalyst Authentication Middleware
+// When Hosted Auth is enabled in console, Catalyst provides user context
 app.use((req, res, next) => {
-  const catalystApp = catalyst.initialize(req);
-  const userId = catalystApp.getUserId();
+  try {
+    const catalystApp = catalyst.initialize(req);
 
-  // Let Catalyst handle redirect if not authenticated
-  if (!userId) {
+    // Try to get user ID from Catalyst context
+    const userId = catalystApp.getCurrentUser?.();
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required'
+      });
+    }
+
+    req.userId = userId;
+    req.catalystApp = catalystApp;
+    next();
+  } catch (error) {
+    console.error('Auth error:', error.message);
     return res.status(401).json({
       success: false,
-      error: 'Authentication required'
+      error: 'Authentication failed: ' + error.message
     });
   }
-
-  req.userId = userId;
-  req.catalystApp = catalystApp;
-  next();
 });
 
 // Add credential
