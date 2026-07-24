@@ -1,6 +1,7 @@
 const express = require('express');
 const catalyst = require('zcatalyst-sdk-node');
 const { addCredential, getCredential, listCredentials, deactivateCredential } = require('./credential-service');
+const { getLandingPage, getDashboardPage } = require('./auth-ui');
 
 const app = express();
 app.use(express.json());
@@ -62,17 +63,16 @@ app.delete('/credentials/:id', async (req, res) => {
   res.status(result.success ? 200 : 400).json(result);
 });
 
-// Catch-all
+// Landing page (root, before auth)
 app.get('/', (req, res) => {
-  res.json({
-    message: 'WSM Security - Credential Management API',
-    endpoints: {
-      'POST /credentials/add': 'Add new credential',
-      'GET /credentials': 'List all credentials',
-      'GET /credentials/:name': 'Get specific credential',
-      'DELETE /credentials/:id': 'Deactivate credential'
-    }
-  });
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(getLandingPage());
+});
+
+// Dashboard (after auth)
+app.get('/dashboard', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(getDashboardPage(req.userId));
 });
 
 module.exports = app;
