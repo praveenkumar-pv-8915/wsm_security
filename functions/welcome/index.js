@@ -26,10 +26,12 @@ app.use((req, res, next) => {
   try {
     const catalystApp = catalyst.initialize(req);
 
-    // Get user ID from Catalyst header (injected by Catalyst Hosted Authentication)
+    // Check both user ID header AND authentication token (proof of login)
     const userId = req.headers['x-zc-user-id'];
+    const authToken = req.headers['x-zc-user-cred-token'];
 
-    if (!userId) {
+    // Both must be present for authenticated access
+    if (!userId || !authToken) {
       // Redirect to Catalyst login page if not authenticated
       return res.redirect('/__catalyst/auth/login');
     }
