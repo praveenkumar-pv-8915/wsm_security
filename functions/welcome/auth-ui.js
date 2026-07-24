@@ -146,7 +146,7 @@ const getDashboardPage = (userId) => {
     <h1>🔐 WSM Security Dashboard</h1>
     <div class="user-info">
       <div class="user-id">User ID: ${userId}</div>
-      <button class="btn-logout" onclick="logout()">Sign Out</button>
+      <button class="btn-logout" onclick="window.location.href='/__catalyst/auth/logout'">Sign Out</button>
     </div>
   </div>
 
@@ -161,28 +161,28 @@ const getDashboardPage = (userId) => {
         <div class="action-icon">➕</div>
         <h3>Add Credential</h3>
         <p>Store a new encrypted credential safely</p>
-        <button class="btn-action" onclick="addCredential()">Add Credential</button>
+        <button class="btn-action" onclick="alert('Add Credential feature - Use API POST /credentials/add\\n\\nExample:\\n{\\n  \\"credential_name\\": \\"github-oauth\\",\\n  \\"credential_type\\": \\"OAUTH\\",\\n  \\"credential_value\\": {...}\\n}')">Add Credential</button>
       </div>
 
       <div class="action-card">
         <div class="action-icon">📋</div>
         <h3>List Credentials</h3>
         <p>View all your stored credentials</p>
-        <button class="btn-action" onclick="listCredentials()">View List</button>
+        <button class="btn-action" onclick="fetch('/server/welcome/credentials').then(r => r.json()).then(data => { console.log('Credentials:', data); alert('Check console for credentials list'); }).catch(e => alert('Error: ' + e.message))">View List</button>
       </div>
 
       <div class="action-card">
         <div class="action-icon">🔍</div>
         <h3>View Details</h3>
         <p>View or retrieve a specific credential</p>
-        <button class="btn-action" onclick="viewCredential()">View Details</button>
+        <button class="btn-action" onclick="const name = prompt('Enter credential name:'); if (name) { fetch('/server/welcome/credentials/' + name).then(r => r.json()).then(data => { console.log('Credential:', data); alert('Check console for credential details'); }).catch(e => alert('Error: ' + e.message)); }">View Details</button>
       </div>
 
       <div class="action-card">
         <div class="action-icon">❌</div>
         <h3>Deactivate</h3>
         <p>Safely deactivate a credential</p>
-        <button class="btn-action" onclick="deactivateCredential()">Deactivate</button>
+        <button class="btn-action" onclick="const id = prompt('Enter credential ID:'); if (id) { fetch('/server/welcome/credentials/' + id, { method: 'DELETE' }).then(r => r.json()).then(data => alert(data.message || data.error)).catch(e => alert('Error: ' + e.message)); }">Deactivate</button>
       </div>
     </div>
 
@@ -195,49 +195,6 @@ const getDashboardPage = (userId) => {
     </div>
   </div>
 
-  <script>
-    function logout() {
-      // Logout via Catalyst
-      window.location.href = '/__catalyst/auth/logout';
-    }
-
-    function addCredential() {
-      alert('Add Credential feature - Use API POST /credentials/add\n\nExample:\n{\n  "credential_name": "github-oauth",\n  "credential_type": "OAUTH",\n  "credential_value": {...}\n}');
-    }
-
-    function listCredentials() {
-      fetch('/server/welcome/credentials')
-        .then(r => r.json())
-        .then(data => {
-          console.log('Credentials:', data);
-          alert('Check console for credentials list');
-        })
-        .catch(e => alert('Error: ' + e.message));
-    }
-
-    function viewCredential() {
-      const name = prompt('Enter credential name:');
-      if (name) {
-        fetch('/server/welcome/credentials/' + name)
-          .then(r => r.json())
-          .then(data => {
-            console.log('Credential:', data);
-            alert('Check console for credential details');
-          })
-          .catch(e => alert('Error: ' + e.message));
-      }
-    }
-
-    function deactivateCredential() {
-      const id = prompt('Enter credential ID:');
-      if (id) {
-        fetch('/server/welcome/credentials/' + id, { method: 'DELETE' })
-          .then(r => r.json())
-          .then(data => alert(data.message || data.error))
-          .catch(e => alert('Error: ' + e.message));
-      }
-    }
-  </script>
 </body>
 </html>
   `;
