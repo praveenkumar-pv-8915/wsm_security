@@ -17,7 +17,9 @@ export default function App() {
       }
       if (body) options.body = JSON.stringify(body)
 
-      const response = await fetch(endpoint, options)
+      // Prepend function path if endpoint doesn't already have it
+      const url = endpoint.startsWith('/server/welcome/') ? endpoint : `/server/welcome${endpoint}`
+      const response = await fetch(url, options)
       const result = await response.json()
       setData(result)
     } catch (err) {
