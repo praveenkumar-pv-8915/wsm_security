@@ -21,6 +21,12 @@ app.get('/', (req, res) => {
   res.redirect('/dashboard');
 });
 
+// Logout route - clears session and redirects to login
+app.get('/logout', (req, res) => {
+  res.clearCookie('JSESSIONID');
+  res.redirect('/__catalyst/auth/login');
+});
+
 // Catalyst Authentication Middleware
 app.use((req, res, next) => {
   try {
@@ -30,8 +36,16 @@ app.use((req, res, next) => {
     const userId = req.headers['x-zc-user-id'];
     const authToken = req.headers['x-zc-user-cred-token'];
 
+    console.log('Auth Check:', {
+      path: req.path,
+      userId: userId || 'MISSING',
+      authToken: authToken ? 'PRESENT' : 'MISSING',
+      allXHeaders: Object.keys(req.headers).filter(h => h.startsWith('x-zc'))
+    });
+
     // Both must be present for authenticated access
     if (!userId || !authToken) {
+      console.log('REDIRECTING TO LOGIN - Missing auth');
       // Redirect to Catalyst login page if not authenticated
       return res.redirect('/__catalyst/auth/login');
     }
