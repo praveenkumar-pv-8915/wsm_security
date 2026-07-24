@@ -40,24 +40,31 @@ app.use((req, res, next) => {
   try {
     const catalystApp = catalyst.initialize(req);
 
-    // Check both user ID header AND authentication token (proof of login)
-    const userId = req.headers['x-zc-user-id'];
-    const authToken = req.headers['x-zc-user-cred-token'];
+    // Use Catalyst SDK to get authenticated user (like ZCUser.getCurrentUser() in Java)
+    let user = null;
+
+    // Try to get user from SDK
+    try {
+      user = catalystApp.getCurrentUser?.();
+    } catch (e) {
+      console.log('getCurrentUser failed:', e.message);
+    }
 
     console.log('=== AUTH CHECK ===', {
       path: req.path,
-      userId: userId || 'MISSING',
-      authToken: authToken ? 'PRESENT' : 'MISSING'
+      user: user ? JSON.stringify(user).substring(0, 50) : 'null'
     });
 
-    // Both must be present for authenticated access
-    if (!userId || !authToken) {
-      console.log('>>> REDIRECTING TO LOGIN <<<');
+    // User must be present for authenticated access
+    if (!user) {
+      console.log('>>> NO USER - REDIRECTING TO LOGIN <<<');
       // Redirect to Catalyst login page if not authenticated
       return res.redirect('/__catalyst/auth/login');
     }
 
-    console.log('>>> AUTHENTICATED <<<');
+    console.log('>>> AUTHENTICATED <<<', user);
+    // Extract user ID (might be in different fields depending on SDK)
+    const userId = user.id || user.userId || user.email || user.name;
     req.userId = userId;
     req.catalystApp = catalystApp;
     next();
