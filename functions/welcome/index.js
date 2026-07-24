@@ -22,26 +22,20 @@ app.get('/', (req, res) => {
 
 // Catalyst Authentication Middleware
 app.use((req, res, next) => {
-  try {
-    const catalystApp = catalyst.initialize(req);
-    const userId = catalystApp.getUserId();
+  const catalystApp = catalyst.initialize(req);
+  const userId = catalystApp.getUserId();
 
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: 'Authentication required. Please sign in to Catalyst.'
-      });
-    }
-
-    req.userId = userId;
-    req.catalystApp = catalystApp;
-    next();
-  } catch (error) {
+  // Let Catalyst handle redirect if not authenticated
+  if (!userId) {
     return res.status(401).json({
       success: false,
-      error: 'Invalid or expired authentication'
+      error: 'Authentication required'
     });
   }
+
+  req.userId = userId;
+  req.catalystApp = catalystApp;
+  next();
 });
 
 // Add credential
