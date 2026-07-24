@@ -15,6 +15,11 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Root redirect to dashboard (Catalyst will handle login redirect)
+app.get('/', (req, res) => {
+  res.redirect('/dashboard');
+});
+
 // Catalyst Authentication Middleware
 app.use((req, res, next) => {
   try {
