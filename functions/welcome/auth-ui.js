@@ -202,7 +202,7 @@ const getDashboardPage = (userId) => {
     }
 
     function addCredential() {
-      alert('Add Credential feature - Use API POST /credentials/add\\n\\nExample:\\n{\n  "credential_name": "github-oauth",\n  "credential_type": "OAUTH",\n  "credential_value": {...}\n}');
+      alert('Add Credential feature - Use API POST /credentials/add\n\nExample:\n{\n  "credential_name": "github-oauth",\n  "credential_type": "OAUTH",\n  "credential_value": {...}\n}');
     }
 
     function listCredentials() {
