@@ -1,7 +1,7 @@
 const express = require('express');
 const catalyst = require('zcatalyst-sdk-node');
 const { addCredential, getCredential, listCredentials, deactivateCredential } = require('./credential-service');
-const { getLandingPage, getDashboardPage } = require('./auth-ui');
+const { getDashboardPage } = require('./auth-ui');
 
 const app = express();
 app.use(express.json());
@@ -13,12 +13,6 @@ app.get('/health', (req, res) => {
     message: 'Credential Management API Running',
     version: '1.0.0'
   });
-});
-
-// Landing page (no auth required)
-app.get('/', (req, res) => {
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(getLandingPage());
 });
 
 // Catalyst Authentication Middleware
