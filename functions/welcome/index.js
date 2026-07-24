@@ -1,4 +1,5 @@
 const express = require('express');
+const catalyst = require('zcatalyst-sdk-node');
 const { addCredential, getCredential, listCredentials, deactivateCredential } = require('./credential-service');
 
 const app = express();
@@ -13,13 +14,28 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Middleware to extract user context (applies to all credential endpoints)
+// Catalyst Authentication Middleware
 app.use((req, res, next) => {
-  req.userId = parseInt(req.headers['x-user-id'] || '0');
-  if (!req.userId) {
-    return res.status(401).json({ success: false, error: 'x-user-id header required' });
+  try {
+    const catalystApp = catalyst.initialize(req);
+    const userId = catalystApp.getUserId();
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required. Please sign in to Catalyst.'
+      });
+    }
+
+    req.userId = userId;
+    req.catalystApp = catalystApp;
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      success: false,
+      error: 'Invalid or expired authentication'
+    });
   }
-  next();
 });
 
 // Add credential

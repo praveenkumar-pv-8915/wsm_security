@@ -1,7 +1,9 @@
-const catalyst = require('zcatalyst-sdk-node');
-
-const getServices = (context) => {
-  const app = catalyst.initialize(context);
+// Get services from authenticated Catalyst app
+const getServices = (req) => {
+  const app = req.catalystApp;
+  if (!app) {
+    throw new Error('Catalyst authentication required');
+  }
   return {
     dataStore: app.getDataStore(),
     secretManager: app.getSecretManager()
@@ -9,10 +11,10 @@ const getServices = (context) => {
 };
 
 // Add credential
-const addCredential = async (context, credentialData) => {
+const addCredential = async (req, credentialData) => {
   try {
-    const { dataStore, secretManager } = getServices(context);
-    const userId = context.userId;
+    const { dataStore, secretManager } = getServices(req);
+    const userId = req.userId;
 
     // Validate required fields
     if (!credentialData.credential_name || !credentialData.credential_type || !credentialData.credential_value) {
@@ -50,10 +52,10 @@ const addCredential = async (context, credentialData) => {
 };
 
 // Get credential (decrypt from Secret Manager)
-const getCredential = async (context, credentialName) => {
+const getCredential = async (req, credentialName) => {
   try {
-    const { dataStore, secretManager } = getServices(context);
-    const userId = context.userId;
+    const { dataStore, secretManager } = getServices(req);
+    const userId = req.userId;
 
     // Verify credential exists in table
     const credTable = dataStore.getTable('credentials');
