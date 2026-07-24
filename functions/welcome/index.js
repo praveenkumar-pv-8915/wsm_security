@@ -27,6 +27,14 @@ app.get('/logout', (req, res) => {
   res.redirect('/__catalyst/auth/login');
 });
 
+// Disable caching for auth-protected pages
+app.use((req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  next();
+});
+
 // Catalyst Authentication Middleware
 app.use((req, res, next) => {
   try {
@@ -36,20 +44,20 @@ app.use((req, res, next) => {
     const userId = req.headers['x-zc-user-id'];
     const authToken = req.headers['x-zc-user-cred-token'];
 
-    console.log('Auth Check:', {
+    console.log('=== AUTH CHECK ===', {
       path: req.path,
       userId: userId || 'MISSING',
-      authToken: authToken ? 'PRESENT' : 'MISSING',
-      allXHeaders: Object.keys(req.headers).filter(h => h.startsWith('x-zc'))
+      authToken: authToken ? 'PRESENT' : 'MISSING'
     });
 
     // Both must be present for authenticated access
     if (!userId || !authToken) {
-      console.log('REDIRECTING TO LOGIN - Missing auth');
+      console.log('>>> REDIRECTING TO LOGIN <<<');
       // Redirect to Catalyst login page if not authenticated
       return res.redirect('/__catalyst/auth/login');
     }
 
+    console.log('>>> AUTHENTICATED <<<');
     req.userId = userId;
     req.catalystApp = catalystApp;
     next();
