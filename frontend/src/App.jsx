@@ -138,7 +138,7 @@ export default function App() {
           <span className="vault-glyph" aria-hidden="true">▣</span>
           <div>
             <h1>Credential Vault</h1>
-            <p className="vault-sub">WSM Security · Secret Manager + DataStore</p>
+            <p className="vault-sub">WSM Security · AES-256 encrypted · Catalyst DataStore</p>
           </div>
         </div>
         <div className="vault-actions">
@@ -181,14 +181,14 @@ export default function App() {
               <textarea
                 value={value}
                 onChange={e => setValue(e.target.value)}
-                placeholder="Encrypted at rest in Catalyst Secret Manager"
+                placeholder="Encrypted with AES-256-GCM before storage"
                 rows={3}
                 required
               />
             </label>
           </div>
           <div className="form-foot">
-            <span className="hint">Value is encrypted in Secret Manager; only metadata goes to DataStore.</span>
+            <span className="hint">Value is AES-256-GCM encrypted in the function; only ciphertext reaches DataStore.</span>
             <button className="btn btn-primary" type="submit" disabled={busy}>
               {busy ? 'Storing…' : 'Store credential'}
             </button>
