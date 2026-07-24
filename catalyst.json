@@ -1,10 +1,6 @@
 {
-  "name": "wsm-security",
   "functions": {
     "source": "functions",
-    "targets": ["server"]
-  },
-  "client": {
-    "source": "frontend/dist"
+    "targets": ["welcome"]
   }
 }

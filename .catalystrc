@@ -1,6 +1,7 @@
 {
   "defaults": {
-    "project": 1
+    "project": 1,
+    "env": 1
   },
   "actives": {
     "project": 1,
@@ -9,10 +10,10 @@
   "projects": [
     {
       "idx": 1,
-      "id": "47976000000030001",
-      "name": "WSM-Security",
+      "id": "47976000000083005",
+      "name": "wsm-security",
       "domain": {
-        "id": "50043248550",
+        "id": "50044307528",
         "name": "wsm-security-60073792083.development"
       },
       "timezone": "Asia/Kolkata",
