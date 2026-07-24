@@ -198,7 +198,7 @@ const getDashboardPage = (userId) => {
   <script>
     function logout() {
       // Logout via Catalyst
-      window.location.href = window.location.href.replace('/server/welcome/', '/logout');
+      window.location.href = '/__catalyst/auth/logout';
     }
 
     function addCredential() {

@@ -1,3 +1,8 @@
+// Escape SQL string values to prevent injection
+const escapeSqlString = (value) => {
+  return String(value).replace(/'/g, "''");
+};
+
 // Get services from authenticated Catalyst app
 const getServices = (req) => {
   const app = req.catalystApp;
@@ -59,7 +64,8 @@ const getCredential = async (req, credentialName) => {
 
     // Verify credential exists in table
     const credTable = dataStore.getTable('credentials');
-    const query = `SELECT * FROM credentials WHERE credential_name = '${credentialName}' AND is_active = 1`;
+    const escapedName = escapeSqlString(credentialName);
+    const query = `SELECT * FROM credentials WHERE credential_name = '${escapedName}' AND is_active = 1`;
     const response = await credTable.readRows(query);
     const rows = response.get();
 
@@ -104,8 +110,12 @@ const listCredentials = async (context) => {
     const { dataStore } = getServices(context);
     const userId = context.userId;
 
+    if (!userId) {
+      throw new Error('User ID required');
+    }
+
     const credTable = dataStore.getTable('credentials');
-    const query = `SELECT ROWID, credential_name, credential_type, is_active, CREATEDTIME FROM credentials WHERE owner_id = ${userId}`;
+    const query = `SELECT ROWID, credential_name, credential_type, is_active, CREATEDTIME FROM credentials WHERE owner_id = '${escapeSqlString(userId)}'`;
     const response = await credTable.readRows(query);
     const rows = response.get();
 
@@ -128,6 +138,10 @@ const deactivateCredential = async (context, credentialId) => {
   try {
     const { dataStore, secretManager } = getServices(context);
     const userId = context.userId;
+
+    if (!Number.isInteger(credentialId)) {
+      throw new Error('Invalid credential ID');
+    }
 
     // Verify ownership
     const credTable = dataStore.getTable('credentials');
