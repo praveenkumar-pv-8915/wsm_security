@@ -40,7 +40,7 @@ app.use((req, res, next) => {
 });
 
 // Catalyst Authentication Middleware
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   // Skip auth for /api/health (health check doesn't need auth)
   if (req.path === '/api/health') {
     return next();
@@ -51,31 +51,39 @@ app.use((req, res, next) => {
 
     // Use Catalyst SDK to get authenticated user (like ZCUser.getCurrentUser() in Java)
     let user = null;
-
-    // Try to get user from SDK
     try {
-      user = catalystApp.getCurrentUser?.();
+      user = await catalystApp.userManagement().getCurrentUser();
     } catch (e) {
       console.log('getCurrentUser failed:', e.message);
     }
 
     console.log('=== AUTH CHECK ===', {
       path: req.path,
-      user: user ? JSON.stringify(user).substring(0, 50) : 'null'
+      user: user ? JSON.stringify(user).substring(0, 80) : 'null'
     });
 
     // User must be present for authenticated access
     if (!user) {
-      console.log('>>> NO USER - REDIRECTING TO LOGIN <<<');
-      // Redirect to Catalyst login page if not authenticated
+      console.log('>>> NO USER - NOT AUTHENTICATED <<<');
+      // API calls get JSON 401 so the frontend can handle it;
+      // page navigations get redirected to the Catalyst login page
+      if (req.path.startsWith('/api/')) {
+        return res.status(401).json({
+          success: false,
+          error: 'Not authenticated. Please sign in.'
+        });
+      }
       return res.redirect('/__catalyst/auth/login');
     }
 
-    console.log('>>> AUTHENTICATED <<<', user);
-    // Extract user ID (might be in different fields depending on SDK)
-    const userId = user.id || user.userId || user.email || user.name;
+    console.log('>>> AUTHENTICATED <<<', user.email_id || user.user_id);
+    // Catalyst user object fields: user_id, email_id, first_name, last_name
+    const userId = String(user.user_id || user.email_id);
     req.userId = userId;
     req.catalystApp = catalystApp;
+    // Admin-scoped instance for DataStore/ZCQL ops (app users lack table privileges);
+    // authorization is still enforced per-user via owner_id checks in credential-service
+    req.catalystAdmin = catalyst.initialize(req, { scope: 'admin' });
     next();
   } catch (error) {
     console.error('Auth error:', error.message);
@@ -111,7 +119,8 @@ app.get('/api/credentials', async (req, res) => {
 });
 
 app.delete('/api/credentials/:id', async (req, res) => {
-  const result = await deactivateCredential(req, parseInt(req.params.id));
+  // ROWID exceeds Number.MAX_SAFE_INTEGER — must stay a string
+  const result = await deactivateCredential(req, req.params.id);
   res.status(result.success ? 200 : 400).json(result);
 });
 
@@ -135,7 +144,7 @@ app.get('/credentials', async (req, res) => {
 
 // Deactivate credential
 app.delete('/credentials/:id', async (req, res) => {
-  const result = await deactivateCredential(req, parseInt(req.params.id));
+  const result = await deactivateCredential(req, req.params.id);
   res.status(result.success ? 200 : 400).json(result);
 });
 
