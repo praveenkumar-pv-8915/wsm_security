@@ -4,22 +4,22 @@ const { addCredential, getCredential, listCredentials, deactivateCredential } = 
 const app = express();
 app.use(express.json());
 
-// Middleware to extract user context
-app.use((req, res, next) => {
-  req.userId = parseInt(req.headers['x-user-id'] || '0');
-  if (!req.userId) {
-    return res.status(401).json({ success: false, error: 'x-user-id header required' });
-  }
-  next();
-});
-
-// Health check
+// Health check (no auth required)
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     message: 'Credential Management API Running',
     version: '1.0.0'
   });
+});
+
+// Middleware to extract user context (applies to all credential endpoints)
+app.use((req, res, next) => {
+  req.userId = parseInt(req.headers['x-user-id'] || '0');
+  if (!req.userId) {
+    return res.status(401).json({ success: false, error: 'x-user-id header required' });
+  }
+  next();
 });
 
 // Add credential
