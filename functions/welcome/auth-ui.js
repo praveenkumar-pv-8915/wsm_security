@@ -146,7 +146,7 @@ const getDashboardPage = (userId) => {
     <h1>🔐 WSM Security Dashboard</h1>
     <div class="user-info">
       <div class="user-id">User ID: ${userId}</div>
-      <button class="btn-logout" onclick="window.location.href='/app/'">Sign Out</button>
+      <button class="btn-logout" onclick="alert('Logged out'); window.location.reload()">Sign Out</button>
     </div>
   </div>
 
