@@ -21,19 +21,21 @@ app.get('/', (req, res) => {
 });
 
 // Catalyst Authentication Middleware
-// When Hosted Auth is enabled in console, Catalyst provides user context
 app.use((req, res, next) => {
   try {
     const catalystApp = catalyst.initialize(req);
 
-    // Try to get user ID from Catalyst context
-    const userId = catalystApp.getCurrentUser?.();
+    // Try different methods to get user ID
+    let userId = catalystApp.getCurrentUser?.() ||
+                 catalystApp.user?.() ||
+                 req.headers['x-zohocatalyst-user'] ||
+                 req.headers['x-user-id'];
 
     if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: 'Authentication required'
-      });
+      // Redirect to Catalyst login with return URL
+      const returnUrl = `${req.protocol}://${req.hostname}${req.originalUrl}`;
+      const loginUrl = `/__catalyst/auth/login?redirect_url=${encodeURIComponent(returnUrl)}`;
+      return res.redirect(loginUrl);
     }
 
     req.userId = userId;
