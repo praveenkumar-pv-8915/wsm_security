@@ -5,6 +5,7 @@ dist/
 build/
 .DS_Store
 *.log
+*.zip
 *.swp
 .vscode/
 .idea/
