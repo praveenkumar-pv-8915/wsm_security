@@ -1,73 +1,41 @@
-name: Deploy WSM-Security to Catalyst
+name: Build validation
+
+# Build/validate only — actual deployment to Catalyst happens through
+# Catalyst's native GitHub integration on push to main, not this workflow.
 
 on:
   push:
     branches:
       - main
-      - develop
   pull_request:
     branches:
       - main
 
 jobs:
-  build-and-deploy:
+  build-and-validate:
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        node-version: [18.x]
-
     steps:
-      # 1. Checkout code
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      # 2. Setup Node.js
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
+      - name: Setup Node.js 18
+        uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 18.x
 
-      # 3. Install backend dependencies
-      - name: Install backend dependencies
-        working-directory: ./backend
+      - name: Install function dependencies
+        working-directory: ./functions/welcome
         run: npm install
 
-      # 4. Install frontend dependencies
+      - name: Validate function code
+        working-directory: ./functions/welcome
+        run: node -c index.js
+
       - name: Install frontend dependencies
         working-directory: ./frontend
         run: npm install
 
-      # 5. Build frontend
       - name: Build frontend
         working-directory: ./frontend
         run: npm run build
-
-      # 6. Validate function code
-      - name: Validate function code
-        working-directory: ./backend/functions/server
-        run: |
-          npm install
-          node -c index.js
-
-      # 7. Install Catalyst CLI
-      - name: Install Catalyst CLI
-        run: npm install -g zcatalyst-cli
-
-      # 8. Deployment Status
-      - name: Deployment Status
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: |
-          echo "✅ Build validation passed"
-          echo "📤 Catalyst GitHub integration will auto-deploy to WSM-Security"
-          echo "🚀 Watch deployment at: https://catalyst.zoho.com"
-
-      # 9. Deployment Success
-      - name: Deployment Success
-        if: success()
-        run: echo "✅ WSM-Security deployed successfully!"
-
-      # 10. Deployment Failed
-      - name: Deployment Failed
-        if: failure()
-        run: echo "❌ Deployment failed. Check logs above."

@@ -1,7 +1,6 @@
 const express = require('express');
 const catalyst = require('zcatalyst-sdk-node');
 const { addCredential, getCredential, listCredentials, deactivateCredential } = require('./credential-service');
-const { getDashboardPage } = require('./auth-ui');
 
 const app = express();
 app.use(express.json());
@@ -15,14 +14,13 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Root redirect to dashboard (Catalyst will handle login redirect)
+// Root redirect to the React client (served by Catalyst client hosting)
 app.get('/', (req, res) => {
-  res.redirect('/server/welcome/dashboard');
+  res.redirect('/app/');
 });
 
-// Redirect /app to dashboard (post-login redirect from Catalyst)
 app.get('/app/', (req, res) => {
-  res.redirect('/server/welcome/dashboard');
+  res.redirect('/app/');
 });
 
 // Logout route - clears session and redirects to login
@@ -146,12 +144,6 @@ app.get('/credentials', async (req, res) => {
 app.delete('/credentials/:id', async (req, res) => {
   const result = await deactivateCredential(req, req.params.id);
   res.status(result.success ? 200 : 400).json(result);
-});
-
-// Dashboard (after auth)
-app.get('/dashboard', (req, res) => {
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(getDashboardPage(req.userId));
 });
 
 module.exports = app;
