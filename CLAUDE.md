@@ -12,7 +12,7 @@ This file orients any Claude session working in this repo. Read it before touchi
 
 ## Architecture — active vs legacy
 
-There are **two parallel backend implementations**. Don't assume the wrong one is live.
+There used to be two parallel backend implementations; only one remains.
 
 - **`functions/welcome/`** — the currently-deployed Catalyst function (`catalyst.json` at repo root targets `"welcome"`, stack `node18`, type Advanced I/O). This is the active backend. It has:
   - `index.js` — Express app, mounted under `/server/welcome/`, gated by Catalyst's built-in user auth (`catalystApp.userManagement().getCurrentUser()`), admin-scoped Catalyst SDK calls with app-layer `owner_id` checks.
@@ -21,13 +21,13 @@ There are **two parallel backend implementations**. Don't assume the wrong one i
   - `auth-ui.js` — server-rendered dashboard shell.
   - The React app in `frontend/` (Vite) is built to `frontend/dist` and served as the Catalyst client; it currently only implements the Credential Vault UI (add/reveal/deactivate credentials).
 
-- **`backend/`** — an older, separate Catalyst project scaffold (its own `catalyst.json`, targets `"server"`) with a richer **DataStore schema already designed but not wired up**: `creators`, `tasks`, `hacksaw_credentials`, `user_credentials`, `credential_audit_logs`. `backend/functions/server/` has its own Express app (`credentials-manager.js`, `sensitive-data-manager.js`, `oauth.js`, `zoho-oauth.js`, `auth-middleware.js`). This looks superseded by `functions/welcome/`, but the `tasks`/`creators`/audit-log tables are relevant prior art for the task-management goal below — check with the user before deleting anything here, it may just need to be reconnected rather than rebuilt.
+- **`backend/` was deleted on 2026-08-10** (user decision: dead code, superseded by `functions/welcome/`). Its draft DataStore schema (`creators`, `tasks`, `hacksaw_credentials`, `user_credentials`, `credential_audit_logs`) remains useful prior art for the task-management and audit-logging modules — recover it from history with `git show 0cac67c:backend/catalyst.json` (last commit before deletion). The legacy helper scripts `start-backend.sh` and `setup-local.sh` went with it.
 
-Treat `functions/welcome` + `frontend` as the thing that's actually running. Treat `backend/` as reference/legacy until confirmed otherwise with the user.
+Treat `functions/welcome` + `frontend` as the thing that's actually running.
 
 ## Deployment
 
-- **The working deploy path is the local Catalyst CLI** (`catalyst deploy`, v1.27+ installed on this Mac and logged in as praveenkumar.pv@zohocorp.com), driven by `.catalystrc` (root and `backend/`) and `catalyst.json` (`functions.targets: ["welcome"]`, `client.source: "frontend/dist"`). A CLI deploy also injects `CRED_ENC_KEY` from the *local* `functions/welcome/catalyst-config.json` (see Security notes) — the committed version deliberately omits it, so the CLI from this machine is the only deploy path known to configure the key correctly.
+- **The working deploy path is the local Catalyst CLI** (`catalyst deploy`, v1.27+ installed on this Mac and logged in as praveenkumar.pv@zohocorp.com), driven by `.catalystrc` and `catalyst.json` (`functions.targets: ["welcome"]`, `client.source: "frontend/dist"`). A CLI deploy also injects `CRED_ENC_KEY` from the *local* `functions/welcome/catalyst-config.json` (see Security notes) — the committed version deliberately omits it, so the CLI from this machine is the only deploy path known to configure the key correctly.
 - **Catalyst's GitHub auto-deploy on push to `main` is NOT confirmed working** (verified 2026-08-07: 20+ minutes after a push, the live function still served old code; a CLI deploy is what landed it). Don't assume a push deployed anything — deploy with the CLI, then verify against the live URL.
 - **Client deploy quirks** (learned 2026-08-07): Catalyst requires `client-package.json` inside the client source (`frontend/dist`). It lives in `frontend/public/` so every Vite build copies it in. Its `name` must be exactly `wsm-security-frontend` (Catalyst 400s on anything else), and its `version` must strictly increase on every client deploy — bump it or the client deploy is skipped with a 400.
 - `.github/workflows/deploy.yml` only build-validates (`functions/welcome` + `frontend`); it never deploys.
@@ -50,7 +50,7 @@ Standing rules going forward:
 
 - `.gitignore` ignores `*.zip` globally; use `git add -f` to include an archive deliberately.
 - The legacy `backend/functions/server/.env` and `backend/.credentials/` (local-only secrets/DBs, gitignored) were deleted on 2026-08-07 at the user's request. The legacy OAuth client secrets are recoverable from the Zoho API console if `backend/` ever gets reconnected.
-- Never commit real credentials anywhere in this repo — the remote is public. Use env-var indirection placeholders (as `backend/connections.config.json` does).
+- Never commit real credentials anywhere in this repo — the remote is public. Reference env vars in committed config; real values go in gitignored/local files or Catalyst env config only.
 
 ## Operating rules for this project (from the user)
 

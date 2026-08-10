@@ -16,7 +16,6 @@ Started as a credential vault; growing into the team's common workspace: task ma
 
 - `functions/welcome/` — the deployed Catalyst function (Node 18, Advanced I/O). Express app gated by Catalyst's built-in user auth; credential CRUD in `credential-service.js`, OAuth connections in `oauth-service.js`.
 - `frontend/` — React + Vite client, built to `frontend/dist` and served by Catalyst client hosting at `/app/`.
-- `backend/` — older parallel scaffold, superseded by `functions/welcome/` but kept as reference for its DataStore schema (`tasks`, `creators`, `credential_audit_logs`). Do not build on it without checking `CLAUDE.md`.
 
 ## Development
 
