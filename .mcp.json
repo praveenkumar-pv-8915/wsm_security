@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "catalyst-cli": {
+      "command": "node",
+      "args": ["mcp/catalyst-cli/server.js"]
+    }
+  }
+}

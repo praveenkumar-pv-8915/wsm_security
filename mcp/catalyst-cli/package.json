@@ -1,0 +1,14 @@
+{
+  "name": "wsm-catalyst-cli-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MCP server exposing the Zoho Catalyst CLI (deploy, project/function/datastore ops) as tools",
+  "type": "module",
+  "main": "server.js",
+  "bin": { "catalyst-cli-mcp": "server.js" },
+  "scripts": { "start": "node server.js", "smoke": "node smoke.js" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.23.8"
+  }
+}
