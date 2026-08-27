@@ -1,149 +1,174 @@
+/**
+ * welcome — WSM Security credential vault + connections registry.
+ *
+ * Catalyst Advanced I/O function (node18), mounted at:
+ *   https://wsm-security-60073792083.development.catalystserverless.in/server/welcome/
+ *
+ * Auth: Catalyst default Hosted Authentication, gated by auth.js — a live session plus an
+ * @zohocorp.com email is enough; there is no separate `members` table (2026-08-27 decision, see
+ * CLAUDE.md and the project KB). Ownership is `user_id`, never email; role comes straight from the
+ * session's role_details. The old inline middleware checked only that *some* Catalyst user existed,
+ * which let any account that could sign up reach the vault — this closes that gap without adding a
+ * table or storing PII.
+ *
+ * Storage: Catalyst DataStore. `credentials` (vault, unchanged), plus `connections` /
+ * `connection_profiles` (the catalogue) and `connection_credentials` (encrypted tokens).
+ *
+ * Secrets: CRED_ENC_KEY (32-byte hex) is injected at deploy time and must never be committed.
+ */
+
 const express = require('express');
 const catalyst = require('zcatalyst-sdk-node');
+
+const { requireMember, requireAdmin } = require('./auth');
 const { addCredential, getCredential, listCredentials, deactivateCredential } = require('./credential-service');
+const registry = require('./connections-registry');
+const conn = require('./connections-service');
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '256kb' }));
 
-// Health check (no auth required)
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    message: 'Credential Management API Running',
-    version: '1.0.0'
-  });
+/* ------------------------------------------------------------------ public */
+
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', service: 'welcome', version: '2.0.0' });
+});
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', message: 'Credential Management API Running', version: '2.0.0' });
 });
 
-// Root redirect to the React client (served by Catalyst client hosting)
-app.get('/', (req, res) => {
-  res.redirect('/app/');
-});
+// Root → the React client served by Catalyst client hosting.
+app.get('/', (_req, res) => res.redirect('/app/'));
 
-app.get('/app/', (req, res) => {
-  res.redirect('/app/');
-});
+/**
+ * There is deliberately NO /logout route.
+ *
+ * The old one cleared a `JSESSIONID` cookie — a name Catalyst does not use — and then redirected to
+ * the hosted login page. The session survived, Catalyst saw it and bounced the browser straight
+ * back into the app, so "Sign out" appeared to do nothing. Only the Web SDK can end a Catalyst
+ * session; the SPA calls `catalyst.auth.signOut(url)` (frontend/src/lib/catalyst.js).
+ */
 
-// Logout route - clears session and redirects to login
-app.get('/logout', (req, res) => {
-  res.clearCookie('JSESSIONID');
-  res.redirect('/__catalyst/auth/login');
-});
+/* ------------------------------------------------------------------ auth gate */
 
-// Disable caching for auth-protected pages
-app.use((req, res, next) => {
+app.use((_req, res, next) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');
   next();
 });
 
-// Catalyst Authentication Middleware
-app.use(async (req, res, next) => {
-  // Skip auth for /api/health (health check doesn't need auth)
-  if (req.path === '/api/health') {
-    return next();
-  }
+app.use(requireMember(catalyst));
 
-  try {
-    const catalystApp = catalyst.initialize(req);
+/* ------------------------------------------------------------------ helpers */
 
-    // Use Catalyst SDK to get authenticated user (like ZCUser.getCurrentUser() in Java)
-    let user = null;
-    try {
-      user = await catalystApp.userManagement().getCurrentUser();
-    } catch (e) {
-      console.log('getCurrentUser failed:', e.message);
-    }
+const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-    console.log('=== AUTH CHECK ===', {
-      path: req.path,
-      user: user ? JSON.stringify(user).substring(0, 80) : 'null'
-    });
+/** Send a service-result object, honouring an error `status` if one was set. */
+const send = (res, result, okStatus = 200) =>
+  res.status(result.success ? okStatus : (result.status || 400)).json(result);
 
-    // User must be present for authenticated access
-    if (!user) {
-      console.log('>>> NO USER - NOT AUTHENTICATED <<<');
-      // API calls get JSON 401 so the frontend can handle it;
-      // page navigations get redirected to the Catalyst login page
-      if (req.path.startsWith('/api/')) {
-        return res.status(401).json({
-          success: false,
-          error: 'Not authenticated. Please sign in.'
-        });
-      }
-      return res.redirect('/__catalyst/auth/login');
-    }
+/**
+ * This function's absolute base URL, needed for the OAuth redirect_uri. Express sees paths without
+ * the `/server/welcome` mount prefix, so it has to be added back explicitly. Always https —
+ * Catalyst terminates TLS upstream, so req.protocol can read as http.
+ */
+const selfBase = req => `https://${req.get('host')}/server/welcome`;
+const oauthRedirectUri = req => `${selfBase(req)}/api/connections/oauth/callback`;
 
-    console.log('>>> AUTHENTICATED <<<', user.email_id || user.user_id);
-    // Catalyst user object fields: user_id, email_id, first_name, last_name
-    const userId = String(user.user_id || user.email_id);
-    req.userId = userId;
-    req.catalystApp = catalystApp;
-    // Admin-scoped instance for DataStore/ZCQL ops (app users lack table privileges);
-    // authorization is still enforced per-user via owner_id checks in credential-service
-    req.catalystAdmin = catalyst.initialize(req, { scope: 'admin' });
-    next();
-  } catch (error) {
-    console.error('Auth error:', error.message);
-    return res.status(401).json({
-      success: false,
-      error: 'Authentication failed: ' + error.message
-    });
-  }
+/* ------------------------------------------------------------------ identity */
+
+app.get('/api/me', (req, res) => {
+  res.json({ success: true, allowed: true, ...req.caller });
 });
 
-// API routes (used by frontend)
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    message: 'Credential Management API Running',
-    version: '1.0.0'
-  });
+/* ------------------------------------------------------------------ credential vault */
+
+app.post('/api/credentials/add', wrap(async (req, res) => {
+  send(res, await addCredential(req, req.body), 201);
+}));
+
+app.get('/api/credentials', wrap(async (req, res) => {
+  send(res, await listCredentials(req));
+}));
+
+app.get('/api/credentials/:name', wrap(async (req, res) => {
+  send(res, await getCredential(req, req.params.name));
+}));
+
+app.delete('/api/credentials/:id', wrap(async (req, res) => {
+  // ROWID exceeds Number.MAX_SAFE_INTEGER — must stay a string.
+  send(res, await deactivateCredential(req, req.params.id));
+}));
+
+/* ------------------------------------------------------------------ connections */
+
+/** The catalogue, annotated with the shared credential, the caller's override, and which wins. */
+app.get('/api/connections', wrap(async (req, res) => {
+  send(res, await conn.listConnections(req));
+}));
+
+/** Data-centre profiles for the DC picker. */
+app.get('/api/connections/profiles', (_req, res) => {
+  send(res, conn.listProfiles());
 });
 
-app.post('/api/credentials/add', async (req, res) => {
-  const result = await addCredential(req, req.body);
-  res.status(result.success ? 201 : 400).json(result);
+/** The scope/host definitions straight from code — useful for diffing against the kit. */
+app.get('/api/connections/catalogue', (_req, res) => {
+  res.json({ success: true, catalogue: registry.publicCatalogue() });
 });
 
-app.get('/api/credentials/:name', async (req, res) => {
-  const result = await getCredential(req, req.params.name);
-  res.status(result.success ? 200 : 400).json(result);
-});
+/** Mirror the code catalogue into the DataStore tables. Idempotent; admin only. */
+app.post('/api/connections/seed', requireAdmin, wrap(async (req, res) => {
+  const result = await registry.seedRegistry(req.catalystAdmin || req.catalystApp);
+  res.json({ success: true, ...result });
+}));
 
-app.get('/api/credentials', async (req, res) => {
-  const result = await listCredentials(req);
-  res.status(result.success ? 200 : 400).json(result);
-});
+/**
+ * Begin an OAuth consent flow.
+ * Body: { service_key, dc?, client_id, client_secret, scope_level: 'shared' | 'user' }
+ * Scopes come from the registry, never the client. Returns { auth_url } for the browser to visit.
+ *
+ * The redirect URI below must be registered against the client_id in the Zoho API console.
+ */
+app.post('/api/connections/oauth/start', wrap(async (req, res) => {
+  const result = await conn.startOAuth(req, req.body || {}, oauthRedirectUri(req));
+  send(res, { ...result, redirect_uri: oauthRedirectUri(req) }, 201);
+}));
 
-app.delete('/api/credentials/:id', async (req, res) => {
-  // ROWID exceeds Number.MAX_SAFE_INTEGER — must stay a string
-  const result = await deactivateCredential(req, req.params.id);
-  res.status(result.success ? 200 : 400).json(result);
-});
+/**
+ * OAuth callback. Zoho redirects the browser here, so this responds with a page-level redirect back
+ * into the SPA rather than JSON.
+ */
+app.get('/api/connections/oauth/callback', wrap(async (req, res) => {
+  const result = await conn.handleCallback(req, req.query || {}, oauthRedirectUri(req));
+  const status = result.success ? 'connected' : 'failed';
+  const detail = result.success ? result.service_key : (result.error || 'unknown error');
+  res.redirect(`/app/#/connections?status=${status}&detail=${encodeURIComponent(detail)}`);
+}));
 
-// Add credential
-app.post('/credentials/add', async (req, res) => {
-  const result = await addCredential(req, req.body);
-  res.status(result.success ? 201 : 400).json(result);
-});
+/**
+ * Store a static token for a non-OAuth connection (CMTools PRIVATE-TOKEN, Repository PAT).
+ * Body: { service_key, dc?, token, scope_level: 'shared' | 'user' }
+ */
+app.post('/api/connections/token', wrap(async (req, res) => {
+  send(res, await conn.saveStaticToken(req, req.body || {}), 201);
+}));
 
-// Get credential
-app.get('/credentials/:name', async (req, res) => {
-  const result = await getCredential(req, req.params.name);
-  res.status(result.success ? 200 : 400).json(result);
-});
+/** Revoke at Zoho where applicable, then wipe the stored material. */
+app.delete('/api/connections/:id', wrap(async (req, res) => {
+  send(res, await conn.revokeConnection(req, req.params.id));
+}));
 
-// List all credentials
-app.get('/credentials', async (req, res) => {
-  const result = await listCredentials(req);
-  res.status(result.success ? 200 : 400).json(result);
-});
+/* ------------------------------------------------------------------ errors */
 
-// Deactivate credential
-app.delete('/credentials/:id', async (req, res) => {
-  const result = await deactivateCredential(req, req.params.id);
-  res.status(result.success ? 200 : 400).json(result);
+app.use((_req, res) => res.status(404).json({ success: false, error: 'No such route' }));
+
+// eslint-disable-next-line no-unused-vars
+app.use((err, _req, res, _next) => {
+  const status = err.status || 500;
+  if (status >= 500) console.error('welcome error:', err);
+  res.status(status).json({ success: false, error: status >= 500 ? 'Internal error' : err.message });
 });
 
 module.exports = app;

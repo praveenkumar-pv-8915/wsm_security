@@ -16,12 +16,17 @@ sees a password and never issues a token; it only verifies.
 
 Per request (`auth.js`):
 
-1. `catalyst.initialize(req)` → `userManagement().getCurrentUser()` — the returned email is the
-   **only** trusted identity. Nothing is read from the body, query, or a custom header.
-2. Email must end in `@zohocorp.com`.
-3. Email must exist in the `members` table with `STATUS = 'active'`.
+1. `catalyst.initialize(req)` → `userManagement().getCurrentUser()` — the **only** trusted identity.
+   Nothing is read from the body, query, or a custom header.
+2. The session's email must end in `@zohocorp.com`. Used for this one comparison only — never
+   stored, logged, or returned.
 
-`401` no session · `403` wrong domain or not an active member. Any error **fails closed**.
+There is **no `members` table** (2026-08-27 decision — see `CLAUDE.md` and the project KB,
+`claude/datastore-conventions.md`). Ownership and role both come straight off the Catalyst session:
+`req.caller = { userId, name, role }`, keyed on `user_id`, never email — a `user_id` is not PII, and
+it's a plain column on the row that needs it, not a separate table.
+
+`401` no session · `403` wrong domain. Any error **fails closed**.
 
 Write access is narrower than read: only the **assignee**, the **reporter**, or a member with
 `ROLE = 'admin'` may PATCH/DELETE a task or touch its checklist.
@@ -37,25 +42,22 @@ add a query path that skips those checks.
 2. **Serverless → FAAS → task_manager → Security Rules** — set `authentication` to **`required`**.
    Catalyst defaults every new function to `optional`, which would leave these routes callable
    anonymously with `getCurrentUser()` returning null. This is the single most important step.
-3. **Data Store** — create the four tables below.
-4. **Seed `members`** with your own email (`ROLE = admin`, `STATUS = active`) *before* deploying,
-   or the first request will 403 you out of your own app.
-5. Optional but recommended: a **Custom User Validation** Basic I/O function that checks `members`
-   on first signup and fails closed, so a valid Zoho account outside the team can't self-register.
-   `functions/welcome` has no equivalent; Tech-Stack-Inventory's `signup_validator` is the pattern.
+3. **Data Store** — create the three tables below.
+4. Make sure your own account is invited under **Authentication → User Management** with the
+   `App Administrator` role — that's what makes `role: 'admin'` come back on `/me`, no seed step
+   needed.
+5. Optional but recommended: a **Custom User Validation** Basic I/O function that checks the
+   `@zohocorp.com` domain (or Catalyst's own invite list) at signup and fails closed, so a valid
+   Zoho account outside the team can't self-register. `functions/welcome` has no equivalent;
+   Tech-Stack-Inventory's `signup_validator` is the pattern.
 
 ## DataStore schema
 
 `ROWID`, `CREATEDTIME` and `MODIFIEDTIME` are added by Catalyst — don't create them.
 
-### `members`
-
-| Column | Type | Notes |
-|---|---|---|
-| `EMAIL` | Text | **unique**, lowercase. The auth allowlist key |
-| `NAME` | Text | display name |
-| `ROLE` | Text | `admin` \| `member` |
-| `STATUS` | Text | `active` \| `disabled` |
+No `members` table. The assignee/reporter picker (`GET /members`) reads Catalyst's own user
+directory live via `userManagement().getAllUsers()` — see `task-service.js#listMembers`. The roster
+lives in exactly one place: the console's User Management screen.
 
 ### `tasks`
 
@@ -65,8 +67,8 @@ add a query path that skips those checks.
 | `DESCRIPTION` | Text | long text |
 | `TASK_TYPE` | Text | `hacksaw_review` \| `dev` \| `security_review` \| `tools_development` \| `techstack_2_0` |
 | `PRODUCT` | Text | e.g. `ADAudit Plus`, `Platform / shared` |
-| `ASSIGNEE_EMAIL` | Text | lowercase; empty = unassigned |
-| `REPORTER_EMAIL` | Text | set from the session, never the client |
+| `ASSIGNEE_ID` | Text | Catalyst `user_id`; empty = unassigned |
+| `REPORTER_ID` | Text | Catalyst `user_id`, set from the session, never the client |
 | `PRIORITY` | Text | `P0` \| `P1` \| `P2` \| `P3` |
 | `STATUS` | Text | `backlog` \| `in_progress` \| `blocked` \| `in_review` \| `done` |
 | `DUE_DATE` | Text | `YYYY-MM-DD` — plain text so ZCQL string ordering sorts it correctly |
@@ -74,7 +76,7 @@ add a query path that skips those checks.
 | `VISIBILITY` | Text | `team` \| `private` (private = assignee + reporter + admins only) |
 | `IS_ARCHIVED` | Text | `'true'` \| `'false'` — soft delete |
 
-Index `ASSIGNEE_EMAIL` and `STATUS`; those two carry every list query.
+Index `ASSIGNEE_ID` and `STATUS`; those two carry every list query.
 
 ### `task_checklist`
 
@@ -92,7 +94,7 @@ Append-only. Feeds the drawer's activity panel and doubles as the audit trail.
 | Column | Type | Notes |
 |---|---|---|
 | `TASK_ID` | Text | `tasks.ROWID` |
-| `ACTOR_EMAIL` | Text | from the session |
+| `ACTOR_ID` | Text | Catalyst `user_id`, from the session |
 | `EVENT_TYPE` | Text | `created` \| `field_changed` \| `comment` \| `archived` \| `checklist_*` |
 | `FIELD_NAME` | Text | for `field_changed` |
 | `FROM_VALUE` | Text | |
@@ -106,8 +108,8 @@ All paths are relative to `/server/task_manager/`.
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/health` | liveness — the only unauthenticated route |
-| GET | `/me` | caller's email, name, role |
-| GET | `/members` | active members (assignee dropdown) |
+| GET | `/me` | caller's `user_id`, name, role (no email) |
+| GET | `/members` | active users from Catalyst User Management (assignee dropdown) |
 | GET | `/meta` | allowed types/statuses/priorities, so UI dropdowns can't drift from the API |
 | GET | `/tasks?scope=mine\|team\|closed` | list (default `team`) |
 | GET | `/tasks/:id` | one task + checklist + activity |
@@ -128,7 +130,7 @@ POST /server/task_manager/tasks
   "description": "The ingestion job still uses the credential issued in Q1.",
   "type": "security_review",
   "product": "ADAudit Plus",
-  "assignee_email": "praveenkumar.pv@zohocorp.com",
+  "assignee_id": "60073792083000012345",
   "priority": "P1",
   "status": "in_progress",
   "due_date": "2026-08-21",

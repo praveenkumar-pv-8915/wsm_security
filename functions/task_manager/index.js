@@ -8,8 +8,10 @@
  * session; this function only verifies it (see auth.js). No passwords, tokens or secrets live here —
  * which is why catalyst-config.json carries no env_variables.
  *
- * Storage: Catalyst DataStore (tables `members`, `tasks`, `task_checklist`, `task_activity`).
- * See README.md for the column list and the one-time console setup.
+ * Storage: Catalyst DataStore (tables `tasks`, `task_checklist`, `task_activity`). NO `members`
+ * table (2026-08-27 decision, see CLAUDE.md and the project KB) — ownership is `user_id` on
+ * ASSIGNEE_ID/REPORTER_ID/ACTOR_ID columns, and the assignee list (`/members`) comes live from
+ * Catalyst User Management, not a maintained table. See README.md for the column list.
  */
 
 const express = require('express');

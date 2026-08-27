@@ -3,7 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Credential Vault — WSM Security</title>
+    <title>WSM Security</title>
+    <!-- Catalyst Web SDK + per-project init. Loaded eagerly and NOT deferred so
+         window.catalyst exists before React mounts. init.js is rewritten by
+         Catalyst's CDN to carry this project's auth config; it only resolves on
+         a Catalyst-hosted origin, which is why AuthGate degrades to 'sdk-error'
+         rather than silently rendering an unauthenticated app. -->
+    <script src="https://static.zohocdn.com/catalyst/sdk/js/4.5.0/catalystWebSDK.js"></script>
+    <script src="/__catalyst/sdk/init.js"></script>
     <style>
       /* pre-hydration shell: match app theme to avoid flash */
       html { background: #0d1117; }

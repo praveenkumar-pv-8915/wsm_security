@@ -2,11 +2,15 @@
  * Task CRUD against the Catalyst DataStore.
  *
  * Tables (create them in the console — see README.md for the column list):
- *   members         EMAIL, NAME, ROLE, STATUS
- *   tasks           TITLE, DESCRIPTION, TASK_TYPE, PRODUCT, ASSIGNEE_EMAIL, REPORTER_EMAIL,
+ *   tasks           TITLE, DESCRIPTION, TASK_TYPE, PRODUCT, ASSIGNEE_ID, REPORTER_ID,
  *                   PRIORITY, STATUS, DUE_DATE, TAGS, VISIBILITY, IS_ARCHIVED
  *   task_checklist  TASK_ID, ITEM, IS_DONE, POSITION
- *   task_activity   TASK_ID, ACTOR_EMAIL, EVENT_TYPE, FIELD_NAME, FROM_VALUE, TO_VALUE, COMMENT
+ *   task_activity   TASK_ID, ACTOR_ID, EVENT_TYPE, FIELD_NAME, FROM_VALUE, TO_VALUE, COMMENT
+ *
+ * NO MEMBERS TABLE (2026-08-27 decision — see CLAUDE.md / the project KB). Ownership is always
+ * `user_id` (ASSIGNEE_ID, REPORTER_ID, ACTOR_ID) — never email, so no PII is stored here. Roles come
+ * from the Catalyst session (auth.js), not a table. `listMembers()` below reads the assignee list
+ * straight from Catalyst's own user directory via the Node SDK's `getAllUsers()`.
  *
  * Every mutation appends a task_activity row — that feed is what the UI's activity panel renders,
  * and it doubles as the audit trail for who changed what.
@@ -23,21 +27,21 @@ const VISIBILITY = ['team', 'private'];
 
 const TASK_COLUMNS =
   'tasks.ROWID, tasks.TITLE, tasks.DESCRIPTION, tasks.TASK_TYPE, tasks.PRODUCT, ' +
-  'tasks.ASSIGNEE_EMAIL, tasks.REPORTER_EMAIL, tasks.PRIORITY, tasks.STATUS, tasks.DUE_DATE, ' +
+  'tasks.ASSIGNEE_ID, tasks.REPORTER_ID, tasks.PRIORITY, tasks.STATUS, tasks.DUE_DATE, ' +
   'tasks.TAGS, tasks.VISIBILITY, tasks.IS_ARCHIVED, tasks.CREATEDTIME, tasks.MODIFIEDTIME';
 
 /** Fields a PATCH is allowed to touch. Anything else in the body is ignored. */
 const PATCHABLE = {
-  TITLE:          v => nonEmpty(v, 'title'),
-  DESCRIPTION:    v => String(v ?? ''),
-  TASK_TYPE:      v => oneOf(v, TASK_TYPES, 'type'),
-  PRODUCT:        v => nonEmpty(v, 'product'),
-  ASSIGNEE_EMAIL: v => String(v ?? '').toLowerCase(),
-  PRIORITY:       v => oneOf(v, PRIORITIES, 'priority'),
-  STATUS:         v => oneOf(v, STATUSES, 'status'),
-  DUE_DATE:       v => isoDate(v),
-  TAGS:           v => String(v ?? ''),
-  VISIBILITY:     v => oneOf(v, VISIBILITY, 'visibility'),
+  TITLE:       v => nonEmpty(v, 'title'),
+  DESCRIPTION: v => String(v ?? ''),
+  TASK_TYPE:   v => oneOf(v, TASK_TYPES, 'type'),
+  PRODUCT:     v => nonEmpty(v, 'product'),
+  ASSIGNEE_ID: v => String(v ?? ''),
+  PRIORITY:    v => oneOf(v, PRIORITIES, 'priority'),
+  STATUS:      v => oneOf(v, STATUSES, 'status'),
+  DUE_DATE:    v => isoDate(v),
+  TAGS:        v => String(v ?? ''),
+  VISIBILITY:  v => oneOf(v, VISIBILITY, 'visibility'),
 };
 
 /* ------------------------------------------------------------------ validation */
@@ -71,10 +75,10 @@ function isoDate(value) {
 
 /* ------------------------------------------------------------------ activity */
 
-async function logActivity(app, taskId, actorEmail, event) {
+async function logActivity(app, taskId, actorId, event) {
   return insert(app, 'task_activity', {
     TASK_ID: String(taskId),
-    ACTOR_EMAIL: actorEmail,
+    ACTOR_ID: actorId,
     EVENT_TYPE: event.type,
     FIELD_NAME: event.field || '',
     FROM_VALUE: event.from == null ? '' : String(event.from),
@@ -97,7 +101,7 @@ async function listTasks(app, caller, scope) {
   const where = ["tasks.IS_ARCHIVED = 'false'"];
 
   if (scope === 'mine') {
-    where.push(`tasks.ASSIGNEE_EMAIL = '${esc(caller.email)}'`, "tasks.STATUS != 'done'");
+    where.push(`tasks.ASSIGNEE_ID = '${esc(caller.userId)}'`, "tasks.STATUS != 'done'");
   } else if (scope === 'closed') {
     where.push("tasks.STATUS = 'done'");
   } else {
@@ -115,8 +119,8 @@ function isVisibleTo(task, caller) {
   if (String(task.VISIBILITY || 'team') !== 'private') return true;
   if (caller.role === 'admin') return true;
   return (
-    caller.email === String(task.ASSIGNEE_EMAIL || '').toLowerCase() ||
-    caller.email === String(task.REPORTER_EMAIL || '').toLowerCase()
+    caller.userId === String(task.ASSIGNEE_ID || '') ||
+    caller.userId === String(task.REPORTER_ID || '')
   );
 }
 
@@ -140,7 +144,7 @@ async function getTask(app, caller, taskId) {
     ),
     selectAll(
       app,
-      'SELECT task_activity.ROWID, task_activity.ACTOR_EMAIL, task_activity.EVENT_TYPE, ' +
+      'SELECT task_activity.ROWID, task_activity.ACTOR_ID, task_activity.EVENT_TYPE, ' +
         'task_activity.FIELD_NAME, task_activity.FROM_VALUE, task_activity.TO_VALUE, ' +
         'task_activity.COMMENT, task_activity.CREATEDTIME ' +
         `FROM task_activity WHERE task_activity.TASK_ID = ${id} ORDER BY task_activity.ROWID`
@@ -149,30 +153,48 @@ async function getTask(app, caller, taskId) {
   return { ...task, checklist, activity };
 }
 
+/**
+ * The assignee/reporter picker's data source. NOT a DataStore table — reads Catalyst's own user
+ * directory via the Node SDK (`userManagement().getAllUsers()`), so the roster lives in exactly one
+ * place: the console's User Management screen. Requires admin scope in some SDK builds, hence
+ * `catalystAdmin`; falls back to the caller's own scope if that's unavailable.
+ *
+ * Returned shape is trimmed to what the UI needs — id, name, role — never email.
+ */
 async function listMembers(app) {
-  return selectAll(
-    app,
-    "SELECT members.ROWID, members.EMAIL, members.NAME, members.ROLE FROM members " +
-      "WHERE members.STATUS = 'active' ORDER BY members.NAME"
-  );
+  const users = await app.userManagement().getAllUsers();
+  return (users || [])
+    .filter(u => String(u.status || '').toUpperCase() === 'ACTIVE')
+    .map(u => {
+      const first = u.first_name || '';
+      const last = u.last_name || '';
+      return {
+        id: String(u.user_id),
+        name: `${first} ${last}`.trim() || 'Member',
+        role: String(u.role_details?.role_name || u.user_type || '').toLowerCase().includes('admin')
+          ? 'admin'
+          : 'member',
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /* ------------------------------------------------------------------ writes */
 
 async function createTask(app, caller, body) {
   const row = {
-    TITLE:          nonEmpty(body.title, 'title'),
-    DESCRIPTION:    String(body.description ?? ''),
-    TASK_TYPE:      oneOf(body.type, TASK_TYPES, 'type'),
-    PRODUCT:        nonEmpty(body.product, 'product'),
-    ASSIGNEE_EMAIL: String(body.assignee_email ?? '').toLowerCase(),
-    REPORTER_EMAIL: caller.email,                       // never taken from the client
-    PRIORITY:       oneOf(body.priority ?? 'P2', PRIORITIES, 'priority'),
-    STATUS:         oneOf(body.status ?? 'backlog', STATUSES, 'status'),
-    DUE_DATE:       isoDate(body.due_date),
-    TAGS:           String(body.tags ?? ''),
-    VISIBILITY:     oneOf(body.visibility ?? 'team', VISIBILITY, 'visibility'),
-    IS_ARCHIVED:    'false',
+    TITLE:       nonEmpty(body.title, 'title'),
+    DESCRIPTION: String(body.description ?? ''),
+    TASK_TYPE:   oneOf(body.type, TASK_TYPES, 'type'),
+    PRODUCT:     nonEmpty(body.product, 'product'),
+    ASSIGNEE_ID: String(body.assignee_id ?? ''),
+    REPORTER_ID: caller.userId,                        // never taken from the client
+    PRIORITY:    oneOf(body.priority ?? 'P2', PRIORITIES, 'priority'),
+    STATUS:      oneOf(body.status ?? 'backlog', STATUSES, 'status'),
+    DUE_DATE:    isoDate(body.due_date),
+    TAGS:        String(body.tags ?? ''),
+    VISIBILITY:  oneOf(body.visibility ?? 'team', VISIBILITY, 'visibility'),
+    IS_ARCHIVED: 'false',
   };
 
   const created = await insert(app, 'tasks', row);
@@ -188,7 +210,7 @@ async function createTask(app, caller, body) {
     });
   }
 
-  await logActivity(app, taskId, caller.email, { type: 'created' });
+  await logActivity(app, taskId, caller.userId, { type: 'created' });
   return getTask(app, caller, taskId);
 }
 
@@ -218,7 +240,7 @@ async function updateTask(app, caller, taskId, body, canModify) {
 
   await update(app, 'tasks', taskId, patch);
   for (const c of changes) {
-    await logActivity(app, taskId, caller.email, { type: 'field_changed', ...c });
+    await logActivity(app, taskId, caller.userId, { type: 'field_changed', ...c });
   }
   return getTask(app, caller, taskId);
 }
@@ -232,7 +254,7 @@ async function archiveTask(app, caller, taskId, canModify) {
     throw err;
   }
   await update(app, 'tasks', taskId, { IS_ARCHIVED: 'true' });
-  await logActivity(app, taskId, caller.email, { type: 'archived' });
+  await logActivity(app, taskId, caller.userId, { type: 'archived' });
   return { archived: true, id: String(taskId) };
 }
 
@@ -240,7 +262,7 @@ async function addComment(app, caller, taskId, text) {
   const task = await getTaskRow(app, taskId);
   if (!isVisibleTo(task, caller)) throw new NotFound('Task not found');
   const comment = nonEmpty(text, 'comment');
-  await logActivity(app, taskId, caller.email, { type: 'comment', comment });
+  await logActivity(app, taskId, caller.userId, { type: 'comment', comment });
   return getTask(app, caller, taskId);
 }
 
@@ -262,7 +284,7 @@ async function addChecklistItem(app, caller, taskId, text, canModify) {
     IS_DONE: 'false',
     POSITION: String(existing.length),
   });
-  await logActivity(app, taskId, caller.email, { type: 'checklist_added', to: text });
+  await logActivity(app, taskId, caller.userId, { type: 'checklist_added', to: text });
   return getTask(app, caller, taskId);
 }
 
@@ -281,7 +303,7 @@ async function setChecklistItem(app, caller, taskId, itemId, isDone, canModify) 
   if (!item || String(item.TASK_ID) !== String(taskId)) throw new NotFound('Checklist item not found');
 
   await update(app, 'task_checklist', itemId, { IS_DONE: isDone ? 'true' : 'false' });
-  await logActivity(app, taskId, caller.email, {
+  await logActivity(app, taskId, caller.userId, {
     type: isDone ? 'checklist_checked' : 'checklist_unchecked',
     to: item.ITEM,
   });
@@ -296,7 +318,7 @@ async function deleteChecklistItem(app, caller, taskId, itemId, canModify) {
     throw err;
   }
   await remove(app, 'task_checklist', itemId);
-  await logActivity(app, taskId, caller.email, { type: 'checklist_removed' });
+  await logActivity(app, taskId, caller.userId, { type: 'checklist_removed' });
   return getTask(app, caller, taskId);
 }
 

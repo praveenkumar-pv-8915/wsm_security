@@ -1,16 +1,28 @@
 /**
- * Identity + membership for the task_manager function.
+ * Identity for the task_manager function.
  *
  * Auth model — Catalyst DEFAULT HOSTED AUTHENTICATION:
  *   1. Catalyst Authentication (Hosted Login) signs the user in on Catalyst's own login pages and
  *      establishes the session. This function never sees a password and never issues a token.
  *   2. `catalyst.initialize(req)` picks that identity up off the request, and
- *      `userManagement().getCurrentUser()` resolves it server-side. The email it returns is the ONLY
- *      trusted identity — never read an identity out of the request body, query or a custom header.
- *   3. This module then re-checks two things on every request: the email is on ALLOWED_DOMAIN, and
- *      the email exists in the `members` table with STATUS = 'active'.
+ *      `userManagement().getCurrentUser()` resolves it server-side — the only trusted identity.
+ *      Nothing is ever read from the request body, query string or a custom header.
+ *   3. This module re-checks one thing on every request: the session's email ends in
+ *      ALLOWED_DOMAIN. The email is used for that single comparison and then discarded.
  *
- * Fails CLOSED: any lookup error denies the request rather than admitting an unverified caller.
+ * NO MEMBERS TABLE. Deliberate — see the 2026-08-27 decision in CLAUDE.md and the project KB
+ * (`claude/datastore-conventions.md`). Ownership and role both come straight off the Catalyst
+ * session, not an app-owned allowlist:
+ *   - Ownership: ALWAYS `user_id` (never email). `tasks.ASSIGNEE_ID` / `REPORTER_ID` and
+ *     `task_activity.ACTOR_ID` all store this. A user_id is not itself PII, and it's a plain
+ *     foreign-key-style column on the row that needs it — no separate table required.
+ *   - Role: read from the session's `role_details.role_name` (Catalyst's own App Administrator /
+ *     App User split). See normaliseRole().
+ *
+ * Display names (e.g. for the assignee dropdown) come from Catalyst's Get All Users API, not from
+ * a table this middleware maintains — see task-service.js#listMembers.
+ *
+ * Fails CLOSED: any error denies the request rather than admitting an unverified caller.
  *
  * IMPORTANT — Catalyst Security Rules default the `authentication` parameter to "optional" for every
  * new function, which would leave these routes callable anonymously (with getCurrentUser() returning
@@ -18,52 +30,24 @@
  *   Serverless -> FAAS -> task_manager -> Security Rules
  */
 
-const { esc, selectOne } = require('./db');
-
 const ALLOWED_DOMAIN = '@zohocorp.com';
 
 /**
- * Resolve the caller from the Catalyst session.
- * @returns {Promise<{email: string, name: string, role: string}|null>} null when not authenticated.
+ * Map Catalyst's own role vocabulary onto 'admin' | 'member'. Unrecognised/missing → 'member', so
+ * a role we don't understand yet never silently grants admin.
  */
-async function resolveCaller(app) {
-  let user = null;
-  try {
-    user = await app.userManagement().getCurrentUser();
-  } catch (e) {
-    console.log('getCurrentUser failed:', e.message);
-    return null;
-  }
-  if (!user) return null;
-
-  const email = String(user.email_id || '').toLowerCase().trim();
-  if (!email) return null;
-
-  const first = user.first_name || '';
-  const last = user.last_name || '';
-  return {
-    email,
-    name: `${first} ${last}`.trim() || email.split('@')[0],
-    role: 'member', // provisional — the members lookup is authoritative
-  };
-}
-
-/** Look the caller up in the `members` allowlist. Returns null when absent or disabled. */
-async function lookupMember(app, email) {
-  const row = await selectOne(
-    app,
-    "SELECT members.ROWID, members.NAME, members.ROLE, members.STATUS FROM members " +
-      `WHERE members.EMAIL = '${esc(email)}'`
-  );
-  if (!row) return null;
-  if (String(row.STATUS || '').toLowerCase() !== 'active') return null;
-  return { name: row.NAME || null, role: String(row.ROLE || 'member').toLowerCase() };
+function normaliseRole(user) {
+  const roleName = String(user?.role_details?.role_name || user?.user_type || '').toLowerCase();
+  return roleName.includes('admin') ? 'admin' : 'member';
 }
 
 /**
- * Express middleware. On success sets `req.catalystApp` and `req.caller = {email, name, role}`.
+ * Express middleware. On success sets `req.catalystApp` and
+ * `req.caller = { userId, name, role }` — NOTE: no `email`. Nothing downstream should need it; if a
+ * route thinks it does, that's a sign PII is about to leak into a response or a stored row.
+ *
  *   401 — no Catalyst session
- *   403 — signed in but outside the allowed domain, or not an active member
+ *   403 — signed in but outside the allowed domain
  */
 function requireMember(catalyst) {
   return async (req, res, next) => {
@@ -71,20 +55,31 @@ function requireMember(catalyst) {
       const app = catalyst.initialize(req);
       req.catalystApp = app;
 
-      const caller = await resolveCaller(app);
-      if (!caller) {
+      let user = null;
+      try {
+        user = await app.userManagement().getCurrentUser();
+      } catch (e) {
+        console.log('getCurrentUser failed:', e.message);
+      }
+      if (!user) {
         return res.status(401).json({ error: 'Not authenticated' });
       }
-      if (!caller.email.endsWith(ALLOWED_DOMAIN)) {
+
+      // Used for this one comparison only — never stored, never logged, never returned.
+      const email = String(user.email_id || '').toLowerCase().trim();
+      if (!email.endsWith(ALLOWED_DOMAIN)) {
         return res.status(403).json({ error: `Access restricted to ${ALLOWED_DOMAIN} accounts` });
       }
 
-      const member = await lookupMember(app, caller.email);
-      if (!member) {
-        return res.status(403).json({ error: 'Your account is not on the access list for this app' });
-      }
-
-      req.caller = { email: caller.email, name: member.name || caller.name, role: member.role };
+      const first = user.first_name || '';
+      const last = user.last_name || '';
+      const userId = String(user.user_id || user.email_id);
+      req.userId = userId;
+      req.caller = {
+        userId,
+        name: `${first} ${last}`.trim() || 'Member',
+        role: normaliseRole(user),
+      };
       return next();
     } catch (e) {
       // Fail closed.
@@ -99,9 +94,9 @@ function canModify(caller, task) {
   if (!caller) return false;
   if (caller.role === 'admin') return true;
   return (
-    caller.email === String(task.ASSIGNEE_EMAIL || '').toLowerCase() ||
-    caller.email === String(task.REPORTER_EMAIL || '').toLowerCase()
+    caller.userId === String(task.ASSIGNEE_ID || '') ||
+    caller.userId === String(task.REPORTER_ID || '')
   );
 }
 
-module.exports = { ALLOWED_DOMAIN, requireMember, lookupMember, canModify };
+module.exports = { ALLOWED_DOMAIN, requireMember, canModify };
