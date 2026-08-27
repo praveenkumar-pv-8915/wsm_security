@@ -5,8 +5,8 @@ import { navigate } from '../lib/router';
 /**
  * Signed-in home — the landing surface the app never had.
  *
- * Counts are fetched per module and each one fails independently: the connections tables may not
- * exist in DataStore yet, and a "No such Table" there must not blank out the vault tile beside it.
+ * Counts come from the modules themselves and each tile fails independently — `connection_credentials`
+ * may not exist in DataStore yet, and a "No such Table" there must not take the whole page down.
  * A tile that can't load says so and stays clickable.
  */
 
@@ -34,25 +34,24 @@ function Tile({ title, blurb, value, hint, state, to, disabled }) {
 }
 
 export default function Home({ user }) {
-  const [vault, setVault] = useState({ state: 'loading', count: 0, hint: '' });
   const [conns, setConns] = useState({ state: 'loading', configured: 0, total: 0, hint: '' });
 
   const load = useCallback(async () => {
-    setVault((v) => ({ ...v, state: 'loading' }));
     setConns((c) => ({ ...c, state: 'loading' }));
-
-    api('/credentials')
-      .then((r) => {
-        const active = (r.credentials || []).filter((c) => Number(c.is_active) === 1).length;
-        setVault({ state: 'ok', count: active, hint: active === 1 ? '1 active credential' : `${active} active credentials` });
-      })
-      .catch((err) => setVault({ state: 'error', count: 0, hint: err.message }));
-
     api('/connections')
       .then((r) => {
         const list = r.connections || [];
         const configured = list.filter((c) => c.configured).length;
-        setConns({ state: 'ok', configured, total: list.length, hint: `${configured} of ${list.length} services connected` });
+        const stale = list.filter((c) => c.effective?.scopes_stale).length;
+        setConns({
+          state: 'ok',
+          configured,
+          total: list.length,
+          stale,
+          hint: stale
+            ? `${configured} of ${list.length} connected · ${stale} need re-authentication`
+            : `${configured} of ${list.length} services connected`,
+        });
       })
       .catch((err) => setConns({ state: 'error', configured: 0, total: 0, hint: err.message }));
   }, []);
@@ -76,16 +75,8 @@ export default function Home({ user }) {
 
       <div className="tiles">
         <Tile
-          title="Credential Vault"
-          blurb="Store and retrieve API keys, tokens and certificates, encrypted at rest."
-          value={vault.count}
-          hint={vault.hint}
-          state={vault.state}
-          to="/vault"
-        />
-        <Tile
           title="Connections"
-          blurb="OAuth and token connections to the team's internal Zoho tools."
+          blurb="OAuth and token connections to the team's internal Zoho tools. Secrets are encrypted at rest and never returned."
           value={conns.state === 'ok' ? `${conns.configured}/${conns.total}` : 0}
           hint={conns.hint}
           state={conns.state}

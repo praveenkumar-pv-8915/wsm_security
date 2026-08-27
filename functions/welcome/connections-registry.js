@@ -6,9 +6,15 @@
  * needs, and which host serves it per data centre. It holds NO secrets — credentials live in
  * `connection_credentials` (see connections-service.js), encrypted.
  *
- * These constants are the source of truth in code; `seedRegistry()` mirrors them into the
- * `connections` and `connection_profiles` DataStore tables so the UI and any future feature can
- * read the catalogue without redeploying. Re-running the seed is safe — it upserts by key.
+ * These constants are THE source of truth, and the only one. They were briefly mirrored into
+ * `connections` / `connection_profiles` DataStore tables "so the catalogue is queryable without a
+ * redeploy" — but nothing ever read those tables (every read path goes through publicCatalogue(),
+ * PROFILES, getService() and scopeString() right here), and the values only change by editing this
+ * file and redeploying, so a mirror could never be anything but identical-or-stale.
+ *
+ * Scopes in particular stay in code on purpose: they decide what a token is allowed to do, so they
+ * should change in a reviewed diff, not in a console row. `startOAuth` reads them from here, so a
+ * second copy in a table could silently disagree with what is actually requested at consent.
  *
  * Where the kit stored tokens in each developer's macOS Keychain plus a local SQLite file, this
  * makes the catalogue team-wide and the credentials shared-or-personal (see SCOPE_LEVELS).
@@ -221,81 +227,7 @@ function publicCatalogue() {
   }));
 }
 
-/* ------------------------------------------------------------------ seeding */
-
-/**
- * Mirror the code constants into the `connections` and `connection_profiles` tables so the
- * catalogue is queryable without a redeploy. Upserts by key — safe to re-run.
- * Admin-only; called from the POST /api/connections/seed route.
- */
-async function seedRegistry(app) {
-  const zcql = app.zcql();
-  const connections = app.datastore().table('connections');
-  const profiles = app.datastore().table('connection_profiles');
-  const result = { connections: { inserted: 0, updated: 0 }, profiles: { inserted: 0, updated: 0 } };
-
-  const existingConns = new Map(
-    (await zcql.executeZCQLQuery('SELECT ROWID, SERVICE_KEY FROM connections'))
-      .map(r => r.connections || r)
-      .map(r => [r.SERVICE_KEY, r.ROWID])
-  );
-
-  for (const s of SERVICES) {
-    const row = {
-      SERVICE_KEY: s.key,
-      LABEL: s.label,
-      AUTH_TYPE: s.auth_type,
-      DESCRIPTION: s.description,
-      SCOPES: scopeString(s),
-      SCOPE_COUNT: String(s.scopes.length),
-      HOST_TEMPLATE: s.host,
-      DEFAULT_DC: s.default_dc,
-      AVAILABLE_DCS: availableDcs(s).join(','),
-      REDIRECT_PORT: s.redirect_port == null ? '' : String(s.redirect_port),
-      AUTH_HEADER: s.auth_header || '',
-      AUTH_HEADER_FORMAT: s.auth_header_format || '',
-      STATUS: 'active',
-    };
-    const rowId = existingConns.get(s.key);
-    if (rowId) {
-      await connections.updateRow({ ROWID: String(rowId), ...row });
-      result.connections.updated++;
-    } else {
-      await connections.insertRow(row);
-      result.connections.inserted++;
-    }
-  }
-
-  const existingProfiles = new Map(
-    (await zcql.executeZCQLQuery('SELECT ROWID, DC FROM connection_profiles'))
-      .map(r => r.connection_profiles || r)
-      .map(r => [r.DC, r.ROWID])
-  );
-
-  for (const [dc, p] of Object.entries(PROFILES)) {
-    const row = {
-      DC: dc,
-      DC_DOMAIN: p.dc_domain,
-      ACCOUNTS_DOMAIN: p.accounts_domain,
-      DOMAINS_JSON: JSON.stringify(p.domains),
-      APPID: p.appid || '',
-      SERVICE: p.service || '',
-      TIMEZONE: p.timezone,
-    };
-    const rowId = existingProfiles.get(dc);
-    if (rowId) {
-      await profiles.updateRow({ ROWID: String(rowId), ...row });
-      result.profiles.updated++;
-    } else {
-      await profiles.insertRow(row);
-      result.profiles.inserted++;
-    }
-  }
-
-  return result;
-}
-
 module.exports = {
   AUTH_TYPES, SCOPE_LEVELS, PROFILES, SERVICES,
-  getService, getProfile, scopeString, apiHost, availableDcs, publicCatalogue, seedRegistry,
+  getService, getProfile, scopeString, apiHost, availableDcs, publicCatalogue,
 };

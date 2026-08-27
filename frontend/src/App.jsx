@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import './App.css';
 import AuthGate from './components/AuthGate';
+import { api } from './lib/api';
 import { signOut } from './lib/catalyst';
 import { navigate, useRoute } from './lib/router';
 import Home from './views/Home';
-import Vault from './views/Vault';
 import Connections from './views/Connections';
 
 /**
@@ -14,15 +14,36 @@ import Connections from './views/Connections';
 
 const NAV = [
   { path: '/', label: 'Home' },
-  { path: '/vault', label: 'Vault' },
   { path: '/connections', label: 'Connections' },
 ];
 
-function Shell({ user }) {
+function Shell({ user: sessionUser }) {
   const { path } = useRoute();
   const [notice, setNotice] = useState(null);
+  const [serverRole, setServerRole] = useState(null);
 
   const onNotice = useCallback((message) => setNotice(message), []);
+
+  /**
+   * Take `role` from the server, not from the browser SDK.
+   *
+   * AuthGate derives a role from whatever `catalyst.userManagement.getCurrentUser()` returns, but
+   * the web SDK does not reliably include `role_details` — when it doesn't, everyone reads as
+   * 'member' and admin-only controls silently vanish for actual admins. GET /api/me returns the
+   * role the Node SDK resolved server-side, which is the same value requireAdmin enforces on.
+   *
+   * Non-blocking on purpose: if /api/me is slow or fails, the app still renders with the
+   * conservative client-side guess rather than hanging behind a spinner.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    api('/me')
+      .then((me) => { if (!cancelled && me.role) setServerRole(me.role); })
+      .catch(() => { /* keep the client-side guess; the server still enforces */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  const user = serverRole ? { ...sessionUser, role: serverRole } : sessionUser;
 
   useEffect(() => {
     if (!notice) return undefined;
@@ -68,7 +89,6 @@ function Shell({ user }) {
 
       {notice && <div className="banner banner-ok" role="status">{notice}</div>}
 
-      {path === '/vault' && <Vault onNotice={onNotice} />}
       {path === '/connections' && <Connections user={user} onNotice={onNotice} />}
       {path === '/' && <Home user={user} />}
 

@@ -3,7 +3,8 @@
  *
  * Hash routing (not history/pushState) is deliberate: the client is served by Catalyst web client
  * hosting, which serves index.html at /app/ and does not rewrite deep paths back to it. A real
- * path like /app/vault would 404 on reload; /app/#/vault never leaves the server's view of the URL.
+ * path like /app/connections would 404 on reload; /app/#/connections never leaves the server's view
+ * of the URL.
  *
  * It also has to survive the OAuth callback. functions/welcome/index.js redirects to
  * `/app/#/connections?status=connected&detail=…` — the query sits AFTER the hash, so
@@ -12,7 +13,7 @@
 
 import { useEffect, useState } from 'react';
 
-export const ROUTES = ['/', '/vault', '/connections'];
+export const ROUTES = ['/', '/connections'];
 
 export function parseHash(hash) {
   const raw = String(hash === undefined ? window.location.hash : hash).replace(/^#/, '');

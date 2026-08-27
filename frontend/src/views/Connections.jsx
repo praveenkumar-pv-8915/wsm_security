@@ -12,6 +12,11 @@ import { clearRouteParams } from '../lib/router';
  * No secret ever reaches this component. The API returns metadata only (`toPublic()` in
  * connections-service.js), and OAuth scopes come from the server-side registry — the client sends
  * a service key, never a scope list, so nothing here can widen a grant.
+ *
+ * Re-authenticate is its own action, not a variant of Connect. A stored refresh token keeps
+ * refreshing after a service gains a scope, but it carries the grant frozen at consent time, so
+ * the new scope 401s and the connection looks broken rather than under-permissioned. Re-auth reuses
+ * the stored client id and secret, so nobody has to dig them out of the Zoho console again.
  */
 
 const AUTH_LABEL = {
@@ -112,6 +117,18 @@ export default function Connections({ user, onNotice }) {
     }
   };
 
+  const reauthorize = async (service, credential) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api(`/connections/${credential.id}/reauthorize`, { method: 'POST' });
+      window.location.assign(result.auth_url);
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  };
+
   const revoke = async (service, credential) => {
     const what = credential.scope_level === 'shared' ? 'the team-shared credential' : 'your credential';
     if (!window.confirm(`Revoke ${what} for ${service.label}? It is revoked at Zoho and wiped here.`)) return;
@@ -120,20 +137,6 @@ export default function Connections({ user, onNotice }) {
     try {
       await api(`/connections/${credential.id}`, { method: 'DELETE' });
       onNotice?.(`Revoked ${service.label}.`);
-      await load();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const seed = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await api('/connections/seed', { method: 'POST' });
-      onNotice?.(`Catalogue seeded — ${result.connections.inserted} added, ${result.connections.updated} updated.`);
       await load();
     } catch (err) {
       setError(err.message);
@@ -155,11 +158,6 @@ export default function Connections({ user, onNotice }) {
         </div>
         <div className="view-actions">
           <button className="btn btn-ghost" onClick={load} disabled={loading || busy}>⟳ Refresh</button>
-          {user.role === 'admin' && (
-            <button className="btn btn-ghost" onClick={seed} disabled={busy} title="Mirror the code catalogue into DataStore">
-              ⛁ Seed catalogue
-            </button>
-          )}
         </div>
       </div>
 
@@ -172,10 +170,16 @@ export default function Connections({ user, onNotice }) {
         </div>
 
         {loading ? (
-          <p className="empty">Loading catalogue…</p>
+          <p className="empty">
+            No catalogue returned. If the error above says a table doesn’t exist,
+            <code> connection_credentials </code> has to be created in the Catalyst console first —
+            there is no API for creating a table. See CONNECTIONS.md for the schema.
+          </p>
         ) : connections.length === 0 ? (
           <p className="empty">
-            No catalogue returned. If the DataStore tables aren’t created yet, an admin can run “Seed catalogue”.
+            No catalogue returned. If the error above says a table doesn’t exist, the DataStore
+            tables have to be created in the Catalyst console first — there is no API for it, and
+            “Seed catalogue” only fills tables that already exist. See CONNECTIONS.md for the schema.
           </p>
         ) : (
           <ul className="conn-list">
@@ -183,6 +187,8 @@ export default function Connections({ user, onNotice }) {
               const isOpen = openKey === service.key;
               const eff = service.effective;
               const isOAuth = service.auth_type === 'oauth';
+              // Re-auth acts on a row this caller may write: their own, or the team one if admin.
+              const myOrTeam = service.mine || (user.role === 'admin' ? service.shared : null);
               return (
                 <li key={service.key} className={`conn${service.configured ? ' conn-on' : ''}`}>
                   <div className="conn-main">
@@ -198,15 +204,32 @@ export default function Connections({ user, onNotice }) {
                       <span className="tag tag-muted">{AUTH_LABEL[service.auth_type] || service.auth_type}</span>
                       {service.scope_count > 0 && <span className="dim">{service.scope_count} scopes</span>}
                       {eff ? (
-                        <span className={`tag${eff.expired ? ' tag-warn' : ''}`}>
-                          {eff.source === 'user' ? 'personal' : 'team'}{eff.expired ? ' · expired' : ''}
-                        </span>
+                        <>
+                          <span className={`tag${eff.expired ? ' tag-warn' : ''}`}>
+                            {eff.source === 'user' ? 'personal' : 'team'}{eff.expired ? ' · expired' : ''}
+                          </span>
+                          {eff.scopes_stale && (
+                            <span className="tag tag-warn" title="This service asks for scopes that weren't in the grant you consented to. Re-authenticate to widen it.">
+                              scopes changed
+                            </span>
+                          )}
+                        </>
                       ) : (
                         <span className="dim">not configured</span>
                       )}
                     </div>
 
                     <div className="conn-actions">
+                      {isOAuth && myOrTeam && (
+                        <button
+                          className={`btn btn-small${eff?.scopes_stale ? ' btn-attn' : ''}`}
+                          onClick={() => reauthorize(service, myOrTeam)}
+                          disabled={busy}
+                          title="Re-run Zoho consent using the stored client id and secret"
+                        >
+                          ↻ Re-authenticate
+                        </button>
+                      )}
                       <button className="btn btn-small" onClick={() => setOpenKey(isOpen ? null : service.key)} disabled={busy}>
                         {isOpen ? 'Close' : (eff ? 'Reconfigure' : 'Connect')}
                       </button>

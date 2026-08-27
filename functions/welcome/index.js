@@ -1,5 +1,5 @@
 /**
- * welcome — WSM Security credential vault + connections registry.
+ * welcome — WSM Security connections registry.
  *
  * Catalyst Advanced I/O function (node18), mounted at:
  *   https://wsm-security-60073792083.development.catalystserverless.in/server/welcome/
@@ -11,8 +11,15 @@
  * which let any account that could sign up reach the vault — this closes that gap without adding a
  * table or storing PII.
  *
- * Storage: Catalyst DataStore. `credentials` (vault, unchanged), plus `connections` /
- * `connection_profiles` (the catalogue) and `connection_credentials` (encrypted tokens).
+ * Storage: Catalyst DataStore, ONE table — `connection_credentials` (encrypted tokens).
+ * The catalogue itself (services, scopes, DC hosts) is code, in connections-registry.js. It was
+ * briefly mirrored into `connections` / `connection_profiles` tables; nothing ever read them, and
+ * scopes are a security boundary that belongs in a reviewed diff rather than a console-editable
+ * row, so the mirroring is gone (2026-08-27).
+ *
+ * There is no general-purpose credential vault. `credentials` + credential-service.js were removed
+ * once it was settled that the only secrets this app stores are the ones connections need — those
+ * live in `connection_credentials`, keyed to a service, and are never returned over HTTP.
  *
  * Secrets: CRED_ENC_KEY (32-byte hex) is injected at deploy time and must never be committed.
  */
@@ -20,8 +27,7 @@
 const express = require('express');
 const catalyst = require('zcatalyst-sdk-node');
 
-const { requireMember, requireAdmin } = require('./auth');
-const { addCredential, getCredential, listCredentials, deactivateCredential } = require('./credential-service');
+const { requireMember } = require('./auth');
 const registry = require('./connections-registry');
 const conn = require('./connections-service');
 
@@ -31,10 +37,10 @@ app.use(express.json({ limit: '256kb' }));
 /* ------------------------------------------------------------------ public */
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'welcome', version: '2.0.0' });
+  res.json({ status: 'ok', service: 'welcome', version: '3.0.0' });
 });
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', message: 'Credential Management API Running', version: '2.0.0' });
+  res.json({ status: 'ok', message: 'Connections API running', version: '3.0.0' });
 });
 
 // Root → the React client served by Catalyst client hosting.
@@ -82,25 +88,6 @@ app.get('/api/me', (req, res) => {
   res.json({ success: true, allowed: true, ...req.caller });
 });
 
-/* ------------------------------------------------------------------ credential vault */
-
-app.post('/api/credentials/add', wrap(async (req, res) => {
-  send(res, await addCredential(req, req.body), 201);
-}));
-
-app.get('/api/credentials', wrap(async (req, res) => {
-  send(res, await listCredentials(req));
-}));
-
-app.get('/api/credentials/:name', wrap(async (req, res) => {
-  send(res, await getCredential(req, req.params.name));
-}));
-
-app.delete('/api/credentials/:id', wrap(async (req, res) => {
-  // ROWID exceeds Number.MAX_SAFE_INTEGER — must stay a string.
-  send(res, await deactivateCredential(req, req.params.id));
-}));
-
 /* ------------------------------------------------------------------ connections */
 
 /** The catalogue, annotated with the shared credential, the caller's override, and which wins. */
@@ -118,12 +105,6 @@ app.get('/api/connections/catalogue', (_req, res) => {
   res.json({ success: true, catalogue: registry.publicCatalogue() });
 });
 
-/** Mirror the code catalogue into the DataStore tables. Idempotent; admin only. */
-app.post('/api/connections/seed', requireAdmin, wrap(async (req, res) => {
-  const result = await registry.seedRegistry(req.catalystAdmin || req.catalystApp);
-  res.json({ success: true, ...result });
-}));
-
 /**
  * Begin an OAuth consent flow.
  * Body: { service_key, dc?, client_id, client_secret, scope_level: 'shared' | 'user' }
@@ -131,6 +112,17 @@ app.post('/api/connections/seed', requireAdmin, wrap(async (req, res) => {
  *
  * The redirect URI below must be registered against the client_id in the Zoho API console.
  */
+/**
+ * Re-run consent for a connection that is already configured, reusing the stored client id and
+ * secret so nobody has to paste them again. This is the path to take when a service's scope list
+ * grows: the old refresh token still works but carries the OLD grant, so the new scopes 401 until
+ * the user re-consents.
+ */
+app.post('/api/connections/:id/reauthorize', wrap(async (req, res) => {
+  const result = await conn.reauthorize(req, req.params.id, oauthRedirectUri(req));
+  send(res, { ...result, redirect_uri: oauthRedirectUri(req) }, 201);
+}));
+
 app.post('/api/connections/oauth/start', wrap(async (req, res) => {
   const result = await conn.startOAuth(req, req.body || {}, oauthRedirectUri(req));
   send(res, { ...result, redirect_uri: oauthRedirectUri(req) }, 201);

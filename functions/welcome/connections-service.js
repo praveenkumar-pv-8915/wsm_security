@@ -2,14 +2,21 @@
  * Connection credentials — the layer that turns a catalogue entry (connections-registry.js) into a
  * usable, authenticated API call.
  *
- * Supersedes `oauth-service.js`, which was written but never wired into index.js. Its OAuth logic
- * is carried over here largely intact; what's new is the service-key link to the registry, the
- * shared/personal scope model, and support for the two non-OAuth auth types.
+ * Supersedes the old `oauth-service.js` (deleted 2026-08-27 — written, never wired into index.js).
+ * Its OAuth logic carried over largely intact; what's new is the service-key link to the registry,
+ * the shared/personal scope model, re-authorisation, and support for the two non-OAuth auth types.
  *
  * Table: `connection_credentials`
  *   SERVICE_KEY, DC, SCOPE_LEVEL, OWNER_ID, AUTH_TYPE,
  *   CLIENT_ID, CLIENT_SECRET_ENC, REFRESH_TOKEN_ENC, ACCESS_TOKEN_ENC, TOKEN_EXPIRES_AT,
- *   STATIC_TOKEN_ENC, OAUTH_STATE, STATUS, LAST_USED_AT
+ *   STATIC_TOKEN_ENC, OAUTH_STATE, GRANTED_SCOPES, STATUS, LAST_USED_AT
+ *
+ * GRANTED_SCOPES records the scope string that was actually consented to. An OAuth grant is frozen
+ * at consent time: when a scope is added to a service in connections-registry.js, the stored
+ * refresh token keeps working but still carries the OLD grant, so calls needing the new scope fail
+ * with a 401 that looks like a broken connection rather than a missing permission. Comparing it to
+ * the registry's current scope string is what lets the UI say "re-authenticate" instead of leaving
+ * someone to guess. See reauthorize().
  *
  * SCOPE MODEL — shared default with personal override:
  *   • A `shared` credential is the team's connection for a service. Any active member may use it;
@@ -43,7 +50,21 @@ const unwrap = rows => (rows || []).map(r => r[TABLE] || r);
 const COLUMNS =
   'ROWID, SERVICE_KEY, DC, SCOPE_LEVEL, OWNER_ID, AUTH_TYPE, CLIENT_ID, ' +
   'CLIENT_SECRET_ENC, REFRESH_TOKEN_ENC, ACCESS_TOKEN_ENC, TOKEN_EXPIRES_AT, ' +
-  'STATIC_TOKEN_ENC, OAUTH_STATE, STATUS, LAST_USED_AT, CREATEDTIME';
+  'STATIC_TOKEN_ENC, OAUTH_STATE, GRANTED_SCOPES, STATUS, LAST_USED_AT, CREATEDTIME';
+
+/**
+ * Does this credential's grant still match what the service asks for today?
+ * Order-insensitive: the comparison is on the scope SET, so reordering the registry array does not
+ * nag everyone to re-consent. Non-OAuth credentials have no grant and are never stale.
+ */
+function scopesStale(row, service) {
+  if (row.AUTH_TYPE !== AUTH_TYPES.OAUTH) return false;
+  const granted = String(row.GRANTED_SCOPES || '');
+  // Blank means the row predates GRANTED_SCOPES. Don't cry wolf on rows we can't judge.
+  if (!granted) return false;
+  const norm = str => str.split(/[\s,]+/).filter(Boolean).sort().join(',');
+  return norm(granted) !== norm(registry.scopeString(service));
+}
 
 /** Metadata only — no secret material, ever. */
 const toPublic = row => ({
@@ -54,6 +75,7 @@ const toPublic = row => ({
   auth_type: row.AUTH_TYPE,
   client_id: row.CLIENT_ID || null,
   status: row.STATUS,
+  granted_scope_count: String(row.GRANTED_SCOPES || '').split(/[\s,]+/).filter(Boolean).length,
   token_expires_at: Number(row.TOKEN_EXPIRES_AT) || 0,
   expired: row.AUTH_TYPE === AUTH_TYPES.OAUTH && Number(row.TOKEN_EXPIRES_AT) > 0
     ? Number(row.TOKEN_EXPIRES_AT) <= Date.now()
@@ -103,12 +125,17 @@ async function listConnections(req) {
         r => r.SCOPE_LEVEL === SCOPE_LEVELS.USER && String(r.OWNER_ID) === String(req.userId)
       );
       const effective = mine || shared || null;
+      const decorate = (row, ownedByMe) => ({
+        ...toPublic(row),
+        owned_by_me: ownedByMe,
+        scopes_stale: scopesStale(row, service),
+      });
       return {
         ...service,
-        shared: shared ? { ...toPublic(shared), owned_by_me: String(shared.OWNER_ID) === String(req.userId) } : null,
-        mine: mine ? { ...toPublic(mine), owned_by_me: true } : null,
+        shared: shared ? decorate(shared, String(shared.OWNER_ID) === String(req.userId)) : null,
+        mine: mine ? decorate(mine, true) : null,
         effective: effective
-          ? { source: mine ? SCOPE_LEVELS.USER : SCOPE_LEVELS.SHARED, ...toPublic(effective) }
+          ? { source: mine ? SCOPE_LEVELS.USER : SCOPE_LEVELS.SHARED, ...decorate(effective, String(effective.OWNER_ID) === String(req.userId)) }
           : null,
         configured: Boolean(effective && effective.STATUS === 'active'),
       };
@@ -196,6 +223,7 @@ async function startOAuth(req, data, redirectUri) {
       TOKEN_EXPIRES_AT: '0',
       STATIC_TOKEN_ENC: '',
       OAUTH_STATE: state,
+      GRANTED_SCOPES: '',
       STATUS: 'pending',
       LAST_USED_AT: '0',
     };
@@ -231,10 +259,14 @@ async function handleCallback(req, { code, state }, redirectUri) {
     if (!code || !state) throw new Error('Missing code or state in callback');
     if (!/^[a-f0-9]{48}$/.test(state)) throw new Error('Invalid state token');
 
+    // Matched on OAUTH_STATE alone (minus revoked rows), not on STATUS = 'pending'. The state is a
+    // cryptographically random one-time token cleared on use, so it is the real key here — and
+    // re-authorising an already-active connection has to work too, which a pending-only filter
+    // would block.
     const rows = unwrap(await zcql.executeZCQLQuery(
-      `SELECT ${COLUMNS} FROM ${TABLE} WHERE OAUTH_STATE = '${state}' AND STATUS = 'pending'`
+      `SELECT ${COLUMNS} FROM ${TABLE} WHERE OAUTH_STATE = '${state}' AND STATUS != 'revoked'`
     ));
-    if (!rows.length) throw new Error('No pending connection matches this authorization');
+    if (!rows.length) throw new Error('No connection matches this authorization');
     const conn = rows[0];
 
     // The person finishing the flow must be the one who started it, whatever the scope level.
@@ -259,12 +291,70 @@ async function handleCallback(req, { code, state }, redirectUri) {
       ACCESS_TOKEN_ENC: encrypt(tokens.access_token),
       TOKEN_EXPIRES_AT: String(Date.now() + (tokens.expires_in || 3600) * 1000),
       OAUTH_STATE: '', // one-time use
+      // Record what was actually consented to, so scopesStale() can tell later whether the registry
+      // has moved on since.
+      GRANTED_SCOPES: registry.scopeString(registry.getService(conn.SERVICE_KEY)),
       STATUS: 'active',
     });
 
     return { success: true, service_key: conn.SERVICE_KEY, scope_level: conn.SCOPE_LEVEL };
   } catch (error) {
     console.error('Error in OAuth callback:', error);
+    return { success: false, error: error.message, status: error.status };
+  }
+}
+
+/**
+ * Re-run consent for an existing OAuth connection, reusing its stored client id and secret.
+ *
+ * The case this exists for: a service gains a scope in connections-registry.js. The stored refresh
+ * token still refreshes fine, but it carries the grant as it was at consent time, so any call
+ * needing the new scope 401s. Only a fresh consent widens a grant — refreshing never does.
+ *
+ * The existing tokens are deliberately left in place until the new consent completes. If the user
+ * abandons the Zoho screen, the connection keeps working on the old grant instead of being left
+ * half-broken.
+ */
+async function reauthorize(req, id, redirectUri) {
+  try {
+    const { table, zcql } = services(req);
+    if (!/^\d+$/.test(String(id))) throw new Error('Invalid connection id');
+
+    const rows = unwrap(await zcql.executeZCQLQuery(
+      `SELECT ${COLUMNS} FROM ${TABLE} WHERE ROWID = ${id} AND STATUS != 'revoked'`
+    ));
+    if (!rows.length) throw new Error('Connection not found');
+    const conn = rows[0];
+
+    const service = registry.getService(conn.SERVICE_KEY);
+    if (service.auth_type !== AUTH_TYPES.OAUTH) {
+      throw new Error(`'${service.key}' does not use OAuth — replace its token instead`);
+    }
+    if (!conn.CLIENT_ID || !conn.CLIENT_SECRET_ENC) {
+      throw new Error('This connection has no stored client credentials — configure it from scratch');
+    }
+
+    // Same authority as creating one at this level: shared is admin-only, personal is owner-only.
+    if (conn.SCOPE_LEVEL === SCOPE_LEVELS.SHARED) {
+      assertMayWriteShared(req, SCOPE_LEVELS.SHARED);
+    } else if (String(conn.OWNER_ID) !== String(req.userId)) {
+      throw new Denied('You do not own this connection');
+    }
+
+    const state = randomHex(24);
+    await table.updateRow({ ROWID: String(conn.ROWID), OAUTH_STATE: state });
+
+    const authUrl = `https://${registry.getProfile(conn.DC).accounts_domain}/oauth/v2/auth` +
+      `?scope=${encodeURIComponent(registry.scopeString(service))}` +
+      `&client_id=${encodeURIComponent(conn.CLIENT_ID)}` +
+      '&response_type=code' +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      '&access_type=offline&prompt=consent' +
+      `&state=${state}`;
+
+    return { success: true, id: conn.ROWID, service_key: service.key, auth_url: authUrl };
+  } catch (error) {
+    console.error('Error re-authorizing:', error);
     return { success: false, error: error.message, status: error.status };
   }
 }
@@ -307,6 +397,7 @@ async function saveStaticToken(req, data) {
       TOKEN_EXPIRES_AT: '0',
       STATIC_TOKEN_ENC: encrypt(token),
       OAUTH_STATE: '',
+      GRANTED_SCOPES: '',
       STATUS: 'active',
       LAST_USED_AT: '0',
     };
@@ -459,6 +550,6 @@ async function callConnection(req, serviceKey, path, options = {}) {
 
 module.exports = {
   listConnections, listProfiles,
-  startOAuth, handleCallback, saveStaticToken, revokeConnection,
+  startOAuth, handleCallback, reauthorize, saveStaticToken, revokeConnection,
   resolveCredential, getAccessToken, callConnection,
 };

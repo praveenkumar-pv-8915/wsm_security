@@ -52,36 +52,77 @@ you, otherwise the team-shared one applies. That's the override. One credential 
 Trade-off to be aware of: a shared credential acts as whoever authorised it. Attribution at the
 Zoho end is to that person, not to the member who triggered the call.
 
-## Tables
+## The one table
 
-Create these in the console alongside the vault's existing `credentials` table.
+Connections need exactly one DataStore table: **`connection_credentials`**. Everything else about a
+connection — which services exist, their scopes, their per-DC hosts — is code, in
+`connections-registry.js`.
 
-### `connections` — the catalogue
+That split is deliberate. Scopes and hosts change only when someone edits that file and redeploys,
+so a database copy could never be anything but identical-or-stale. Tokens are created by users at
+runtime, rotated on refresh and wiped on revoke, so they can't live in a file. Config in code, data
+in the database.
 
-`SERVICE_KEY` (unique), `LABEL`, `AUTH_TYPE`, `DESCRIPTION`, `SCOPES`, `SCOPE_COUNT`,
-`HOST_TEMPLATE`, `DEFAULT_DC`, `AVAILABLE_DCS`, `REDIRECT_PORT`, `AUTH_HEADER`,
-`AUTH_HEADER_FORMAT`, `STATUS` — all Text.
+Scopes stay in code for a second reason: they decide what a token is allowed to do. In code that
+changes in a reviewed diff. In a console-editable row it doesn't — and since `startOAuth` reads
+scopes from the registry regardless, a table copy could silently disagree with what is actually
+requested at consent.
 
-Populated by `POST /api/connections/seed` from the constants in `connections-registry.js`.
-Idempotent (upsert by `SERVICE_KEY`), admin-only. The code constants stay the source of truth; the
-table exists so the catalogue is queryable without a redeploy.
+> Earlier versions mirrored the catalogue into `connections` and `connection_profiles` tables "so it
+> is queryable without a redeploy". Nothing ever read them, and `seedRegistry()` plus
+> `POST /api/connections/seed` existed only to fill them. All three are gone (2026-08-27). If you
+> want the catalogue as data, `GET /api/connections/catalogue` serves it straight from code.
+>
+> The general-purpose `credentials` vault is gone too, along with `credential-service.js` and the
+> `/api/credentials/*` routes — the only secrets this app stores are the ones connections need.
 
-### `connection_profiles` — the data centres
+**Create it by hand in the Catalyst console** (Data Store → Create a new Table). Catalyst has no
+API, SDK or CLI for creating a table. Until it exists, `GET /api/connections` fails with
+`No such Table with the given name exists.`
 
-`DC` (unique), `DC_DOMAIN`, `ACCOUNTS_DOMAIN`, `DOMAINS_JSON`, `APPID`, `SERVICE`, `TIMEZONE`.
+| Column | Type | Notes |
+|---|---|---|
+| `SERVICE_KEY` | Var Char 100 | index it |
+| `DC` | Var Char 30 | |
+| `SCOPE_LEVEL` | Var Char 10 | `shared` \| `user` |
+| `OWNER_ID` | Var Char 30 | index it. Catalyst `user_id`, never email |
+| `AUTH_TYPE` | Var Char 30 | `oauth` \| `private_token` \| `pat` |
+| `CLIENT_ID` | Var Char 255 | |
+| `CLIENT_SECRET_ENC` | **Encrypted text** | |
+| `REFRESH_TOKEN_ENC` | **Encrypted text** | |
+| `ACCESS_TOKEN_ENC` | **Encrypted text** | |
+| `STATIC_TOKEN_ENC` | **Encrypted text** | CMTools / Repository |
+| `TOKEN_EXPIRES_AT` | Var Char 20 | epoch millis as a string |
+| `OAUTH_STATE` | Var Char 60 | 48 hex chars, one-time |
+| `GRANTED_SCOPES` | **Text** | ⚠️ **not Var Char.** WorkDrive's scope string is 460 chars and Projects' 262 — both over the 255 cap |
+| `STATUS` | Var Char 20 | `pending` \| `active` \| `revoked` |
+| `LAST_USED_AT` | Var Char 20 | epoch millis as a string |
 
-### `connection_credentials` — the secrets
+Do **not** put a unique constraint on any of these. `IsUnique` can never be changed after column
+creation, and columns that get blanked on revoke (`*_ENC`, `OAUTH_STATE`) would collide the second
+time a row is revoked.
 
-`SERVICE_KEY`, `DC`, `SCOPE_LEVEL`, `OWNER_ID`, `AUTH_TYPE`, `CLIENT_ID`, `CLIENT_SECRET_ENC`,
-`REFRESH_TOKEN_ENC`, `ACCESS_TOKEN_ENC`, `TOKEN_EXPIRES_AT`, `STATIC_TOKEN_ENC`, `OAUTH_STATE`,
-`STATUS` (`pending`/`active`/`revoked`), `LAST_USED_AT`.
+Every `*_ENC` value is AES-256-GCM (`v1:iv:tag:ciphertext`) under `CRED_ENC_KEY`, *inside* the
+natively-encrypted column — two layers on purpose. **No endpoint returns any of them.** `toPublic()`
+in `connections-service.js` is the only shape that leaves the module for a response body.
 
-Every `*_ENC` column is AES-256-GCM (`v1:iv:tag:ciphertext`, the same format the vault uses) under
-`CRED_ENC_KEY`. **No endpoint returns any of them.** `toPublic()` in `connections-service.js` is the
-only shape that leaves the module for a response body — the smoke test asserts no encrypted or
-plaintext secret appears in `GET /api/connections`.
+## Re-authenticating
 
-Index `SERVICE_KEY` and `OWNER_ID`.
+An OAuth grant is frozen at consent time. When a scope is added to a service in the registry, the
+stored refresh token keeps refreshing happily but still carries the **old** grant — so calls needing
+the new scope come back 401 and the connection looks broken rather than under-permissioned.
+Refreshing never widens a grant; only a fresh consent does.
+
+`GRANTED_SCOPES` records what was actually consented to. `listConnections` compares it (as a set, so
+reordering the registry array doesn't nag anyone) against the registry's current scope string and
+returns `scopes_stale`. The UI shows a **scopes changed** badge and highlights **Re-authenticate**.
+
+`POST /api/connections/:id/reauthorize` reuses the stored client id and secret, so nobody has to dig
+them out of the Zoho API console again. The existing tokens are left in place until the new consent
+completes — abandon the Zoho screen and the connection keeps working on the old grant.
+
+Rows created before `GRANTED_SCOPES` existed have it blank and are never reported stale; re-authenticate
+once and they start being checked.
 
 ## Endpoints
 
@@ -92,8 +133,8 @@ Relative to `/server/welcome/`.
 | GET | `/api/connections` | catalogue + shared/mine/effective per service |
 | GET | `/api/connections/catalogue` | definitions from code, no credential state |
 | GET | `/api/connections/profiles` | DC profiles |
-| POST | `/api/connections/seed` | mirror code → tables. **admin** |
 | POST | `/api/connections/oauth/start` | `{service_key, dc?, client_id, client_secret, scope_level}` → `{auth_url}` |
+| POST | `/api/connections/:id/reauthorize` | re-consent reusing the stored client id/secret → `{auth_url}` |
 | GET | `/api/connections/oauth/callback` | Zoho lands here; redirects into the SPA |
 | POST | `/api/connections/token` | `{service_key, dc?, token, scope_level}` for CMTools/Repository |
 | DELETE | `/api/connections/:id` | revokes at Zoho, then wipes stored material |
@@ -137,13 +178,16 @@ key.** That would turn the app into an open proxy to every service the team has 
 
 ## Adding a new connection
 
-Append an entry to `SERVICES` in `connections-registry.js`, deploy, and
-`POST /api/connections/seed`. No schema change. If it needs a host in a DC that isn't mapped yet,
-add it to that profile's `domains`.
+Append an entry to `SERVICES` in `connections-registry.js` and deploy. No schema change, no seed
+step — the catalogue is the code. If it needs a host in a DC that isn't mapped yet, add it to that
+profile's `domains`.
 
-## Relationship to `oauth-service.js`
+**Adding a scope to an existing service is different.** Everyone already connected to it keeps the
+narrower grant until they re-consent, so they'll see the **scopes changed** badge and need to hit
+**Re-authenticate**.
 
-`connections-service.js` supersedes `oauth-service.js`, which was written but never referenced by
-`index.js`. Its OAuth logic carried over largely intact; what's new is the registry link, the
-shared/personal scope model, static-token support, and `callConnection`. `oauth-service.js` and its
-`oauth_connections` table are now redundant — left in place so you can confirm before deletion.
+## Removed files
+
+`oauth-service.js` and its `oauth_connections` table are gone (2026-08-27). It was written but never
+wired into `index.js`; `connections-service.js` carried its OAuth logic over and added the registry
+link, the shared/personal scope model, static-token support, re-authorisation and `callConnection`.

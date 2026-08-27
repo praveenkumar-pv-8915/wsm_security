@@ -526,3 +526,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   .kv { grid-template-columns: 1fr; gap: 2px 0; }
   .kv dd { margin-bottom: 8px; }
 }
+
+/* Draws the eye to a re-auth that is actually needed, without shouting like a danger action. */
+.btn-attn {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn-attn:hover:not(:disabled) { background: rgba(240, 168, 50, 0.1); }

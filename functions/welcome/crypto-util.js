@@ -1,8 +1,8 @@
 /**
- * AES-256-GCM helpers shared by the credential vault and the connections registry.
+ * AES-256-GCM helpers for the connections registry.
  *
- * Wire format: `v1:<iv-hex>:<authtag-hex>:<ciphertext-hex>` — identical to the format
- * credential-service.js already writes, so payloads are interchangeable between them.
+ * Wire format: `v1:<iv-hex>:<authtag-hex>:<ciphertext-hex>` — the same format the old credential
+ * vault used, so any ciphertext written before it was removed still decrypts.
  *
  * The key comes from CRED_ENC_KEY (32-byte hex), injected by the CLI at deploy time and never
  * committed. Nothing here is ever decrypted straight into an HTTP response: decryption exists so
