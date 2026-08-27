@@ -145,10 +145,20 @@ caller can't quietly widen a grant.
 ## Setting up an OAuth connection
 
 1. In the **Zoho API console** for the target DC, create a Server-based Application client.
-2. Register this exact redirect URI (`oauth/start` echoes it back in its response):
+2. Register this exact redirect URI (`oauth/start` echoes it back in its response as
+   `redirect_uri`):
    ```
    https://wsm-security-60073792083.development.catalystserverless.in/server/welcome/api/connections/oauth/callback
    ```
+   **No port.** Catalyst's proxy sets the `Host` header to `hostname:443`, so an earlier version
+   sent `...catalystserverless.in:443/...` and Zoho answered *"Invalid Redirect Uri — Redirect URI
+   passed does not match with the one configured"*. `selfHost()` in `index.js` strips the `:443`;
+   443 is the default port for https, so the port-less form is the canonical one and the one to
+   register.
+
+   Zoho compares the string literally: scheme, host, port, path and trailing slash all have to
+   match. The same URI is sent again at the token exchange, so a mismatch would break that too.
+
    The production URL is a separate registration — the host differs.
 3. `POST /api/connections/oauth/start` with the client id/secret and `scope_level`.
 4. Open the returned `auth_url`, approve, and Zoho returns to the callback, which stores the tokens

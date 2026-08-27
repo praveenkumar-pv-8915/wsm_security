@@ -75,11 +75,23 @@ const send = (res, result, okStatus = 200) =>
   res.status(result.success ? okStatus : (result.status || 400)).json(result);
 
 /**
- * This function's absolute base URL, needed for the OAuth redirect_uri. Express sees paths without
- * the `/server/welcome` mount prefix, so it has to be added back explicitly. Always https —
- * Catalyst terminates TLS upstream, so req.protocol can read as http.
+ * This function's absolute base URL, needed for the OAuth redirect_uri.
+ *
+ * Three things have to be right or Zoho rejects the flow, and it compares the string literally:
+ *
+ * 1. Always https. Catalyst terminates TLS upstream, so req.protocol reads as http.
+ * 2. The `/server/welcome` mount prefix has to be added back — Express sees paths without it.
+ * 3. **Strip a `:443` port.** Catalyst's proxy sets Host to `hostname:443`, and interpolating that
+ *    raw produced `https://…catalystserverless.in:443/…`, which no console entry will ever match
+ *    (nobody registers the default port). 443 is the default for https, so per RFC 3986 the
+ *    port-less form is the canonical one. Only 443 is stripped — a genuinely non-default port
+ *    still belongs in the URI.
+ *
+ * The same value is sent at /authorize and again at the token exchange, and Zoho requires those to
+ * be identical, so this must stay the single place it is built.
  */
-const selfBase = req => `https://${req.get('host')}/server/welcome`;
+const selfHost = req => String(req.get('host') || '').replace(/:443$/, '');
+const selfBase = req => `https://${selfHost(req)}/server/welcome`;
 const oauthRedirectUri = req => `${selfBase(req)}/api/connections/oauth/callback`;
 
 /* ------------------------------------------------------------------ identity */
