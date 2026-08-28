@@ -12,6 +12,10 @@
 # Never force-pushes. Never commits your working-tree changes (except the client-package.json
 # version bump it makes itself, which it commits so the pushed history matches what's live).
 
+# IDE runners (IntelliJ Shell Script configs) may invoke this as `zsh deploy.sh`, ignoring the
+# shebang. The script uses bash-only syntax (read -ra, arrays), so re-exec under bash if needed.
+if [ -z "${BASH_VERSION:-}" ]; then exec bash "$0" "$@"; fi
+
 set -euo pipefail
 
 ONLY=""; ALL=0; DO_PUSH=1; DO_DEPLOY=1; DRY=0
