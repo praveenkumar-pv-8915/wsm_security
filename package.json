@@ -1,0 +1,15 @@
+{
+  "name": "wsm-security",
+  "private": true,
+  "description": "WSM Security team workspace on Zoho Catalyst — root task scripts (deploy / serve). Functions and frontend have their own package.json.",
+  "scripts": {
+    "deploy": ".claude/skills/deploy/deploy.sh",
+    "deploy:dry": ".claude/skills/deploy/deploy.sh --dry-run",
+    "deploy:welcome": ".claude/skills/deploy/deploy.sh --only functions:welcome",
+    "deploy:task-manager": ".claude/skills/deploy/deploy.sh --only functions:task_manager",
+    "deploy:client": ".claude/skills/deploy/deploy.sh --only client",
+    "serve": "catalyst serve --only functions:welcome,functions:task_manager,client --no-open",
+    "serve:debug": "catalyst serve --only functions:welcome,functions:task_manager,client --no-open --debug advancedio:welcome:9229",
+    "mcp:smoke": "npm --prefix mcp/catalyst-cli run smoke"
+  }
+}
