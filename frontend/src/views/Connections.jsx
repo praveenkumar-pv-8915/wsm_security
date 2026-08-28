@@ -26,6 +26,123 @@ const AUTH_LABEL = {
 };
 
 /**
+ * Bulk configure — one OAuth client, one consent, several services.
+ *
+ * Consent happens at exactly ONE accounts host, so the data centre is picked first and only
+ * services available there can be selected. That is a real constraint, not a UI simplification:
+ * Hacksaw lives on accounts.zohocorpcloud.in (`zcc`) while everything else is on accounts.zoho.in
+ * (`in`), so it can never share a consent with the rest.
+ */
+function BulkPanel({ connections, user, value, onChange, onSubmit, busy }) {
+  const oauth = connections.filter((c) => c.auth_type === 'oauth');
+  const dcs = [...new Set(oauth.flatMap((c) => c.available_dcs))].sort();
+  const dc = value.dc || '';
+  const eligible = dc ? oauth.filter((c) => c.available_dcs.includes(dc)) : [];
+  const chosen = eligible.filter((c) => value.keys.includes(c.key));
+  // The union is what actually gets requested — a scope shared by two services is asked for once.
+  const scopeCount = new Set(chosen.flatMap((c) => c.scopes)).size;
+  const excluded = dc ? oauth.filter((c) => !c.available_dcs.includes(dc)) : [];
+
+  const toggle = (key) =>
+    onChange({ ...value, keys: value.keys.includes(key) ? value.keys.filter((k) => k !== key) : [...value.keys, key] });
+
+  return (
+    <section className="card bulk">
+      <div className="card-head">
+        <h2>Bulk configure</h2>
+        <span className="count">{chosen.length ? `${chosen.length} selected` : 'pick a DC'}</span>
+      </div>
+      <p className="hint">
+        One client id and secret, one Zoho consent covering every scope the selected services need.
+        Register that client once in the API console for this data centre.
+      </p>
+
+      <div className="form-grid">
+        <label>
+          <span>Data centre</span>
+          <select value={dc} onChange={(e) => onChange({ ...value, dc: e.target.value, keys: [] })}>
+            <option value="">— select —</option>
+            {dcs.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>Scope</span>
+          <select value={value.scope_level} onChange={(e) => onChange({ ...value, scope_level: e.target.value })}>
+            <option value="user">personal (only me)</option>
+            <option value="shared" disabled={user.role !== 'admin'}>
+              team-shared{user.role !== 'admin' ? ' — admin only' : ''}
+            </option>
+          </select>
+        </label>
+      </div>
+
+      {dc && (
+        <>
+          <ul className="bulk-list">
+            {eligible.map((service) => (
+              <li key={service.key}>
+                <label className="bulk-item">
+                  <input type="checkbox" checked={value.keys.includes(service.key)} onChange={() => toggle(service.key)} />
+                  <span className="bulk-name">{service.label}</span>
+                  <span className="dim">{service.scope_count} scopes</span>
+                  {service.configured && <span className="tag tag-muted">already configured</span>}
+                </label>
+              </li>
+            ))}
+          </ul>
+          {excluded.length > 0 && (
+            <p className="hint">
+              Not available in <span className="mono">{dc}</span>, so they cannot share this consent:{' '}
+              {excluded.map((c) => c.label).join(', ')}. Configure those from their own row.
+            </p>
+          )}
+        </>
+      )}
+
+      {chosen.length > 0 && (
+        <>
+          <div className="form-grid">
+            <label>
+              <span>Client ID</span>
+              <input
+                value={value.client_id}
+                onChange={(e) => onChange({ ...value, client_id: e.target.value })}
+                placeholder="from the Zoho API console"
+                autoComplete="off"
+              />
+            </label>
+            <label>
+              <span>Client secret</span>
+              <input
+                type="password"
+                value={value.client_secret}
+                onChange={(e) => onChange({ ...value, client_secret: e.target.value })}
+                placeholder="stored encrypted, never returned"
+                autoComplete="new-password"
+              />
+            </label>
+          </div>
+          <div className="form-foot">
+            <span className="hint">
+              {chosen.length} services · {scopeCount} scopes in one consent. Re-configuring a service
+              replaces its existing credential.
+            </span>
+            <button
+              className="btn btn-primary"
+              type="button"
+              onClick={onSubmit}
+              disabled={busy || !value.client_id.trim() || !value.client_secret}
+            >
+              {busy ? 'Working…' : 'Authorise all →'}
+            </button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+/**
  * The result of one probe. A non-2xx is shown as prominently as a 2xx — the point of this panel is
  * to tell you which of the two you got, and the response body is what explains why.
  */
@@ -107,6 +224,11 @@ export default function Connections({ user, onNotice }) {
   const [probeInputs, setProbeInputs] = useState({});
   const [probeResult, setProbeResult] = useState({});
   const [probeBusy, setProbeBusy] = useState(null);
+  const [scopesKey, setScopesKey] = useState(null);
+
+  // Bulk configure
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulk, setBulk] = useState({ dc: '', keys: [], client_id: '', client_secret: '', scope_level: 'user' });
 
   // Per-service form state, keyed by service key so switching cards doesn't leak values across.
   const [form, setForm] = useState({});
@@ -205,6 +327,27 @@ export default function Connections({ user, onNotice }) {
     }
   };
 
+  const startBulk = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api('/connections/bulk/start', {
+        method: 'POST',
+        body: {
+          service_keys: bulk.keys,
+          dc: bulk.dc,
+          client_id: bulk.client_id.trim(),
+          client_secret: bulk.client_secret,
+          scope_level: bulk.scope_level,
+        },
+      });
+      window.location.assign(result.auth_url);
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  };
+
   const probeField = (key, name) => probeInputs[key]?.[name] ?? '';
   const setProbeField = (key, name, val) =>
     setProbeInputs((prev) => ({ ...prev, [key]: { ...prev[key], [name]: val } }));
@@ -263,10 +406,29 @@ export default function Connections({ user, onNotice }) {
         </div>
         <div className="view-actions">
           <button className="btn btn-ghost" onClick={load} disabled={loading || busy}>⟳ Refresh</button>
+          <button
+            className="btn btn-ghost"
+            onClick={() => { setBulkOpen((o) => !o); setOpenKey(null); setProbeKey(null); }}
+            disabled={busy}
+            title="One OAuth client, one consent, several services"
+          >
+            {bulkOpen ? '× Close' : '⊞ Bulk configure'}
+          </button>
         </div>
       </div>
 
       {error && <div className="banner banner-err" role="alert">⚠ {error}</div>}
+
+      {bulkOpen && (
+        <BulkPanel
+          connections={connections}
+          user={user}
+          value={bulk}
+          onChange={setBulk}
+          onSubmit={startBulk}
+          busy={busy}
+        />
+      )}
 
       <section className="card">
         <div className="card-head">
@@ -307,7 +469,17 @@ export default function Connections({ user, onNotice }) {
 
                     <div className="conn-meta">
                       <span className="tag tag-muted">{AUTH_LABEL[service.auth_type] || service.auth_type}</span>
-                      {service.scope_count > 0 && <span className="dim">{service.scope_count} scopes</span>}
+                      {service.scope_count > 0 && (
+                        <button
+                          type="button"
+                          className="scope-toggle"
+                          onClick={() => setScopesKey(scopesKey === service.key ? null : service.key)}
+                          aria-expanded={scopesKey === service.key}
+                          title="Show the exact scopes this service asks for"
+                        >
+                          {service.scope_count} scopes {scopesKey === service.key ? '▴' : '▾'}
+                        </button>
+                      )}
                       {eff ? (
                         <>
                           <span className={`tag${eff.expired ? ' tag-warn' : ''}`}>
@@ -367,6 +539,12 @@ export default function Connections({ user, onNotice }) {
                       )}
                     </div>
                   </div>
+
+                  {scopesKey === service.key && (
+                    <ul className="scope-list">
+                      {service.scopes.map((scope) => <li key={scope} className="mono">{scope}</li>)}
+                    </ul>
+                  )}
 
                   {probeKey === service.key && service.fetch_operation && (
                     <FetchPanel

@@ -135,6 +135,16 @@ app.post('/api/connections/:id/reauthorize', wrap(async (req, res) => {
   send(res, { ...result, redirect_uri: oauthRedirectUri(req) }, 201);
 }));
 
+/**
+ * Configure several OAuth services with ONE client and ONE consent.
+ * Body: { service_keys: [...], dc, client_id, client_secret, scope_level }
+ * Scopes are the union of the selected services', taken from the registry — never from the client.
+ */
+app.post('/api/connections/bulk/start', wrap(async (req, res) => {
+  const result = await conn.startBulkOAuth(req, req.body || {}, oauthRedirectUri(req));
+  send(res, { ...result, redirect_uri: oauthRedirectUri(req) }, 201);
+}));
+
 app.post('/api/connections/oauth/start', wrap(async (req, res) => {
   const result = await conn.startOAuth(req, req.body || {}, oauthRedirectUri(req));
   send(res, { ...result, redirect_uri: oauthRedirectUri(req) }, 201);
@@ -147,7 +157,10 @@ app.post('/api/connections/oauth/start', wrap(async (req, res) => {
 app.get('/api/connections/oauth/callback', wrap(async (req, res) => {
   const result = await conn.handleCallback(req, req.query || {}, oauthRedirectUri(req));
   const status = result.success ? 'connected' : 'failed';
-  const detail = result.success ? result.service_key : (result.error || 'unknown error');
+  // A bulk consent finishes several services on one callback — say so rather than naming just one.
+  const detail = result.success
+    ? (result.count > 1 ? `${result.count} services` : result.service_key)
+    : (result.error || 'unknown error');
   res.redirect(`/app/#/connections?status=${status}&detail=${encodeURIComponent(detail)}`);
 }));
 

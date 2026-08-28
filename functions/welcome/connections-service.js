@@ -267,6 +267,9 @@ async function handleCallback(req, { code, state }, redirectUri) {
       `SELECT ${COLUMNS} FROM ${TABLE} WHERE OAUTH_STATE = '${state}' AND STATUS != 'revoked'`
     ));
     if (!rows.length) throw new Error('No connection matches this authorization');
+
+    // A bulk configure puts the SAME state on one row per selected service, so a single consent
+    // finishes all of them. A normal flow is just the n=1 case of this.
     const conn = rows[0];
 
     // The person finishing the flow must be the one who started it, whatever the scope level.
@@ -274,6 +277,7 @@ async function handleCallback(req, { code, state }, redirectUri) {
       throw new Denied('This connection was initiated by a different user');
     }
 
+    // One code, one exchange — the resulting grant covers the union of scopes that was consented to.
     const tokens = await zohoToken(conn.DC, {
       code,
       client_id: conn.CLIENT_ID,
@@ -285,21 +289,142 @@ async function handleCallback(req, { code, state }, redirectUri) {
       throw new Error('Zoho returned no refresh token (needs access_type=offline and prompt=consent)');
     }
 
-    await table.updateRow({
-      ROWID: String(conn.ROWID),
-      REFRESH_TOKEN_ENC: encrypt(tokens.refresh_token),
-      ACCESS_TOKEN_ENC: encrypt(tokens.access_token),
-      TOKEN_EXPIRES_AT: String(Date.now() + (tokens.expires_in || 3600) * 1000),
-      OAUTH_STATE: '', // one-time use
-      // Record what was actually consented to, so scopesStale() can tell later whether the registry
-      // has moved on since.
-      GRANTED_SCOPES: registry.scopeString(registry.getService(conn.SERVICE_KEY)),
-      STATUS: 'active',
-    });
+    const refreshEnc = encrypt(tokens.refresh_token);
+    const accessEnc = encrypt(tokens.access_token);
+    const expiresAt = String(Date.now() + (tokens.expires_in || 3600) * 1000);
 
-    return { success: true, service_key: conn.SERVICE_KEY, scope_level: conn.SCOPE_LEVEL };
+    for (const row of rows) {
+      await table.updateRow({
+        ROWID: String(row.ROWID),
+        REFRESH_TOKEN_ENC: refreshEnc,
+        ACCESS_TOKEN_ENC: accessEnc,
+        TOKEN_EXPIRES_AT: expiresAt,
+        OAUTH_STATE: '', // one-time use
+        // Each row records ITS OWN scope string, not the union that was consented to. That keeps
+        // scopesStale() per-service: adding a scope to one service should flag only that one.
+        GRANTED_SCOPES: registry.scopeString(registry.getService(row.SERVICE_KEY)),
+        STATUS: 'active',
+      });
+    }
+
+    return {
+      success: true,
+      service_key: conn.SERVICE_KEY,
+      scope_level: conn.SCOPE_LEVEL,
+      count: rows.length,
+      service_keys: rows.map(r => r.SERVICE_KEY),
+    };
   } catch (error) {
     console.error('Error in OAuth callback:', error);
+    return { success: false, error: error.message, status: error.status };
+  }
+}
+
+/**
+ * Configure several OAuth services at once: one client, one consent, one grant.
+ *
+ * Zoho lets a single OAuth client request scopes across products in one authorize call, so nine
+ * services can be nine console registrations and nine approvals — or one of each. This is the
+ * second.
+ *
+ * The hard constraint is the DATA CENTRE: consent happens at exactly one accounts host, so every
+ * selected service must be available in the chosen DC. That is why Hacksaw can never be bundled
+ * with the rest — it lives on accounts.zohocorpcloud.in (`zcc`) while the others are on
+ * accounts.zoho.in (`in`). The caller picks a DC and only services available there can be selected.
+ *
+ * One row per service is written, all sharing one OAUTH_STATE, so the single callback finishes all
+ * of them (see handleCallback). Each row still records its own scope string, so scope drift stays
+ * per-service afterwards.
+ */
+async function startBulkOAuth(req, data, redirectUri) {
+  try {
+    const { table, zcql } = services(req);
+
+    const keys = Array.isArray(data.service_keys) ? data.service_keys : [];
+    if (keys.length === 0) throw new Error('Select at least one service');
+
+    const scopeLevel = normaliseScopeLevel(data.scope_level);
+    assertMayWriteShared(req, scopeLevel);
+
+    const { client_id, client_secret } = data;
+    if (!client_id || !client_secret) throw new Error('client_id and client_secret are required');
+
+    const dc = String(data.dc || '').toLowerCase();
+    if (!dc) throw new Error('dc is required');
+    const profile = registry.getProfile(dc); // throws on an unknown DC
+
+    const selected = keys.map(k => registry.getService(k));
+    for (const service of selected) {
+      if (service.auth_type !== AUTH_TYPES.OAUTH) {
+        throw new Error(`'${service.key}' does not use OAuth — store its token separately`);
+      }
+      if (!registry.availableDcs(service).includes(dc)) {
+        throw new Error(`'${service.key}' is not available in data centre '${dc}'`);
+      }
+    }
+
+    // De-duplicated union, in registry order. Comma is Zoho's documented separator; WorkDrive's
+    // setup script uses a space on its own, so if a bundle including WorkDrive is rejected at
+    // consent, configure that one by itself.
+    const scopes = [...new Set(selected.flatMap(x => x.scopes))];
+
+    const state = randomHex(24);
+    const secretEnc = encrypt(client_secret);
+    const written = [];
+
+    for (const service of selected) {
+      const ownerFilter = scopeLevel === SCOPE_LEVELS.SHARED
+        ? `SCOPE_LEVEL = '${SCOPE_LEVELS.SHARED}'`
+        : `SCOPE_LEVEL = '${SCOPE_LEVELS.USER}' AND OWNER_ID = '${esc(req.userId)}'`;
+      const existing = unwrap(await zcql.executeZCQLQuery(
+        `SELECT ROWID FROM ${TABLE} WHERE SERVICE_KEY = '${esc(service.key)}' AND ${ownerFilter} AND STATUS != 'revoked'`
+      ));
+
+      const row = {
+        SERVICE_KEY: service.key,
+        DC: dc,
+        SCOPE_LEVEL: scopeLevel,
+        OWNER_ID: String(req.userId),
+        AUTH_TYPE: AUTH_TYPES.OAUTH,
+        CLIENT_ID: client_id,
+        CLIENT_SECRET_ENC: secretEnc,
+        REFRESH_TOKEN_ENC: '',
+        ACCESS_TOKEN_ENC: '',
+        TOKEN_EXPIRES_AT: '0',
+        STATIC_TOKEN_ENC: '',
+        OAUTH_STATE: state,
+        GRANTED_SCOPES: '',
+        STATUS: 'pending',
+        LAST_USED_AT: '0',
+      };
+
+      if (existing.length) {
+        await table.updateRow({ ROWID: String(existing[0].ROWID), ...row });
+        written.push({ key: service.key, id: existing[0].ROWID });
+      } else {
+        const inserted = await table.insertRow(row);
+        written.push({ key: service.key, id: inserted.ROWID });
+      }
+    }
+
+    const authUrl = `https://${profile.accounts_domain}/oauth/v2/auth` +
+      `?scope=${encodeURIComponent(scopes.join(','))}` +
+      `&client_id=${encodeURIComponent(client_id)}` +
+      '&response_type=code' +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      '&access_type=offline&prompt=consent' +
+      `&state=${state}`;
+
+    return {
+      success: true,
+      dc,
+      scope_level: scopeLevel,
+      services: written,
+      scope_count: scopes.length,
+      auth_url: authUrl,
+    };
+  } catch (error) {
+    console.error('Error starting bulk OAuth:', error);
     return { success: false, error: error.message, status: error.status };
   }
 }
@@ -669,7 +794,7 @@ async function callConnection(req, serviceKey, path, options = {}) {
 
 module.exports = {
   listConnections, listProfiles,
-  startOAuth, handleCallback, reauthorize, saveStaticToken, revokeConnection,
+  startOAuth, startBulkOAuth, handleCallback, reauthorize, saveStaticToken, revokeConnection,
   runFetch,
   resolveCredential, getAccessToken, callConnection,
 };
