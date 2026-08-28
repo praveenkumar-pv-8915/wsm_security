@@ -634,6 +634,18 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .bulk-item input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
 .bulk-name { flex: 1; font-weight: 500; }
 
+/* ── per-connection auth-mode toggle (redirect flow vs. pasted refresh token) ── */
+.auth-mode-toggle {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  cursor: pointer;
+  font-size: 13px;
+}
+.auth-mode-toggle input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+.auth-mode-toggle span { color: var(--text-muted); }
+
 /* ── connections summary strip ── */
 .conn-summary { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
 .summary-chip {

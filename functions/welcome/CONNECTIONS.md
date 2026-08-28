@@ -1,6 +1,6 @@
 # Connections
 
-The 11 service connections from `agent-knowledge-kit/src/connections`, moved into the Catalyst app.
+The 12 service connections from `agent-knowledge-kit/src/connections`, moved into the Catalyst app.
 
 In the kit, each connection's token lived in the developer's **macOS Keychain** plus a local
 **SQLite** file — per-person, per-machine, invisible to the team. Here the catalogue is shared and
@@ -20,10 +20,11 @@ rather than only a laptop with the right Keychain entries.
 | `zoho-creator` | OAuth | 5 | `in` | `www.zohoapis.{dc}` |
 | `zoho-workdrive` | OAuth | 17 | `in` | `workdrive.zoho.{dc}` |
 | `zoho-hacksaw` | OAuth | 6 | `zcc` | `hacksaw.zohocorpcloud.in` |
+| `zoho-platformai` | OAuth + `portal_id` config | 1 | `in` | `platformai.zoho.{dc}` |
 | `zoho-cmtools` | `PRIVATE-TOKEN` header | — | `csez` | `build.zohocorp.com` |
 | `zoho-repository` | PAT, `Authorization: Zoho-zapikey` | — | `in` | `api.repository.zoho.in` |
 
-48 OAuth scopes total across 9 services, plus 2 static-token services.
+49 OAuth scopes total across 10 services, plus 2 static-token services.
 
 > **Note on the kit's own docs:** `SCOPES-INVENTORY.md` claims 51 scopes, but `config.json` — the
 > file the scripts actually read — contains 48. This registry matches `config.json`. The inventory
@@ -97,6 +98,7 @@ API, SDK or CLI for creating a table. Until it exists, `GET /api/connections` fa
 | `GRANTED_SCOPES` | **Text** | ⚠️ **not Var Char.** WorkDrive's scope string is 460 chars and Projects' 262 — both over the 255 cap |
 | `STATUS` | Var Char 20 | `pending` \| `active` \| `revoked` |
 | `LAST_USED_AT` | Var Char 20 | epoch millis as a string |
+| `EXTRA_CONFIG` | **Text** | JSON blob of non-secret per-connection settings a service declares beyond client id/secret — see below. Blank for every service that doesn't need one. |
 
 Do **not** put a unique constraint on any of these. `IsUnique` can never be changed after column
 creation, and columns that get blanked on revoke (`*_ENC`, `OAUTH_STATE`) would collide the second
@@ -105,6 +107,24 @@ time a row is revoked.
 Every `*_ENC` value is AES-256-GCM (`v1:iv:tag:ciphertext`) under `CRED_ENC_KEY`, *inside* the
 natively-encrypted column — two layers on purpose. **No endpoint returns any of them.** `toPublic()`
 in `connections-service.js` is the only shape that leaves the module for a response body.
+
+## Extra config — for services that need more than a token
+
+Most services need only client id/secret + the scopes in the registry. A few need a genuinely
+separate piece of non-secret configuration that OAuth consent doesn't produce — the first case is
+`zoho-platformai`'s `portal_id`, assigned by mailing platformai@zohocorp.com after a service
+registration, completely outside the OAuth grant.
+
+A service opts in by declaring `extra_config_fields` in `connections-registry.js` (name, label,
+required, placeholder). `publicCatalogue()` exposes those field definitions, and `Connections.jsx`
+renders one input per field — right under client id/secret — with no per-service UI code. Values are
+validated against the declared fields (`validateExtraConfig`) and stored as one JSON blob in
+`EXTRA_CONFIG`, either at `oauth/start` time or later via `POST /api/connections/:id/config`.
+
+If a service also declares `header_from_config` (a list of field names), `callConnection()` and
+`runFetch()` both forward those fields as identically-named request headers automatically — so
+`zoho-platformai`'s `portal_id` rides along on every call without any caller having to know it
+exists. `toPublic()` returns `extra_config` as-is; none of it is secret.
 
 ## Re-authenticating
 
@@ -137,6 +157,8 @@ Relative to `/server/welcome/`.
 | POST | `/api/connections/:id/reauthorize` | re-consent reusing the stored client id/secret → `{auth_url}` |
 | GET | `/api/connections/oauth/callback` | Zoho lands here; redirects into the SPA |
 | POST | `/api/connections/token` | `{service_key, dc?, token, scope_level}` for CMTools/Repository |
+| POST | `/api/connections/oauth/refresh-token` | `{service_key, dc?, client_id, client_secret, refresh_token, scope_level, extra_config?}` — store an OAuth connection from a refresh token you already have, for a self-client service (see below) |
+| POST | `/api/connections/:id/config` | `{extra_config: {...}}` — update a connection's non-secret extra config (e.g. PlatformAI's portal_id) without redoing OAuth |
 | DELETE | `/api/connections/:id` | revokes at Zoho, then wipes stored material |
 
 **Scopes are never taken from the request** — `oauth/start` reads them from the registry, so a
@@ -167,6 +189,31 @@ caller can't quietly widen a grant.
 Access tokens refresh automatically with a 5-minute buffer, matching the kit's `oauth-common.sh`.
 
 For CMTools and Repository there's no flow — `POST /api/connections/token` with the token.
+
+### zoho-platformai needs a second, separate registration
+
+Unlike the kit's own `setup.sh` (which had to fall back to a self-client because it uses a local
+browser-loopback redirect), this app's OAuth flow always uses a Server-based Application client with
+the callback URL above registered exactly — so the normal flow works unmodified for PlatformAI too.
+Scope: `PlatformAI.models.ALL`.
+
+That token alone is not enough to call the gateway, though — every request also needs a `portal_id`
+header, which is assigned by mailing platformai@zohocorp.com with a service registration (data type,
+use case, DPIA, etc. — see the kit's `src/connections/zoho-platformai/API.md` for the exact
+checklist) plus Central IT / IAM approval for the OAuth client. Enter the assigned portal id in the
+**Portal ID** field on this connection's Connect form — it's stored in `EXTRA_CONFIG`, not requested
+from Zoho, so nothing about it goes through the OAuth screen.
+
+**If IAM only approved a self client for this service** (as happened for the kit's own WSM-Sec
+integration — see "self client vs server-based client" in `API.md`), the redirect flow above cannot
+work at all: a self client has no redirect URI field, so Zoho answers "Invalid Redirect Uri" no
+matter what's registered. Check **"I already have a refresh token"** on the Connect form instead,
+and paste the client id/secret/refresh token trio directly — `POST
+/api/connections/oauth/refresh-token` exchanges it once against Zoho to prove it works, then stores
+it exactly like a completed consent would have. `GRANTED_SCOPES` is set from the registry in this
+path, not verified against what the token actually carries, since Zoho exposes no tokeninfo call for
+that — if the token was minted with a narrower grant, calls will 401 without `scopes_stale` warning
+first.
 
 ## Using a connection from code
 

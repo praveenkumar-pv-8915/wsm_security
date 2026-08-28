@@ -50,7 +50,7 @@ const unwrap = rows => (rows || []).map(r => r[TABLE] || r);
 const COLUMNS =
   'ROWID, SERVICE_KEY, DC, SCOPE_LEVEL, OWNER_ID, AUTH_TYPE, CLIENT_ID, ' +
   'CLIENT_SECRET_ENC, REFRESH_TOKEN_ENC, ACCESS_TOKEN_ENC, TOKEN_EXPIRES_AT, ' +
-  'STATIC_TOKEN_ENC, OAUTH_STATE, GRANTED_SCOPES, STATUS, LAST_USED_AT, CREATEDTIME';
+  'STATIC_TOKEN_ENC, OAUTH_STATE, GRANTED_SCOPES, STATUS, LAST_USED_AT, EXTRA_CONFIG, CREATEDTIME';
 
 /**
  * Does this credential's grant still match what the service asks for today?
@@ -64,6 +64,33 @@ function scopesStale(row, service) {
   if (!granted) return false;
   const norm = str => str.split(/[\s,]+/).filter(Boolean).sort().join(',');
   return norm(granted) !== norm(registry.scopeString(service));
+}
+
+/** EXTRA_CONFIG is a small JSON blob of non-secret per-connection settings (e.g. portal_id).
+ *  Not every service has one, and a row predating a service's extra_config_fields has it blank. */
+function parseExtraConfig(raw) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return (parsed && typeof parsed === 'object') ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Validate + narrow a caller-supplied extra_config object against what the service declares. */
+function validateExtraConfig(service, extraConfig) {
+  const fields = service.extra_config_fields || [];
+  const out = {};
+  for (const f of fields) {
+    const value = String((extraConfig || {})[f.name] || '').trim();
+    if (!value) {
+      if (f.required) throw new Error(`'${f.label || f.name}' is required`);
+      continue;
+    }
+    out[f.name] = value;
+  }
+  return out;
 }
 
 /** Metadata only — no secret material, ever. */
@@ -83,6 +110,7 @@ const toPublic = row => ({
   owned_by_me: undefined, // filled in by listConnections, which knows the caller
   last_used_at: Number(row.LAST_USED_AT) || 0,
   created_at: row.CREATEDTIME,
+  extra_config: parseExtraConfig(row.EXTRA_CONFIG), // non-secret; safe to return as-is
 });
 
 class Denied extends Error {
@@ -201,13 +229,26 @@ async function startOAuth(req, data, redirectUri) {
     const { client_id, client_secret } = data;
     if (!client_id || !client_secret) throw new Error('client_id and client_secret are required');
 
+    // Services like zoho-platformai need more than a token — e.g. a portal_id assigned outside
+    // OAuth entirely. Validated against the registry, not trusted blindly from the caller.
+    const extraConfig = validateExtraConfig(service, data.extra_config);
+
     // Replace any existing credential at this level — one per (service, scope level, owner).
     const ownerFilter = scopeLevel === SCOPE_LEVELS.SHARED
       ? `SCOPE_LEVEL = '${SCOPE_LEVELS.SHARED}'`
       : `SCOPE_LEVEL = '${SCOPE_LEVELS.USER}' AND OWNER_ID = '${esc(req.userId)}'`;
+    // Reuse ANY existing row for this identity, revoked included. Revoke only flips STATUS —
+    // it never deletes the row — so excluding revoked rows here would make every reconnect after
+    // a revoke try to INSERT a second row with the same SERVICE_KEY, which the real table rejects.
     const existing = unwrap(await zcql.executeZCQLQuery(
-      `SELECT ROWID FROM ${TABLE} WHERE SERVICE_KEY = '${esc(service.key)}' AND ${ownerFilter} AND STATUS != 'revoked'`
+      `SELECT ROWID, EXTRA_CONFIG FROM ${TABLE} WHERE SERVICE_KEY = '${esc(service.key)}' AND ${ownerFilter}`
     ));
+
+    // Reconfiguring without re-typing config (e.g. just rotating the client secret) keeps the
+    // previously saved config rather than wiping it — only an explicit extra_config replaces it.
+    const extraConfigStr = (service.extra_config_fields || []).length
+      ? (Object.keys(extraConfig).length ? JSON.stringify(extraConfig) : (existing[0]?.EXTRA_CONFIG || ''))
+      : '';
 
     const state = randomHex(24);
     const row = {
@@ -226,6 +267,7 @@ async function startOAuth(req, data, redirectUri) {
       GRANTED_SCOPES: '',
       STATUS: 'pending',
       LAST_USED_AT: '0',
+      EXTRA_CONFIG: extraConfigStr,
     };
 
     let id;
@@ -376,8 +418,10 @@ async function startBulkOAuth(req, data, redirectUri) {
       const ownerFilter = scopeLevel === SCOPE_LEVELS.SHARED
         ? `SCOPE_LEVEL = '${SCOPE_LEVELS.SHARED}'`
         : `SCOPE_LEVEL = '${SCOPE_LEVELS.USER}' AND OWNER_ID = '${esc(req.userId)}'`;
+      // Reuse any existing row (revoked included) — see startOAuth for why excluding revoked
+      // rows here would make a reconnect collide with the old row's SERVICE_KEY on insert.
       const existing = unwrap(await zcql.executeZCQLQuery(
-        `SELECT ROWID FROM ${TABLE} WHERE SERVICE_KEY = '${esc(service.key)}' AND ${ownerFilter} AND STATUS != 'revoked'`
+        `SELECT ROWID FROM ${TABLE} WHERE SERVICE_KEY = '${esc(service.key)}' AND ${ownerFilter}`
       ));
 
       const row = {
@@ -396,6 +440,7 @@ async function startBulkOAuth(req, data, redirectUri) {
         GRANTED_SCOPES: '',
         STATUS: 'pending',
         LAST_USED_AT: '0',
+        EXTRA_CONFIG: '', // bulk configure doesn't collect per-service extra config; set it separately
       };
 
       if (existing.length) {
@@ -484,6 +529,105 @@ async function reauthorize(req, id, redirectUri) {
   }
 }
 
+/* ------------------------------------------------------------------ manual refresh token */
+
+/**
+ * Store an OAuth connection from a refresh token you already have, instead of the redirect
+ * consent flow (startOAuth/handleCallback).
+ *
+ * Exists for services whose only usable Zoho client is a SELF client — self clients have no
+ * redirect URI field at all, so the browser flow can never complete for them (Zoho answers
+ * "Invalid Redirect Uri" no matter what's registered). zoho-platformai's WSM-Sec integration is
+ * exactly this case; see the kit's src/connections/zoho-platformai/API.md, "self client vs
+ * server-based client". If a server-based client can be registered instead, prefer startOAuth —
+ * this exists for when it can't (e.g. IAM blocks it the same way it blocks self clients).
+ *
+ * Mints an access token from the refresh token immediately — the same "prove the trio works
+ * before writing anything" behaviour as the kit's `setup.sh --refresh-token`.
+ *
+ * CAVEAT: GRANTED_SCOPES is set to the registry's CURRENT scope string, not verified against what
+ * the token actually carries — Zoho doesn't expose that without a separate tokeninfo call. If the
+ * refresh token was minted with a narrower grant than the registry asks for today, calls will 401
+ * even though scopesStale() has no way to know and will stay quiet.
+ */
+async function saveRefreshToken(req, data) {
+  try {
+    const { table, zcql } = services(req);
+    const service = registry.getService(data.service_key);
+    if (service.auth_type !== AUTH_TYPES.OAUTH) {
+      throw new Error(`'${service.key}' does not use OAuth`);
+    }
+
+    const scopeLevel = normaliseScopeLevel(data.scope_level);
+    assertMayWriteShared(req, scopeLevel);
+
+    const dc = String(data.dc || service.default_dc).toLowerCase();
+    if (!registry.availableDcs(service).includes(dc)) {
+      throw new Error(`'${service.key}' is not available in data centre '${dc}'`);
+    }
+
+    const { client_id, client_secret, refresh_token } = data;
+    if (!client_id || !client_secret || !refresh_token) {
+      throw new Error('client_id, client_secret and refresh_token are all required');
+    }
+
+    const extraConfig = validateExtraConfig(service, data.extra_config);
+
+    // Prove the trio actually works before writing anything.
+    const tokens = await zohoToken(dc, {
+      refresh_token,
+      client_id,
+      client_secret,
+      grant_type: 'refresh_token',
+    });
+
+    const ownerFilter = scopeLevel === SCOPE_LEVELS.SHARED
+      ? `SCOPE_LEVEL = '${SCOPE_LEVELS.SHARED}'`
+      : `SCOPE_LEVEL = '${SCOPE_LEVELS.USER}' AND OWNER_ID = '${esc(req.userId)}'`;
+    // Reuse any existing row (revoked included) — see startOAuth for why excluding revoked
+    // rows here would make a reconnect collide with the old row's SERVICE_KEY on insert.
+    const existing = unwrap(await zcql.executeZCQLQuery(
+      `SELECT ROWID, EXTRA_CONFIG FROM ${TABLE} WHERE SERVICE_KEY = '${esc(service.key)}' AND ${ownerFilter}`
+    ));
+
+    const extraConfigStr = (service.extra_config_fields || []).length
+      ? (Object.keys(extraConfig).length ? JSON.stringify(extraConfig) : (existing[0]?.EXTRA_CONFIG || ''))
+      : '';
+
+    const row = {
+      SERVICE_KEY: service.key,
+      DC: dc,
+      SCOPE_LEVEL: scopeLevel,
+      OWNER_ID: String(req.userId),
+      AUTH_TYPE: AUTH_TYPES.OAUTH,
+      CLIENT_ID: client_id,
+      CLIENT_SECRET_ENC: encrypt(client_secret),
+      REFRESH_TOKEN_ENC: encrypt(refresh_token),
+      ACCESS_TOKEN_ENC: encrypt(tokens.access_token),
+      TOKEN_EXPIRES_AT: String(Date.now() + (tokens.expires_in || 3600) * 1000),
+      STATIC_TOKEN_ENC: '',
+      OAUTH_STATE: '',
+      GRANTED_SCOPES: registry.scopeString(service),
+      STATUS: 'active',
+      LAST_USED_AT: '0',
+      EXTRA_CONFIG: extraConfigStr,
+    };
+
+    let id;
+    if (existing.length) {
+      id = existing[0].ROWID;
+      await table.updateRow({ ROWID: String(id), ...row });
+    } else {
+      id = (await table.insertRow(row)).ROWID;
+    }
+
+    return { success: true, id, service_key: service.key, scope_level: scopeLevel };
+  } catch (error) {
+    console.error('Error saving refresh token:', error);
+    return { success: false, error: error.message, status: error.status };
+  }
+}
+
 /* ------------------------------------------------------------------ static tokens */
 
 /** CMTools (PRIVATE-TOKEN) and Repository (PAT) — no flow, just a token to store encrypted. */
@@ -505,8 +649,10 @@ async function saveStaticToken(req, data) {
     const ownerFilter = scopeLevel === SCOPE_LEVELS.SHARED
       ? `SCOPE_LEVEL = '${SCOPE_LEVELS.SHARED}'`
       : `SCOPE_LEVEL = '${SCOPE_LEVELS.USER}' AND OWNER_ID = '${esc(req.userId)}'`;
+    // Reuse any existing row (revoked included) — see startOAuth for why excluding revoked
+    // rows here would make a reconnect collide with the old row's SERVICE_KEY on insert.
     const existing = unwrap(await zcql.executeZCQLQuery(
-      `SELECT ROWID FROM ${TABLE} WHERE SERVICE_KEY = '${esc(service.key)}' AND ${ownerFilter} AND STATUS != 'revoked'`
+      `SELECT ROWID FROM ${TABLE} WHERE SERVICE_KEY = '${esc(service.key)}' AND ${ownerFilter}`
     ));
 
     const row = {
@@ -525,6 +671,7 @@ async function saveStaticToken(req, data) {
       GRANTED_SCOPES: '',
       STATUS: 'active',
       LAST_USED_AT: '0',
+      EXTRA_CONFIG: '', // static-token services (CMTools, Repository) don't use extra config
     };
 
     let id;
@@ -537,6 +684,44 @@ async function saveStaticToken(req, data) {
     return { success: true, id, service_key: service.key, scope_level: scopeLevel };
   } catch (error) {
     console.error('Error saving token:', error);
+    return { success: false, error: error.message, status: error.status };
+  }
+}
+
+/* ------------------------------------------------------------------ per-connection config */
+
+/**
+ * Update a connection's non-secret extra config (e.g. PlatformAI's portal_id / default model)
+ * without re-running OAuth consent. Same write authority as revoke: admin for a shared row, the
+ * owner for a personal one.
+ */
+async function setExtraConfig(req, id, data) {
+  try {
+    const { table, zcql } = services(req);
+    if (!/^\d+$/.test(String(id))) throw new Error('Invalid connection id');
+
+    const rows = unwrap(await zcql.executeZCQLQuery(
+      `SELECT ${COLUMNS} FROM ${TABLE} WHERE ROWID = ${id} AND STATUS != 'revoked'`
+    ));
+    if (!rows.length) throw new Error('Connection not found');
+    const conn = rows[0];
+    const service = registry.getService(conn.SERVICE_KEY);
+    if (!(service.extra_config_fields || []).length) {
+      throw new Error(`'${service.key}' has no extra configuration to set`);
+    }
+
+    if (conn.SCOPE_LEVEL === SCOPE_LEVELS.SHARED) {
+      assertMayWriteShared(req, SCOPE_LEVELS.SHARED);
+    } else if (String(conn.OWNER_ID) !== String(req.userId)) {
+      throw new Denied('You do not own this connection');
+    }
+
+    const extraConfig = validateExtraConfig(service, data.extra_config || data);
+    await table.updateRow({ ROWID: String(id), EXTRA_CONFIG: JSON.stringify(extraConfig) });
+
+    return { success: true, id, service_key: service.key, extra_config: extraConfig };
+  } catch (error) {
+    console.error('Error saving connection config:', error);
     return { success: false, error: error.message, status: error.status };
   }
 }
@@ -721,15 +906,34 @@ async function runFetch(req, id, inputs = {}) {
     const qs = query.toString();
     const url = `https://${host}${resolvedPath}${qs ? `?${qs}` : ''}`;
 
+    // Same per-connection config headers callConnection() injects — e.g. PlatformAI's portal_id —
+    // so the probe form doesn't need to ask for something already saved on the connection.
+    const configHeaders = {};
+    if (service.header_from_config?.length) {
+      const cfg = parseExtraConfig(credential.EXTRA_CONFIG) || {};
+      for (const key of service.header_from_config) {
+        if (cfg[key]) configHeaders[key] = cfg[key];
+      }
+    }
+
+    // Most POST ops send `body` as-is (flat key → value). An op that needs a real nested shape
+    // (PlatformAI's messages[]) declares buildBody instead; it also gets this connection's saved
+    // config so it can fall back to a default vendor/model without the caller retyping them.
     const hasBody = op.method === 'POST';
+    const finalBody = typeof op.buildBody === 'function'
+      ? op.buildBody(body, parseExtraConfig(credential.EXTRA_CONFIG) || {})
+      : body;
+
     const response = await fetch(url, {
       method: op.method,
       headers: {
         Accept: 'application/json',
         ...authHeaderFor(service, token),
+        ...(op.headers || {}),
+        ...configHeaders,
         ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
       },
-      body: hasBody ? JSON.stringify(body) : undefined,
+      body: hasBody ? JSON.stringify(finalBody) : undefined,
     });
 
     const text = await response.text();
@@ -779,7 +983,17 @@ async function callConnection(req, serviceKey, path, options = {}) {
   const { service, credential } = await resolveCredential(req, serviceKey, options.dc);
   const token = await getAccessToken(req, serviceKey, options.dc);
 
-  const headers = { Accept: 'application/json', ...authHeaderFor(service, token), ...(options.headers || {}) };
+  // Some services need a header beyond the auth one, sourced from this connection's saved
+  // non-secret config rather than hardcoded per caller — e.g. PlatformAI's portal_id.
+  const configHeaders = {};
+  if (service.header_from_config?.length) {
+    const cfg = parseExtraConfig(credential.EXTRA_CONFIG) || {};
+    for (const key of service.header_from_config) {
+      if (cfg[key]) configHeaders[key] = cfg[key];
+    }
+  }
+
+  const headers = { Accept: 'application/json', ...authHeaderFor(service, token), ...configHeaders, ...(options.headers || {}) };
 
   const host = registry.apiHost(service, credential.DC);
   const url = `https://${host}${path.startsWith('/') ? path : `/${path}`}`;
@@ -792,9 +1006,53 @@ async function callConnection(req, serviceKey, path, options = {}) {
   return resp;
 }
 
+/**
+ * Convenience wrapper for other modules in this app (risk-service, ask-service, ...) that just want
+ * a chat completion, without knowing about portal_id headers or the /chat response shape.
+ *
+ * Requires an active zoho-platformai connection (shared or the caller's own) with portal_id set.
+ * Not currently called from anywhere — it exists so the next feature that needs an LLM (e.g. the
+ * draftRisk/compareDpias/Ask stubs in risk-service.js / ask-service.js) has a ready server-callable
+ * path instead of shelling out to `claude -p`. See compliancemanager-integration-design.md.
+ *
+ *   const { text, usage } = await chatCompletion(req, { prompt: 'Summarise this diff...' });
+ */
+async function chatCompletion(req, { prompt, context, model, vendor, dc } = {}) {
+  if (!prompt) throw new Error('prompt is required');
+
+  const { credential } = await resolveCredential(req, 'zoho-platformai', dc);
+  const cfg = parseExtraConfig(credential.EXTRA_CONFIG) || {};
+
+  const body = {
+    messages: [{ role: 'user', content: prompt }],
+    ai_vendor: vendor || cfg.default_vendor || 'openai',
+    model: model || cfg.default_model || 'gpt-4o',
+    ...(context ? { context } : {}),
+  };
+
+  const resp = await callConnection(req, 'zoho-platformai', '/internalapi/v2/ai/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'chat-response-format': 'msg-format' },
+    body: JSON.stringify(body),
+  });
+
+  const json = await resp.json();
+  if (!resp.ok) {
+    throw new Error(`PlatformAI chat failed: HTTP ${resp.status} — ${JSON.stringify(json)}`);
+  }
+
+  const text = (json.data?.messages || [])
+    .filter(m => m.role === 'assistant')
+    .map(m => m.content)
+    .join('\n');
+
+  return { text, usage: json.data?.usage || null };
+}
+
 module.exports = {
   listConnections, listProfiles,
-  startOAuth, startBulkOAuth, handleCallback, reauthorize, saveStaticToken, revokeConnection,
-  runFetch,
+  startOAuth, startBulkOAuth, handleCallback, reauthorize, saveStaticToken, saveRefreshToken,
+  revokeConnection,
+  runFetch, setExtraConfig, chatCompletion,
   resolveCredential, getAccessToken, callConnection,
 };

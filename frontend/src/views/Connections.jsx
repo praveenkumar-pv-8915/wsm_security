@@ -272,6 +272,10 @@ export default function Connections({ user, onNotice }) {
     setBusy(true);
     setError(null);
     try {
+      const extraFields = service.extra_config_fields || [];
+      const extraConfig = extraFields.length
+        ? Object.fromEntries(extraFields.map((f) => [f.name, field(service.key, f.name).trim()]))
+        : undefined;
       const result = await api('/connections/oauth/start', {
         method: 'POST',
         body: {
@@ -280,6 +284,7 @@ export default function Connections({ user, onNotice }) {
           client_id: field(service.key, 'client_id').trim(),
           client_secret: field(service.key, 'client_secret'),
           scope_level: field(service.key, 'scope_level') || 'user',
+          ...(extraConfig ? { extra_config: extraConfig } : {}),
         },
       });
       // Full-page navigation, not a popup — Zoho's consent screen refuses to frame, and the
@@ -305,6 +310,42 @@ export default function Connections({ user, onNotice }) {
         },
       });
       onNotice?.(`Token stored for ${service.label}.`);
+      setForm((prev) => ({ ...prev, [service.key]: {} }));
+      setOpenKey(null);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * The escape hatch for an OAuth service whose only usable Zoho client is a self client — self
+   * clients have no redirect URI, so startOAuth's browser flow can never complete for them. Stores
+   * a refresh token you already obtained some other way (e.g. the kit's setup.sh --code path).
+   */
+  const saveRefreshToken = async (service) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const extraFields = service.extra_config_fields || [];
+      const extraConfig = extraFields.length
+        ? Object.fromEntries(extraFields.map((f) => [f.name, field(service.key, f.name).trim()]))
+        : undefined;
+      await api('/connections/oauth/refresh-token', {
+        method: 'POST',
+        body: {
+          service_key: service.key,
+          dc: field(service.key, 'dc') || service.default_dc,
+          client_id: field(service.key, 'client_id').trim(),
+          client_secret: field(service.key, 'client_secret'),
+          refresh_token: field(service.key, 'refresh_token').trim(),
+          scope_level: field(service.key, 'scope_level') || 'user',
+          ...(extraConfig ? { extra_config: extraConfig } : {}),
+        },
+      });
+      onNotice?.(`Connected ${service.label} from a refresh token.`);
       setForm((prev) => ({ ...prev, [service.key]: {} }));
       setOpenKey(null);
       await load();
@@ -508,6 +549,11 @@ export default function Connections({ user, onNotice }) {
                               scopes changed
                             </span>
                           )}
+                          {eff.extra_config?.portal_id && (
+                            <span className="tag tag-muted mono" title="Saved portal_id for this connection">
+                              portal: {eff.extra_config.portal_id}
+                            </span>
+                          )}
                         </>
                       ) : (
                         <span className="dim">not configured</span>
@@ -623,6 +669,53 @@ export default function Connections({ user, onNotice }) {
                                 autoComplete="new-password"
                               />
                             </label>
+                            {/*
+                              A self-client Zoho app has no redirect URI, so the browser consent
+                              flow below can never complete for it. This lets someone paste a
+                              refresh token they already obtained another way (e.g. the kit's
+                              setup.sh --code path) instead of clicking through Zoho.
+                            */}
+                            <label className="span-full auth-mode-toggle">
+                              <input
+                                type="checkbox"
+                                checked={field(service.key, 'auth_mode') === 'refresh_token'}
+                                onChange={(e) =>
+                                  setField(service.key, 'auth_mode', e.target.checked ? 'refresh_token' : '')
+                                }
+                              />
+                              <span>I already have a refresh token (self client — no redirect URI to consent through)</span>
+                            </label>
+                            {field(service.key, 'auth_mode') === 'refresh_token' && (
+                              <label className="span-full">
+                                <span>Refresh token</span>
+                                <input
+                                  type="password"
+                                  value={field(service.key, 'refresh_token')}
+                                  onChange={(e) => setField(service.key, 'refresh_token', e.target.value)}
+                                  placeholder="stored encrypted, never returned"
+                                  autoComplete="new-password"
+                                />
+                              </label>
+                            )}
+                            {/*
+                              Non-secret per-connection settings a service declares beyond the OAuth
+                              client itself — e.g. PlatformAI's portal_id, which OAuth consent alone
+                              doesn't produce (it's assigned separately by platformai@zohocorp.com).
+                              Driven entirely by the registry, so this needs no per-service code.
+                              Needed in both auth modes, so it's rendered outside the toggle.
+                            */}
+                            {(service.extra_config_fields || []).map((f) => (
+                              <label key={f.name}>
+                                <span>{f.label}{f.required ? '' : ' (optional)'}</span>
+                                <input
+                                  value={field(service.key, f.name)}
+                                  onChange={(e) => setField(service.key, f.name, e.target.value)}
+                                  placeholder={f.placeholder || ''}
+                                  autoComplete="off"
+                                  title={f.help || ''}
+                                />
+                              </label>
+                            ))}
                           </>
                         ) : (
                           <label className="span-full">
@@ -639,19 +732,40 @@ export default function Connections({ user, onNotice }) {
                       </div>
 
                       <div className="form-foot">
-                        <span className="hint">
-                          {isOAuth
-                            ? 'Register the callback URL shown in CONNECTIONS.md against this client before continuing.'
-                            : 'Encrypted with AES-256-GCM before it reaches DataStore.'}
-                        </span>
-                        <button
-                          className="btn btn-primary"
-                          type="button"
-                          disabled={busy}
-                          onClick={() => (isOAuth ? startOAuth(service) : saveToken(service))}
-                        >
-                          {busy ? 'Working…' : (isOAuth ? 'Authorise with Zoho →' : 'Store token')}
-                        </button>
+                        {(() => {
+                          const usingRefreshToken = isOAuth && field(service.key, 'auth_mode') === 'refresh_token';
+                          return (
+                            <>
+                              <span className="hint">
+                                {usingRefreshToken
+                                  ? 'Exchanged once against Zoho to prove it works before anything is stored.'
+                                  : isOAuth
+                                  ? 'Register the callback URL shown in CONNECTIONS.md against this client before continuing.'
+                                  : 'Encrypted with AES-256-GCM before it reaches DataStore.'}
+                              </span>
+                              <button
+                                className="btn btn-primary"
+                                type="button"
+                                disabled={busy}
+                                onClick={() =>
+                                  usingRefreshToken
+                                    ? saveRefreshToken(service)
+                                    : isOAuth
+                                    ? startOAuth(service)
+                                    : saveToken(service)
+                                }
+                              >
+                                {busy
+                                  ? 'Working…'
+                                  : usingRefreshToken
+                                  ? 'Connect from refresh token'
+                                  : isOAuth
+                                  ? 'Authorise with Zoho →'
+                                  : 'Store token'}
+                              </button>
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   )}

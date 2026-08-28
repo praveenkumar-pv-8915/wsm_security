@@ -175,6 +175,16 @@ app.post('/api/connections/token', wrap(async (req, res) => {
 }));
 
 /**
+ * Store an OAuth connection from a refresh token you already have, bypassing the redirect
+ * consent flow. For OAuth services whose only usable Zoho client is a self client — self clients
+ * have no redirect URI, so oauth/start's browser flow can never complete for them.
+ * Body: { service_key, dc?, client_id, client_secret, refresh_token, scope_level, extra_config? }
+ */
+app.post('/api/connections/oauth/refresh-token', wrap(async (req, res) => {
+  send(res, await conn.saveRefreshToken(req, req.body || {}), 201);
+}));
+
+/**
  * Run this connection's one read-only fetch operation and return the whole response — the "does
  * this credential actually retrieve data" check.
  *
@@ -186,6 +196,15 @@ app.post('/api/connections/token', wrap(async (req, res) => {
 app.post('/api/connections/:id/fetch', wrap(async (req, res) => {
   const result = await conn.runFetch(req, req.params.id, (req.body && req.body.params) || {});
   send(res, result);
+}));
+
+/**
+ * Update a connection's non-secret extra config (e.g. PlatformAI's portal_id / default model)
+ * without redoing OAuth consent. Only services that declare `extra_config_fields` accept this.
+ * Body: { extra_config: { ... } } — validated against the registry, same as at Connect time.
+ */
+app.post('/api/connections/:id/config', wrap(async (req, res) => {
+  send(res, await conn.setExtraConfig(req, req.params.id, req.body || {}));
 }));
 
 /** Revoke at Zoho where applicable, then wipe the stored material. */

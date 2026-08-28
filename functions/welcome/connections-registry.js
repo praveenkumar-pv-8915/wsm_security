@@ -153,6 +153,27 @@ const SERVICES = [
              'Hacksaw.PRODUCT_SUPPRESSION_RULE.READ'],
   },
   {
+    key: 'zoho-platformai', label: 'Zoho PlatformAI', auth_type: AUTH_TYPES.OAUTH,
+    host: 'platformai.zoho.{dc}', default_dc: 'in', redirect_port: 8493,
+    description: 'AI chat completion via Zoho\'s internal LLM gateway (one API in front of ' +
+                 'OpenAI/Gemini/Anthropic, billed in Zoho credits). The org-sanctioned path for ' +
+                 'any tool in this app that needs an LLM — see agent-knowledge-kit\'s ' +
+                 'src/connections/zoho-platformai/API.md.',
+    scopes: ['PlatformAI.models.ALL'],
+    // Getting a token is only half of this one. The gateway also requires a `portal_id` header on
+    // every call, assigned by mailing platformai@zohocorp.com with a service registration (see
+    // API.md) — it is not something OAuth consent produces, so it is captured here as connection
+    // config instead of a scope. `header_from_config` says which of these fields rides along as a
+    // same-named request header on every call this connection makes (see callConnection/runFetch).
+    extra_config_fields: [
+      { name: 'portal_id', label: 'Portal ID', required: true, placeholder: 'WSM-Sec',
+        help: 'Assigned by platformai@zohocorp.com after the service-registration process.' },
+      { name: 'default_vendor', label: 'Default vendor', required: false, placeholder: 'openai' },
+      { name: 'default_model', label: 'Default model', required: false, placeholder: 'gpt-4o' },
+    ],
+    header_from_config: ['portal_id'],
+  },
+  {
     key: 'zoho-cmtools', label: 'CMTools (build automation)', auth_type: AUTH_TYPES.PRIVATE_TOKEN,
     host: 'build.zohocorp.com', default_dc: 'csez', redirect_port: null,
     auth_header: 'PRIVATE-TOKEN', auth_header_format: '{token}',
@@ -225,6 +246,9 @@ function publicCatalogue() {
     available_dcs: availableDcs(s),
     redirect_port: s.redirect_port,
     fetch_operation: publicFetchOperation(s.key),
+    // Non-secret per-connection settings the UI should collect beyond client id/secret — e.g.
+    // PlatformAI's portal_id. Absent for every service that doesn't declare any.
+    extra_config_fields: s.extra_config_fields || [],
   }));
 }
 
@@ -320,6 +344,28 @@ const FETCH_OPERATIONS = {
   'zoho-writer': {
     label: 'Get document', method: 'GET', path: '/writer/api/v1/documents/{document_id}',
     params: [{ name: 'document_id', in: 'path', label: 'Document ID', required: true }],
+  },
+
+  // kit: zoho-platformai/chat.sh — POST /internalapi/v2/ai/chat
+  // portal_id is NOT a param here — it rides in automatically as a header from this connection's
+  // saved extra_config (header_from_config above), so the probe form only asks for the prompt.
+  'zoho-platformai': {
+    label: 'Chat completion', method: 'POST', path: '/internalapi/v2/ai/chat',
+    headers: { 'chat-response-format': 'msg-format' },
+    params: [
+      { name: 'prompt', in: 'body', label: 'Prompt', required: true, placeholder: 'Say hello in one word.' },
+      { name: 'ai_vendor', in: 'body', label: 'Vendor (optional)', required: false, placeholder: 'defaults to the saved default vendor' },
+      { name: 'model', in: 'body', label: 'Model (optional)', required: false, placeholder: 'defaults to the saved default model' },
+    ],
+    // Builds the real /chat body shape (messages[] + ai_vendor/model) instead of the generic
+    // flat-key body every other POST op uses — cfg is this connection's saved extra_config,
+    // supplying ai_vendor/model when the probe form leaves them blank.
+    buildBody: (body, cfg = {}) => ({
+      messages: [{ role: 'user', content: body.prompt || '' }],
+      ai_vendor: body.ai_vendor || cfg.default_vendor || 'openai',
+      model: body.model || cfg.default_model || 'gpt-4o',
+    }),
+    note: 'portal_id is sent automatically from this connection\'s saved config.',
   },
 
   // kit: zoho-logs/search.sh — appid/service/timezone come from the DC profile, not the user
