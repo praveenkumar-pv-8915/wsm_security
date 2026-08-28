@@ -30,6 +30,8 @@ const catalyst = require('zcatalyst-sdk-node');
 const { requireMember } = require('./auth');
 const registry = require('./connections-registry');
 const conn = require('./connections-service');
+const risks = require('./risk-service');
+const ask = require('./ask-service');
 
 const app = express();
 app.use(express.json({ limit: '256kb' }));
@@ -189,6 +191,34 @@ app.post('/api/connections/:id/fetch', wrap(async (req, res) => {
 /** Revoke at Zoho where applicable, then wipe the stored material. */
 app.delete('/api/connections/:id', wrap(async (req, res) => {
   send(res, await conn.revokeConnection(req, req.params.id));
+}));
+
+/* ------------------------------------------------------------------ compliance: risk register */
+
+/** List risks — query filters: register, status, severity, q. */
+app.get('/api/risks', wrap(async (req, res) => {
+  send(res, await risks.listRisks(req, req.query || {}));
+}));
+
+app.get('/api/risks/:riskId', wrap(async (req, res) => {
+  send(res, await risks.getRisk(req, req.params.riskId));
+}));
+
+/** Mirrors `risk draft_risk` — stubbed 501 until a server-callable LLM path exists. */
+app.post('/api/risks/draft', wrap(async (req, res) => {
+  send(res, await risks.draftRisk(req, req.body || {}), 201);
+}));
+
+/** Mirrors `risk compare_risks` — stubbed 501 until the DMS Manager + LLM path exist. */
+app.post('/api/risks/compare-dpias', wrap(async (req, res) => {
+  send(res, await risks.compareDpias(req));
+}));
+
+/* ------------------------------------------------------------------ compliance: ask */
+
+/** Grounded Q&A — mirrors compliancemanager's query_handler. Read-only; canned answers for now. */
+app.post('/api/ask', wrap(async (req, res) => {
+  send(res, ask.answerQuestion((req.body || {}).question));
 }));
 
 /* ------------------------------------------------------------------ errors */

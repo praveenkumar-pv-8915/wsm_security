@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bgL2" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1E293B"/>
+      <stop offset="1" stop-color="#0B1220"/>
+    </linearGradient>
+    <linearGradient id="ringL2" x1="145" y1="120" x2="365" y2="342" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#3B82F6"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bgL2)"/>
+
+  <!-- scan ring, open gap (radar / continuous-monitoring motif) -->
+  <path d="M275.45,119.7 A112,112 0 1 1 145.7,210.55"
+        fill="none" stroke="url(#ringL2)" stroke-width="30" stroke-linecap="round"/>
+
+  <!-- check -->
+  <path d="M211,232 L237,258 L303,192" fill="none" stroke="#FFFFFF" stroke-width="18"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- small WSM caption at the bottom -->
+  <text x="256" y="468" text-anchor="middle"
+        font-family="DejaVu Sans, Arial, sans-serif" font-weight="bold"
+        font-size="46" letter-spacing="-0.5" fill="#FFFFFF">WSM</text>
+</svg>

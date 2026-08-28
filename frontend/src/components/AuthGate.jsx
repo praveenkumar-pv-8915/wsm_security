@@ -105,7 +105,12 @@ export default function AuthGate({ children }) {
     <div className="gate">
       <div className="gate-card">
         <div className="gate-brand">
-          <span className="vault-glyph" aria-hidden="true">▣</span>
+          <span className="vault-glyph" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3z" />
+              <path d="M9.5 12.5l1.8 1.8 3.2-3.6" />
+            </svg>
+          </span>
           <div>
             <h1>WSM Security</h1>
             <p className="vault-sub">Team workspace · Zoho Catalyst</p>

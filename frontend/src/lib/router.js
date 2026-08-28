@@ -13,7 +13,7 @@
 
 import { useEffect, useState } from 'react';
 
-export const ROUTES = ['/', '/connections'];
+export const ROUTES = ['/', '/connections', '/risk-register', '/ask'];
 
 export function parseHash(hash) {
   const raw = String(hash === undefined ? window.location.hash : hash).replace(/^#/, '');

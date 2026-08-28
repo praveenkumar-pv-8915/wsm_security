@@ -6,6 +6,8 @@ import { signOut } from './lib/catalyst';
 import { navigate, useRoute } from './lib/router';
 import Home from './views/Home';
 import Connections from './views/Connections';
+import RiskRegister from './views/RiskRegister';
+import Ask from './views/Ask';
 
 /**
  * App shell — header, navigation and the route switch. Everything below AuthGate can assume a
@@ -15,6 +17,8 @@ import Connections from './views/Connections';
 const NAV = [
   { path: '/', label: 'Home' },
   { path: '/connections', label: 'Connections' },
+  { path: '/risk-register', label: 'Risk Register' },
+  { path: '/ask', label: 'Ask' },
 ];
 
 function Shell({ user: sessionUser }) {
@@ -55,7 +59,12 @@ function Shell({ user: sessionUser }) {
     <div className="vault">
       <header className="vault-header">
         <button type="button" className="vault-brand" onClick={() => navigate('/')} title="Home">
-          <span className="vault-glyph" aria-hidden="true">▣</span>
+          <span className="vault-glyph" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3z" />
+              <path d="M9.5 12.5l1.8 1.8 3.2-3.6" />
+            </svg>
+          </span>
           <div>
             <h1>WSM Security</h1>
             <p className="vault-sub">Team workspace · Catalyst Serverless</p>
@@ -90,6 +99,8 @@ function Shell({ user: sessionUser }) {
       {notice && <div className="banner banner-ok" role="status">{notice}</div>}
 
       {path === '/connections' && <Connections user={user} onNotice={onNotice} />}
+      {path === '/risk-register' && <RiskRegister onNotice={onNotice} />}
+      {path === '/ask' && <Ask />}
       {path === '/' && <Home user={user} />}
 
       <footer className="vault-foot">

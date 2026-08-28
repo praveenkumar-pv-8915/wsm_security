@@ -394,6 +394,9 @@ export default function Connections({ user, onNotice }) {
   };
 
   const configured = connections.filter((c) => c.configured).length;
+  const needsAttention = connections.filter(
+    (c) => c.effective && (c.effective.expired || c.effective.scopes_stale)
+  ).length;
 
   return (
     <>
@@ -414,6 +417,21 @@ export default function Connections({ user, onNotice }) {
           >
             {bulkOpen ? '× Close' : '⊞ Bulk configure'}
           </button>
+        </div>
+      </div>
+
+      <div className="conn-summary">
+        <div className="summary-chip">
+          <span className="summary-value">{connections.length}</span>
+          <span className="summary-label">Connections</span>
+        </div>
+        <div className="summary-chip">
+          <span className="summary-value summary-good">{configured}</span>
+          <span className="summary-label">Connected</span>
+        </div>
+        <div className={`summary-chip${needsAttention ? ' summary-chip-attn' : ''}`}>
+          <span className="summary-value summary-warn">{needsAttention}</span>
+          <span className="summary-label">Needs attention</span>
         </div>
       </div>
 
