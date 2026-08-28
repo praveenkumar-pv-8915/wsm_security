@@ -25,12 +25,88 @@ const AUTH_LABEL = {
   pat: 'Personal access token',
 };
 
+/**
+ * The result of one probe. A non-2xx is shown as prominently as a 2xx — the point of this panel is
+ * to tell you which of the two you got, and the response body is what explains why.
+ */
+function FetchPanel({ service, credential, value, onChange, onRun, busy, result }) {
+  const op = service.fetch_operation;
+  const params = op.params || [];
+  const failed = result && (result.success === false || result.ok === false);
+
+  return (
+    <div className="conn-form probe">
+      <div className="probe-head">
+        <span className="mono probe-op">{op.method} · {op.label}</span>
+        <span className="dim">
+          {credential.scope_level === 'shared' ? 'team' : 'personal'} credential · {service.default_dc}
+        </span>
+      </div>
+      {op.note && <p className="hint">{op.note}</p>}
+
+      {params.length > 0 && (
+        <div className="form-grid">
+          {params.map((param) => (
+            <label key={param.name}>
+              <span>{param.label}{param.required ? '' : ' (optional)'}</span>
+              <input
+                value={value(param.name)}
+                onChange={(e) => onChange(param.name, e.target.value)}
+                placeholder={param.placeholder || ''}
+              />
+            </label>
+          ))}
+        </div>
+      )}
+
+      <div className="form-foot">
+        <span className="hint">
+          Read-only. The endpoint is fixed in the registry — only these values are yours to set.
+        </span>
+        <button className="btn btn-primary" type="button" onClick={onRun} disabled={busy}>
+          {busy ? 'Running…' : 'Run fetch'}
+        </button>
+      </div>
+
+      {result && (
+        <div className={`probe-result${failed ? ' probe-result-err' : ''}`}>
+          <div className="probe-status">
+            {result.success === false ? (
+              <span className="tag tag-warn">failed</span>
+            ) : (
+              <>
+                <span className={`tag${result.ok ? '' : ' tag-warn'}`}>HTTP {result.status}</span>
+                <span className="dim">{result.ms} ms</span>
+                {result.truncated && <span className="tag tag-warn">truncated at 256 KB</span>}
+              </>
+            )}
+          </div>
+          {result.url && <p className="probe-url mono dim">{result.url}</p>}
+          <pre className="probe-body">
+            {result.success === false
+              ? result.error
+              : (result.body !== null && result.body !== undefined
+                  ? JSON.stringify(result.body, null, 2)
+                  : (result.raw || '(empty response)'))}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Connections({ user, onNotice }) {
   const [connections, setConnections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [openKey, setOpenKey] = useState(null);
+
+  // Fetch-probe state, keyed by service key so two panels never share inputs or results.
+  const [probeKey, setProbeKey] = useState(null);
+  const [probeInputs, setProbeInputs] = useState({});
+  const [probeResult, setProbeResult] = useState({});
+  const [probeBusy, setProbeBusy] = useState(null);
 
   // Per-service form state, keyed by service key so switching cards doesn't leak values across.
   const [form, setForm] = useState({});
@@ -129,6 +205,35 @@ export default function Connections({ user, onNotice }) {
     }
   };
 
+  const probeField = (key, name) => probeInputs[key]?.[name] ?? '';
+  const setProbeField = (key, name, val) =>
+    setProbeInputs((prev) => ({ ...prev, [key]: { ...prev[key], [name]: val } }));
+
+  const runFetch = async (service, credential) => {
+    setProbeBusy(service.key);
+    try {
+      // A failed probe is a RESULT, not an error — a 401 or 404 from the far end is exactly what
+      // this button exists to surface, so it renders in the panel rather than the page banner.
+      const result = await api(`/connections/${credential.id}/fetch`, {
+        method: 'POST',
+        body: { params: probeInputs[service.key] || {} },
+      });
+      setProbeResult((prev) => ({ ...prev, [service.key]: result }));
+    } catch (err) {
+      setProbeResult((prev) => ({ ...prev, [service.key]: { success: false, error: err.message } }));
+    } finally {
+      setProbeBusy(null);
+    }
+  };
+
+  const toggleProbe = (service, credential) => {
+    if (probeKey === service.key) { setProbeKey(null); return; }
+    setProbeKey(service.key);
+    setOpenKey(null);
+    // Nothing to fill in — just run it.
+    if ((service.fetch_operation?.params || []).length === 0) runFetch(service, credential);
+  };
+
   const revoke = async (service, credential) => {
     const what = credential.scope_level === 'shared' ? 'the team-shared credential' : 'your credential';
     if (!window.confirm(`Revoke ${what} for ${service.label}? It is revoked at Zoho and wiped here.`)) return;
@@ -220,14 +325,31 @@ export default function Connections({ user, onNotice }) {
                     </div>
 
                     <div className="conn-actions">
-                      {isOAuth && myOrTeam && (
+                      {/*
+                        Only shown when it is the actual fix. Re-authenticate and Reconfigure
+                        overlap — Reconfigure opens the form and can do everything this does, plus
+                        change the client id/secret or DC. The one case this uniquely serves is a
+                        grant that has gone stale or expired, where nothing needs retyping. On a
+                        healthy row it would just be a worse Reconfigure, so it stays hidden.
+                      */}
+                      {isOAuth && myOrTeam && (eff?.scopes_stale || eff?.expired) && (
                         <button
-                          className={`btn btn-small${eff?.scopes_stale ? ' btn-attn' : ''}`}
+                          className="btn btn-small btn-attn"
                           onClick={() => reauthorize(service, myOrTeam)}
                           disabled={busy}
                           title="Re-run Zoho consent using the stored client id and secret"
                         >
                           ↻ Re-authenticate
+                        </button>
+                      )}
+                      {service.fetch_operation && myOrTeam && (
+                        <button
+                          className="btn btn-small"
+                          onClick={() => toggleProbe(service, myOrTeam)}
+                          disabled={busy || probeBusy === service.key}
+                          title={`${service.fetch_operation.method} · ${service.fetch_operation.label}`}
+                        >
+                          {probeBusy === service.key ? '… Fetching' : '⚡ Fetch'}
                         </button>
                       )}
                       <button className="btn btn-small" onClick={() => setOpenKey(isOpen ? null : service.key)} disabled={busy}>
@@ -245,6 +367,18 @@ export default function Connections({ user, onNotice }) {
                       )}
                     </div>
                   </div>
+
+                  {probeKey === service.key && service.fetch_operation && (
+                    <FetchPanel
+                      service={service}
+                      credential={myOrTeam}
+                      value={(name) => probeField(service.key, name)}
+                      onChange={(name, v) => setProbeField(service.key, name, v)}
+                      onRun={() => runFetch(service, myOrTeam)}
+                      busy={probeBusy === service.key}
+                      result={probeResult[service.key]}
+                    />
+                  )}
 
                   {isOpen && (
                     <div className="conn-form">

@@ -159,6 +159,20 @@ app.post('/api/connections/token', wrap(async (req, res) => {
   send(res, await conn.saveStaticToken(req, req.body || {}), 201);
 }));
 
+/**
+ * Run this connection's one read-only fetch operation and return the whole response — the "does
+ * this credential actually retrieve data" check.
+ *
+ * Body: { params: { … } } — values for the operation's DECLARED params only. There is deliberately
+ * no path, method or service key in the request: the operation is looked up from the registry by
+ * the stored connection's service, so this cannot be steered into an arbitrary endpoint. See the
+ * open-proxy warning on callConnection.
+ */
+app.post('/api/connections/:id/fetch', wrap(async (req, res) => {
+  const result = await conn.runFetch(req, req.params.id, (req.body && req.body.params) || {});
+  send(res, result);
+}));
+
 /** Revoke at Zoho where applicable, then wipe the stored material. */
 app.delete('/api/connections/:id', wrap(async (req, res) => {
   send(res, await conn.revokeConnection(req, req.params.id));

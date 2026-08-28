@@ -533,3 +533,44 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   color: var(--accent);
 }
 .btn-attn:hover:not(:disabled) { background: rgba(240, 168, 50, 0.1); }
+
+/* ── fetch probe ── */
+.probe { border-color: var(--line-strong); }
+.probe-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.probe-op { font-size: 12px; color: var(--accent); letter-spacing: 0.04em; }
+
+.probe-result {
+  margin-top: 16px;
+  border-top: 1px solid var(--line-strong);
+  padding-top: 14px;
+}
+.probe-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; }
+.probe-url {
+  font-size: 11px;
+  margin-top: 8px;
+  word-break: break-all;
+}
+/* The whole response goes here, so it scrolls in place rather than stretching the page. */
+.probe-body {
+  margin-top: 10px;
+  max-height: 340px;
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 12px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.probe-result-err .probe-body { color: #f0b6b2; border-color: rgba(229, 83, 75, 0.3); }

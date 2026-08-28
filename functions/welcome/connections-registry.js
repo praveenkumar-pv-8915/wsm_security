@@ -224,10 +224,139 @@ function publicCatalogue() {
     default_dc: s.default_dc,
     available_dcs: availableDcs(s),
     redirect_port: s.redirect_port,
+    fetch_operation: publicFetchOperation(s.key),
   }));
+}
+
+
+/* ------------------------------------------------------------------ fetch probes */
+
+/**
+ * One read-only "does this actually work" call per service.
+ *
+ * Every path here was lifted from the corresponding script in the agent-knowledge-kit's
+ * `src/connections/<service>/` — these are endpoints that have been run for real, not guesses off
+ * the API docs. A wrong path fails identically to a dead token, which would make the test worse
+ * than useless.
+ *
+ * THE PATH NEVER COMES FROM THE CLIENT. The caller sends a connection id and values for the
+ * declared `params` — nothing else. That is what keeps /fetch from becoming an open proxy into
+ * every service the team has connected (see the warning on callConnection).
+ *
+ * Param placement:
+ *   in: 'path'    → substituted into {braces}, URL-encoded (so a '/' becomes %2F and cannot
+ *                   traverse out of the intended path)
+ *   in: 'query'   → appended as a query parameter
+ *   in: 'body'    → JSON body field (POST only)
+ * `query` holds fixed values the operation always sends.
+ * `profileQuery` pulls values off the DC profile (appid/service/timezone) rather than the user.
+ */
+const FETCH_OPERATIONS = {
+  // kit: zoho-projects/list-portals.sh — GET /api/v3/portals
+  'zoho-projects': {
+    label: 'List portals', method: 'GET', path: '/api/v3/portals', params: [],
+    note: 'The v3 API. Older docs show /restapi/… — that is not what these scopes serve.',
+  },
+
+  // kit: zoho-learn/list-hubs.sh
+  'zoho-learn': { label: 'List hubs', method: 'GET', path: '/learn/api/v1/hubs', params: [] },
+
+  // kit: zoho-workdrive/get-user-info.sh via shared/workdrive-api.sh (base /workdrive/api/v1)
+  'zoho-workdrive': { label: 'Current user', method: 'GET', path: '/workdrive/api/v1/users/me', params: [] },
+
+  // kit: zoho-hacksaw/get-org-stats.sh — one path, many operations, dispatched by `action`
+  'zoho-hacksaw': {
+    label: 'Organisation stats', method: 'GET', path: '/api/orgs',
+    query: { action: 'fetchstats' },
+    params: [{ name: 'organisation', in: 'query', label: 'Organisation', required: true }],
+  },
+
+  // kit: zoho-repository/get-groups.sh
+  'zoho-repository': {
+    label: 'List groups', method: 'GET', path: '/orgs/{org_id}/api/v1/groups',
+    query: { page: '1' },
+    params: [{ name: 'org_id', in: 'path', label: 'Org ID', required: true }],
+  },
+
+  // kit: zoho-cmtools/get-user.sh
+  'zoho-cmtools': {
+    label: 'Look up user', method: 'GET', path: '/api/v1/users',
+    params: [{ name: 'email', in: 'query', label: 'Email', required: true, placeholder: 'someone@zohocorp.com' }],
+    note: 'The kit talks to cmtools.csez.zohocorpin.com; this registry has build.zohocorp.com. ' +
+          'If this 404s, that host is the first thing to check.',
+  },
+
+  // kit: zoho-cliq/fetch-message.sh — ZohoCliq.Messages.READ has no zero-parameter GET
+  'zoho-cliq': {
+    label: 'Fetch a message', method: 'GET', path: '/api/v2/chats/{chat_id}/messages/{message_id}',
+    params: [
+      { name: 'chat_id', in: 'path', label: 'Chat ID', required: true },
+      { name: 'message_id', in: 'path', label: 'Message ID', required: true },
+    ],
+  },
+
+  // kit: zoho-creator/list-records.sh — OAuth uses the /data/ path (privatelink uses /publish/)
+  'zoho-creator': {
+    label: 'List report records', method: 'GET',
+    path: '/creator/v2.1/data/{owner}/{app_link}/report/{report_link}',
+    query: { max_records: '5' },
+    params: [
+      { name: 'owner', in: 'path', label: 'Owner', required: true },
+      { name: 'app_link', in: 'path', label: 'App link name', required: true },
+      { name: 'report_link', in: 'path', label: 'Report link name', required: true },
+    ],
+  },
+
+  // kit: zoho-sheet/fetch-records.sh — POST with the worksheet name in the body
+  'zoho-sheet': {
+    label: 'Fetch worksheet records', method: 'POST', path: '/api/v2/{workbook_id}',
+    params: [
+      { name: 'workbook_id', in: 'path', label: 'Workbook ID', required: true },
+      { name: 'worksheet_name', in: 'body', label: 'Worksheet name', required: true, placeholder: 'Sheet1' },
+    ],
+  },
+
+  // kit: zoho-writer/get-document.sh
+  'zoho-writer': {
+    label: 'Get document', method: 'GET', path: '/writer/api/v1/documents/{document_id}',
+    params: [{ name: 'document_id', in: 'path', label: 'Document ID', required: true }],
+  },
+
+  // kit: zoho-logs/search.sh — appid/service/timezone come from the DC profile, not the user
+  'zoho-logs': {
+    label: 'Search logs', method: 'GET', path: '/search',
+    profileQuery: { appid: 'appid', service: 'service', timezone: 'timezone' },
+    query: { range: '1-10', order: 'desc' },
+    params: [
+      { name: 'query', in: 'query', label: 'Query', required: false, placeholder: 'blank matches everything' },
+      { name: 'fromDateTime', in: 'query', label: 'From', required: true, placeholder: 'YYYY-MM-DD HH:MM:SS' },
+      { name: 'toDateTime', in: 'query', label: 'To', required: true, placeholder: 'YYYY-MM-DD HH:MM:SS' },
+    ],
+  },
+};
+
+/** The fetch operation for a service, or null when none is defined. */
+function getFetchOperation(key) {
+  const op = FETCH_OPERATIONS[String(key || '').toLowerCase()];
+  return op || null;
+}
+
+/** UI-facing shape: what to render as inputs. Carries no path — the client never sees one. */
+function publicFetchOperation(key) {
+  const op = getFetchOperation(key);
+  if (!op) return null;
+  return {
+    label: op.label,
+    method: op.method,
+    note: op.note || null,
+    params: (op.params || []).map(x => ({
+      name: x.name, label: x.label, required: Boolean(x.required), placeholder: x.placeholder || '',
+    })),
+  };
 }
 
 module.exports = {
   AUTH_TYPES, SCOPE_LEVELS, PROFILES, SERVICES,
   getService, getProfile, scopeString, apiHost, availableDcs, publicCatalogue,
+  FETCH_OPERATIONS, getFetchOperation, publicFetchOperation,
 };

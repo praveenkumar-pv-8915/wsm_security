@@ -489,10 +489,7 @@ async function resolveCredential(req, serviceKey, dc) {
  * A valid access token for a service, refreshing when it has under 5 minutes left — the same
  * buffer the kit's oauth-common.sh uses. INTERNAL ONLY: never expose this over HTTP.
  */
-async function getAccessToken(req, serviceKey, dc) {
-  const { table } = services(req);
-  const { credential } = await resolveCredential(req, serviceKey, dc);
-
+async function tokenForRow(table, credential) {
   if (credential.AUTH_TYPE !== AUTH_TYPES.OAUTH) {
     return decrypt(credential.STATIC_TOKEN_ENC);
   }
@@ -514,6 +511,134 @@ async function getAccessToken(req, serviceKey, dc) {
   return tokens.access_token;
 }
 
+async function getAccessToken(req, serviceKey, dc) {
+  const { table } = services(req);
+  const { credential } = await resolveCredential(req, serviceKey, dc);
+  return tokenForRow(table, credential);
+}
+
+/** The auth header a service expects, given a token. */
+function authHeaderFor(service, token) {
+  if (service.auth_type === AUTH_TYPES.OAUTH) {
+    return { Authorization: `Zoho-oauthtoken ${token}` };
+  }
+  const name = service.auth_header || 'Authorization';
+  return { [name]: (service.auth_header_format || '{token}').replace('{token}', token) };
+}
+
+/** Response bodies are returned whole; this is the ceiling that keeps one call from OOMing us. */
+const MAX_BODY_BYTES = 256 * 1024;
+
+/**
+ * Run the service's one read-only fetch operation against a SPECIFIC stored credential, and hand
+ * back the whole response.
+ *
+ * The path comes from the registry, never the caller. The caller supplies only values for the
+ * operation's declared params — anything else in the payload is ignored, and path values are
+ * URL-encoded so a '/' can't escape the intended path. Without that, this route would be an
+ * authenticated proxy into every service the team has connected.
+ */
+async function runFetch(req, id, inputs = {}) {
+  const started = Date.now();
+  try {
+    const { table, zcql } = services(req);
+    if (!/^\d+$/.test(String(id))) throw new Error('Invalid connection id');
+
+    const rows = unwrap(await zcql.executeZCQLQuery(
+      `SELECT ${COLUMNS} FROM ${TABLE} WHERE ROWID = ${id} AND STATUS = 'active'`
+    ));
+    if (!rows.length) throw new Error('No active connection with that id');
+    const credential = rows[0];
+
+    // A shared credential is usable by any member; a personal one only by its owner.
+    if (credential.SCOPE_LEVEL === SCOPE_LEVELS.USER && String(credential.OWNER_ID) !== String(req.userId)) {
+      throw new Denied('That connection belongs to someone else');
+    }
+
+    const service = registry.getService(credential.SERVICE_KEY);
+    const op = registry.getFetchOperation(service.key);
+    if (!op) throw new Error(`No fetch operation is defined for '${service.key}'`);
+
+    // Only declared params are read. Unknown keys in `inputs` are dropped on the floor.
+    const path = { ...{} };
+    const query = new URLSearchParams(op.query || {});
+    const body = {};
+    let resolvedPath = op.path;
+
+    for (const spec of op.params || []) {
+      const raw = inputs[spec.name];
+      const value = raw === undefined || raw === null ? '' : String(raw).trim();
+      if (!value) {
+        if (spec.required) throw new Error(`'${spec.label || spec.name}' is required`);
+        continue;
+      }
+      if (spec.in === 'path') path[spec.name] = value;
+      else if (spec.in === 'body') body[spec.name] = value;
+      else query.set(spec.name, value);
+    }
+
+    // encodeURIComponent turns '/' into %2F, so a param cannot traverse out of its segment.
+    resolvedPath = resolvedPath.replace(/\{(\w+)\}/g, (_m, name) => {
+      if (!(name in path)) throw new Error(`Missing path value '${name}'`);
+      return encodeURIComponent(path[name]);
+    });
+
+    // Values the DC profile knows and the user shouldn't have to type (appid, service, timezone).
+    if (op.profileQuery) {
+      const profile = registry.getProfile(credential.DC);
+      for (const [param, field] of Object.entries(op.profileQuery)) {
+        if (profile[field]) query.set(param, profile[field]);
+      }
+    }
+
+    const token = await tokenForRow(table, credential);
+    const host = registry.apiHost(service, credential.DC);
+    const qs = query.toString();
+    const url = `https://${host}${resolvedPath}${qs ? `?${qs}` : ''}`;
+
+    const hasBody = op.method === 'POST';
+    const response = await fetch(url, {
+      method: op.method,
+      headers: {
+        Accept: 'application/json',
+        ...authHeaderFor(service, token),
+        ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body: hasBody ? JSON.stringify(body) : undefined,
+    });
+
+    const text = await response.text();
+    const truncated = text.length > MAX_BODY_BYTES;
+    const shown = truncated ? text.slice(0, MAX_BODY_BYTES) : text;
+    let parsed = null;
+    try {
+      parsed = JSON.parse(shown);
+    } catch {
+      parsed = null;
+    }
+
+    table.updateRow({ ROWID: String(credential.ROWID), LAST_USED_AT: String(Date.now()) })
+      .catch(e => console.log('LAST_USED_AT update failed:', e.message));
+
+    return {
+      success: true,
+      operation: op.label,
+      method: op.method,
+      // The URL is echoed so a 404 is debuggable. It carries no token — auth is a header.
+      url,
+      status: response.status,
+      ok: response.ok,
+      ms: Date.now() - started,
+      truncated,
+      body: parsed,
+      raw: parsed === null ? shown : undefined,
+    };
+  } catch (error) {
+    console.error('Error running fetch:', error);
+    return { success: false, error: error.message, status: error.status, ms: Date.now() - started };
+  }
+}
+
 /**
  * The one way future features should talk to a connected service. Resolves the credential, applies
  * the right auth header for its auth type, and builds the host from the DC profile.
@@ -529,13 +654,7 @@ async function callConnection(req, serviceKey, path, options = {}) {
   const { service, credential } = await resolveCredential(req, serviceKey, options.dc);
   const token = await getAccessToken(req, serviceKey, options.dc);
 
-  const headers = { Accept: 'application/json', ...(options.headers || {}) };
-  if (service.auth_type === AUTH_TYPES.OAUTH) {
-    headers.Authorization = `Zoho-oauthtoken ${token}`;
-  } else {
-    const name = service.auth_header || 'Authorization';
-    headers[name] = (service.auth_header_format || '{token}').replace('{token}', token);
-  }
+  const headers = { Accept: 'application/json', ...authHeaderFor(service, token), ...(options.headers || {}) };
 
   const host = registry.apiHost(service, credential.DC);
   const url = `https://${host}${path.startsWith('/') ? path : `/${path}`}`;
@@ -551,5 +670,6 @@ async function callConnection(req, serviceKey, path, options = {}) {
 module.exports = {
   listConnections, listProfiles,
   startOAuth, handleCallback, reauthorize, saveStaticToken, revokeConnection,
+  runFetch,
   resolveCredential, getAccessToken, callConnection,
 };
