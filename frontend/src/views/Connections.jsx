@@ -146,7 +146,7 @@ function BulkPanel({ connections, user, value, onChange, onSubmit, busy }) {
  * The result of one probe. A non-2xx is shown as prominently as a 2xx — the point of this panel is
  * to tell you which of the two you got, and the response body is what explains why.
  */
-function FetchPanel({ service, credential, value, onChange, onRun, busy, result }) {
+function FetchPanel({ service, credential, value, onChange, onRun, busy, result, onClose }) {
   const op = service.fetch_operation;
   const params = op.params || [];
   const failed = result && (result.success === false || result.ok === false);
@@ -155,8 +155,19 @@ function FetchPanel({ service, credential, value, onChange, onRun, busy, result 
     <div className="conn-form probe">
       <div className="probe-head">
         <span className="mono probe-op">{op.method} · {op.label}</span>
-        <span className="dim">
-          {credential.scope_level === 'shared' ? 'team' : 'personal'} credential · {service.default_dc}
+        <span className="probe-head-right">
+          <span className="dim">
+            {credential.scope_level === 'shared' ? 'team' : 'personal'} credential · {service.default_dc}
+          </span>
+          <button
+            type="button"
+            className="probe-close"
+            onClick={onClose}
+            aria-label={`Close ${op.label}`}
+            title="Close"
+          >
+            ×
+          </button>
         </span>
       </div>
       {op.note && <p className="hint">{op.note}</p>}
@@ -619,6 +630,7 @@ export default function Connections({ user, onNotice }) {
                       onRun={() => runFetch(service, myOrTeam)}
                       busy={probeBusy === service.key}
                       result={probeResult[service.key]}
+                      onClose={() => setProbeKey(null)}
                     />
                   )}
 

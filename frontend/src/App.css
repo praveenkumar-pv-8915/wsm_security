@@ -555,6 +555,18 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   margin-bottom: 12px;
 }
 .probe-op { font-size: 12px; color: var(--accent); letter-spacing: 0.02em; }
+.probe-head-right { display: flex; align-items: center; gap: 10px; }
+.probe-close {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  font-size: 17px;
+  line-height: 1;
+  padding: 2px 7px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.probe-close:hover { color: var(--text); border-color: var(--line-strong); }
 
 .probe-result {
   margin-top: 16px;

@@ -117,6 +117,12 @@ class Denied extends Error {
   constructor(message) { super(message); this.status = 403; }
 }
 
+/** Thrown by chatCompletion() when no active zoho-platformai connection exists for the caller. A
+ *  distinct class so a route can catch it and degrade gracefully instead of 500ing outright. */
+class AiUnavailable extends Error {
+  constructor(message) { super(message); this.status = 503; }
+}
+
 /** Only an admin may create, replace or revoke a team-shared credential. */
 function assertMayWriteShared(req, scopeLevel) {
   if (scopeLevel === SCOPE_LEVELS.SHARED && req.caller?.role !== 'admin') {
@@ -997,7 +1003,9 @@ async function callConnection(req, serviceKey, path, options = {}) {
 
   const host = registry.apiHost(service, credential.DC);
   const url = `https://${host}${path.startsWith('/') ? path : `/${path}`}`;
-  const resp = await fetch(url, { method: options.method || 'GET', headers, body: options.body });
+  const resp = await fetch(url, {
+    method: options.method || 'GET', headers, body: options.body, signal: options.signal,
+  });
 
   // Fire-and-forget usage stamp; a failure here must not break the caller's request.
   table.updateRow({ ROWID: String(credential.ROWID), LAST_USED_AT: String(Date.now()) })
@@ -1007,34 +1015,64 @@ async function callConnection(req, serviceKey, path, options = {}) {
 }
 
 /**
- * Convenience wrapper for other modules in this app (risk-service, ask-service, ...) that just want
- * a chat completion, without knowing about portal_id headers or the /chat response shape.
+ * THE single entry point every feature in this app should use for an LLM call — risk-service's
+ * draftRisk, ask-service's answerQuestion, and anything future. Nothing else should call
+ * callConnection('zoho-platformai', ...) directly or shell out to `claude -p`; that keeps the
+ * portal_id header, the response shape, and the failure mode in exactly one place.
  *
- * Requires an active zoho-platformai connection (shared or the caller's own) with portal_id set.
- * Not currently called from anywhere — it exists so the next feature that needs an LLM (e.g. the
- * draftRisk/compareDpias/Ask stubs in risk-service.js / ask-service.js) has a ready server-callable
- * path instead of shelling out to `claude -p`. See compliancemanager-integration-design.md.
+ * Requires an active zoho-platformai connection (shared or the caller's own) with portal_id set —
+ * throws AiUnavailable (see below) if there isn't one, so callers can degrade gracefully instead of
+ * 500ing outright.
+ *
+ * The gateway itself is STATELESS per call (see API.md) — it remembers nothing between requests.
+ * `history` is how a caller does multi-turn: pass the prior turns back in on every call. Nothing
+ * in this app needs that today (Ask is single-shot question-in/answer-out, not a chat thread — see
+ * Ask.jsx), so no session/thread storage exists or is needed; it's supported here only so a future
+ * feature that DOES need multi-turn doesn't have to touch this function's contract.
  *
  *   const { text, usage } = await chatCompletion(req, { prompt: 'Summarise this diff...' });
+ *   const { text } = await chatCompletion(req, { prompt: 'And the third one?', history: prior });
  */
-async function chatCompletion(req, { prompt, context, model, vendor, dc } = {}) {
+async function chatCompletion(req, { prompt, context, history, model, vendor, dc, timeoutMs = 60_000 } = {}) {
   if (!prompt) throw new Error('prompt is required');
 
-  const { credential } = await resolveCredential(req, 'zoho-platformai', dc);
+  let credential;
+  try {
+    ({ credential } = await resolveCredential(req, 'zoho-platformai', dc));
+  } catch (e) {
+    throw new AiUnavailable(`AI is not available: ${e.message}`);
+  }
   const cfg = parseExtraConfig(credential.EXTRA_CONFIG) || {};
 
+  const messages = [...(Array.isArray(history) ? history : []), { role: 'user', content: prompt }];
   const body = {
-    messages: [{ role: 'user', content: prompt }],
+    messages,
     ai_vendor: vendor || cfg.default_vendor || 'openai',
     model: model || cfg.default_model || 'gpt-4o',
     ...(context ? { context } : {}),
   };
 
-  const resp = await callConnection(req, 'zoho-platformai', '/internalapi/v2/ai/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'chat-response-format': 'msg-format' },
-    body: JSON.stringify(body),
-  });
+  // Catalyst functions have an execution ceiling; PlatformAI's own scripts default to a 300s
+  // client timeout for an interactive CLI, which is too long to hold a function invocation open.
+  // 60s is a starting guess, not a measured platform limit — raise per-call via timeoutMs if a
+  // particular prompt/model genuinely needs longer.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let resp;
+  try {
+    resp = await callConnection(req, 'zoho-platformai', '/internalapi/v2/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'chat-response-format': 'msg-format' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error(`PlatformAI chat timed out after ${timeoutMs}ms`);
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 
   const json = await resp.json();
   if (!resp.ok) {
@@ -1053,6 +1091,6 @@ module.exports = {
   listConnections, listProfiles,
   startOAuth, startBulkOAuth, handleCallback, reauthorize, saveStaticToken, saveRefreshToken,
   revokeConnection,
-  runFetch, setExtraConfig, chatCompletion,
+  runFetch, setExtraConfig, chatCompletion, AiUnavailable,
   resolveCredential, getAccessToken, callConnection,
 };
