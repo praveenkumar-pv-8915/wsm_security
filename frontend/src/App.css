@@ -20,6 +20,12 @@
   --input-bg: #0a0c0f;
   --hover-bg: rgba(255, 255, 255, 0.06);
   --code-text: #7fd88f;
+  --header-bg: rgba(9, 12, 20, 0.97);
+  --page-bg:
+    radial-gradient(1200px 800px at 15% -12%, rgba(44, 102, 221, 0.20), transparent 58%),
+    radial-gradient(1000px 750px at 90% -6%, rgba(44, 102, 221, 0.10), transparent 60%),
+    radial-gradient(900px 650px at 50% 70%, rgba(31, 174, 106, 0.04), transparent 65%),
+    #090c14;
 
   /* status colors — fixed literals, not theme-aware */
   --good: #2ee66b;
@@ -35,6 +41,25 @@
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
+/* neutral role tokens — Light theme (see claude/ui-design-system.md) */
+:root[data-theme="light"] {
+  --text: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --surface: #ffffff;
+  --surface-2: #f1f4f8;
+  --surface-3: #e7ebf0;
+  --border: rgba(15, 23, 42, 0.10);
+  --input-bg: #f1f4f8;
+  --hover-bg: rgba(15, 23, 42, 0.05);
+  --code-text: #0f7a3d;
+  --header-bg: rgba(255, 255, 255, 0.9);
+  --page-bg:
+    radial-gradient(1200px 800px at 15% -10%, rgba(44, 102, 221, 0.10), transparent 60%),
+    radial-gradient(1000px 700px at 90% 0%, rgba(44, 102, 221, 0.06), transparent 62%),
+    #f7f8fb;
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 html, body, #root { min-height: 100vh; }
@@ -42,34 +67,33 @@ html, body, #root { min-height: 100vh; }
 body {
   font-family: var(--font);
   color: var(--text);
-  background:
-    radial-gradient(1200px 800px at 15% -12%, rgba(44, 102, 221, 0.20), transparent 58%),
-    radial-gradient(1000px 750px at 90% -6%, rgba(44, 102, 221, 0.10), transparent 60%),
-    radial-gradient(900px 650px at 50% 70%, rgba(31, 174, 106, 0.04), transparent 65%),
-    #090c14;
+  background: var(--page-bg);
+  transition: background 150ms;
 }
 
 .vault {
-  max-width: 980px;
+  width: 100%;
   margin: 0 auto;
-  padding: 40px 24px 60px;
+  padding: 0 32px 60px;
 }
 
-/* ── header ── */
+/* ── header ──
+   Flush, opaque top bar: sticky at top:0 and pulled out to the edges of .vault's own
+   padding so it spans the full container width (previously top:12 + horizontal margin
+   left a gap where scrolled table rows peeked above/through the semi-transparent card). */
 .vault-header {
   position: sticky;
-  top: 12px;
+  top: 0;
   z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  padding: 14px 20px;
-  margin-bottom: 24px;
-  border-radius: 14px;
-  border: 1px solid var(--border);
-  background: rgba(10, 13, 20, 0.82);
+  padding: 20px 24px;
+  margin: 0 -24px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--header-bg);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
@@ -154,6 +178,69 @@ body {
 /* Draws the eye to a re-auth that is actually needed, without shouting like a danger action. */
 .btn-attn { border-color: var(--accent); color: var(--accent); }
 .btn-attn:hover:not(:disabled) { background: var(--accent-soft); opacity: 1; }
+
+.btn-icon {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* Icon-only variant of .btn-small, for dense per-row action groups (e.g. Connections list). */
+.btn-icon-sm {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── modal (settings panels, confirmation dialogs) ── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(4, 6, 10, 0.6);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.modal {
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  padding: 20px;
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.modal-head h2 { font-size: 15px; font-weight: 600; }
+.modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+.modal-close:hover { background: var(--hover-bg); color: var(--text); }
 
 /* ── banners ── */
 .banner {
@@ -407,6 +494,91 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .tab-on { color: #ffffff; background: var(--accent); }
 .tab-on:hover { color: #ffffff; background: var(--accent); }
 
+/* ── module tabs + sidebar/pane shell ──
+   Top-level module switcher (pill tabs) above a left sidebar of that module's sections and a
+   main content pane on the right — replaces the single flat tab row for screens that group
+   several sub-sections (Risk Register/Ask under "Compliance Manager", etc). */
+.module-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.module-tab {
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 10px 10px 0 0;
+  color: var(--text-secondary);
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: color 120ms, background 120ms;
+}
+.module-tab:hover { color: var(--text); background: var(--hover-bg); }
+.module-tab-on { color: #ffffff; background: var(--accent); border-color: var(--accent); }
+.module-tab-on:hover { color: #ffffff; background: var(--accent); }
+
+.workspace {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.22);
+  position: sticky;
+  top: 84px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sidebar-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: var(--font);
+  font-size: 13px;
+  background: none;
+  border: none;
+  border-left: 3px solid transparent;
+  border-radius: 0 8px 8px 0;
+  color: var(--text-secondary);
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: color 120ms, background 120ms, border-color 120ms;
+}
+.sidebar-item:hover { color: var(--text); background: var(--hover-bg); }
+.sidebar-item-on {
+  color: var(--text);
+  font-weight: 600;
+  background: var(--accent-soft);
+  border-left-color: var(--accent);
+}
+
+.pane {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .workspace { flex-direction: column; }
+  .sidebar {
+    width: 100%;
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .sidebar-item { border-left: none; border-radius: 8px; border-bottom: 3px solid transparent; }
+  .sidebar-item-on { border-bottom-color: var(--accent); }
+}
+
 /* ── view header ── */
 .view-head {
   display: flex;
@@ -429,7 +601,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   align-items: center;
   gap: 8px;
 }
-.view-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.view-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; justify-content: flex-end; }
 
 /* ── home tiles ── */
 .tiles {
@@ -520,6 +692,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   flex-shrink: 0;
 }
 .dot-on { background: var(--good); box-shadow: 0 0 0 3px var(--good-soft); }
+.dot-warn { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
+.dot-bad { background: var(--bad); box-shadow: 0 0 0 3px var(--bad-soft); }
 
 .conn-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; }
 .conn-actions { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
@@ -680,8 +854,59 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .tag-good { background: var(--good-soft); color: var(--good); }
 .tag-bad { background: var(--bad-soft); color: var(--bad); }
 
-.risk-filters { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 16px; }
 .risk-detail { padding: 6px 4px 10px; }
+
+/* Risk Register's wide table (Issue/Vulnerability/Threat/Control/Risk treatment are long free
+   text) — clip each cell to one line with a tooltip for the full value, rather than blowing out
+   row height or the table's overall width. */
+/* Free-text/table cells (Team, Issue, Vulnerability, Threat, Risk, Control, Risk treatment) wrap
+   up to 3 lines instead of clipping to one — the row grows to fit, rather than hiding everything
+   behind a tooltip. Score/Revised score stay single-line tags, and Updated stays a single-line
+   timestamp — neither needs 3 lines. This lives on a <span> INSIDE the <td>, not the <td> itself:
+   -webkit-line-clamp needs `display: -webkit-box`, and overriding a table cell's own display away
+   from `table-cell` breaks its row layout (misaligned/overlapping cells) — a wrapper sidesteps that. */
+.cell-clip-multi {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  line-height: 1.4;
+  max-width: 220px;
+}
+.risk-table th { white-space: nowrap; }
+
+/* Status column: a review-result icon (ok/fail/not-reviewed) plus a small rerun icon-button that
+   reruns just that one row's guideline check (POST /api/risks/:riskId/review). */
+.status-cell { display: inline-flex; align-items: center; gap: 6px; }
+.status-icon { display: inline-flex; width: 16px; height: 16px; flex-shrink: 0; }
+.status-icon svg { width: 100%; height: 100%; }
+.status-icon-ok { color: var(--good); }
+.status-icon-fail { color: var(--bad); }
+.status-icon-unreviewed { color: var(--text-muted); }
+
+.icon-btn-sm {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 120ms, background 120ms;
+}
+.icon-btn-sm svg { width: 13px; height: 13px; }
+.icon-btn-sm:hover:not(:disabled) { color: var(--text); background: var(--hover-bg); }
+.icon-btn-sm:disabled { cursor: default; opacity: 0.6; }
+
+@keyframes icon-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.icon-btn-sm .spin { display: inline-flex; animation: icon-spin 0.7s linear infinite; }
 .sec-title {
   font-size: 11px;
   text-transform: uppercase;
@@ -690,6 +915,60 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   margin: 10px 0 7px;
 }
 .risk-checks { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Row highlight while its drawer is open (table body only — see .risk-drawer below). */
+.risk-table tbody tr.row-on { background: var(--hover-bg); }
+
+/* Full-risk-info side drawer (replaces the old inline expand row, which used to scroll away with
+   the table on horizontal scroll — the drawer sits outside .table-scroll entirely, fixed to the
+   viewport, so it can't be affected by the table's own scroll position). */
+.risk-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: rgba(4, 6, 10, 0.55);
+  display: flex;
+  justify-content: flex-end;
+}
+.risk-drawer {
+  width: 480px;
+  max-width: 92vw;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.35);
+  padding: 20px 24px 32px;
+  animation: risk-drawer-in 160ms ease-out;
+}
+@keyframes risk-drawer-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.risk-drawer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.risk-drawer-title { font-size: 16px; font-weight: 600; line-height: 1.35; }
+
+.risk-checks-detail { display: flex; flex-direction: column; gap: 10px; }
+.risk-check-row { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.risk-check-finding {
+  margin-left: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--bad-soft);
+  width: 100%;
+}
+.risk-check-problem { font-size: 12.5px; color: var(--text); line-height: 1.5; }
+.risk-check-suggestion { margin-top: 3px; }
+
+@media (max-width: 640px) {
+  .risk-drawer { width: 100%; max-width: 100%; }
+}
 
 .ask-layout { display: grid; grid-template-columns: 1fr 320px; gap: 16px; align-items: start; }
 .ask-row { display: flex; gap: 8px; }
@@ -724,6 +1003,176 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .ask-citations { padding-left: 18px; font-size: 12.5px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 4px; }
 
 @media (max-width: 900px) {
-  .risk-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ask-layout { grid-template-columns: 1fr; }
 }
+
+/* ── risk table toolbar: count/pagination + collapsed search icon + columns menu, all one
+   line (2026-09-01, merged from separate toolbar/pagination rows same day) ── */
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.table-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.table-toolbar-actions { display: flex; align-items: center; gap: 6px; }
+
+/* Search starts as just an icon; clicking it reveals a small input next to it (item 8). */
+.table-search { display: flex; align-items: center; gap: 6px; }
+.table-search input {
+  width: 200px;
+  padding: 6px 9px;
+  font-size: 12.5px;
+}
+
+/* Shared popover shell for both the per-column filter (item 5) and the Columns menu (item 6). A
+   transparent full-viewport overlay closes the popover on outside click, matching the dropdown
+   pattern in claude/ui-design-system.md; the panel itself stops the click from reaching it. */
+.col-filter-wrap { position: relative; display: inline-flex; align-items: center; }
+.col-filter-pop-overlay { position: fixed; inset: 0; z-index: 40; background: transparent; }
+.col-filter-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 41;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 190px;
+}
+.col-filter-pop input { width: 100%; }
+.columns-menu { min-width: 200px; max-height: 320px; overflow-y: auto; }
+.columns-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 2px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.columns-menu-row input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+
+/* Column header label + its filter icon, inline. th keeps `white-space: nowrap` (existing rule)
+   so the icon never wraps under the label. */
+.th-label { display: inline-flex; align-items: center; gap: 4px; }
+.icon-btn-active { color: var(--accent); }
+
+/* "View guidelines" modal — risk-guidelines.md rendered by GuidelinesView.jsx into readable
+   headings/lists/tables/rule-cards (2026-09-01, replacing the old raw monospace text dump). */
+.modal-lg { max-width: 760px; }
+.guidelines-text {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+  max-height: 65vh;
+  overflow-y: auto;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 18px;
+}
+
+.gl-doc > *:first-child { margin-top: 0; }
+.gl-h { color: var(--text); font-weight: 600; margin: 20px 0 8px; }
+.gl-h3 { font-size: 14px; }
+.gl-h4 { font-size: 13px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+.gl-p { margin: 0 0 10px; color: var(--text); }
+.gl-quote {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-2);
+  border-radius: 0 6px 6px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.gl-code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--surface-3);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.gl-table { width: 100%; border-collapse: collapse; margin: 0 0 16px; font-size: 12.5px; }
+.gl-table th, .gl-table td {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.gl-table th { color: var(--text-secondary); font-weight: 600; }
+.gl-list { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.gl-li { padding-left: 14px; position: relative; color: var(--text); }
+.gl-li::before { content: '—'; position: absolute; left: 0; color: var(--text-muted); }
+
+.gl-rule {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.gl-rule-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; flex-wrap: wrap; }
+.gl-rule-id { font-weight: 700; font-size: 12.5px; color: var(--accent); letter-spacing: 0.02em; }
+.gl-rule-body { color: var(--text); font-size: 12.5px; line-height: 1.55; }
+
+.gl-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: help;
+}
+.gl-tag-origin { background: var(--surface-3); color: var(--text-secondary); }
+.gl-tag-scripted { background: rgba(46,230,107,0.16); color: var(--good); }
+.gl-tag-llm { background: rgba(245,165,36,0.16); color: var(--warn); }
+
+/* ── risk table pagination — lives inside .table-toolbar as one line (2026-09-01) ── */
+.pagination-left { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.pagination-size {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.pagination-size select { padding: 4px 8px; font-size: 12px; }
+.pagination-range { font-size: 12px; color: var(--text-secondary); }
+.pagination-controls { display: flex; align-items: center; gap: 8px; }
+.pagination-page { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+
+/* Taller, internally-scrolling table body (2026-09-01) — with "rows per page" now selectable up
+   to 100, the table needs its own scroll area instead of pushing the whole page down; the header
+   row stays pinned while the body scrolls. */
+.table-scroll-tall {
+  max-height: 68vh;
+  overflow-y: auto;
+}
+.table-scroll-tall .risk-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: var(--surface);
+}
+
+/* Numeric filter (Risk score / Revised risk score): operator select + one or two number inputs. */
+.col-filter-numeric-inputs { display: flex; gap: 6px; }
+.col-filter-numeric-inputs input { width: 100%; min-width: 0; }

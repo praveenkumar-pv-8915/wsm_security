@@ -13,14 +13,18 @@
 
 import { useEffect, useState } from 'react';
 
-export const ROUTES = ['/', '/connections', '/risk-register', '/ask'];
+export const ROUTES = ['/connections', '/risk-register', '/draft-risk', '/compare-dpias', '/ask'];
+
+// Home was removed as a route (2026-09-01) — Connections is now the landing page, so both an
+// empty hash and any unrecognized path fall back to it.
+const DEFAULT_ROUTE = '/connections';
 
 export function parseHash(hash) {
   const raw = String(hash === undefined ? window.location.hash : hash).replace(/^#/, '');
   const [rawPath, rawQuery = ''] = raw.split('?');
-  const path = !rawPath || rawPath === '/' ? '/' : (rawPath.startsWith('/') ? rawPath : `/${rawPath}`);
+  const path = !rawPath || rawPath === '/' ? DEFAULT_ROUTE : (rawPath.startsWith('/') ? rawPath : `/${rawPath}`);
   return {
-    path: ROUTES.includes(path) ? path : '/',
+    path: ROUTES.includes(path) ? path : DEFAULT_ROUTE,
     params: new URLSearchParams(rawQuery),
   };
 }

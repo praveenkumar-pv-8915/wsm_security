@@ -219,8 +219,18 @@ app.get('/api/risks', wrap(async (req, res) => {
   send(res, await risks.listRisks(req, req.query || {}));
 }));
 
+/** The full guideline text, for the Risk Register's "View guidelines" panel. */
+app.get('/api/risks/guidelines', wrap(async (req, res) => {
+  send(res, await risks.getGuidelines());
+}));
+
 app.get('/api/risks/:riskId', wrap(async (req, res) => {
   send(res, await risks.getRisk(req, req.params.riskId));
+}));
+
+/** Live single-record Creator call for the row-expand detail panel — never persisted, see risk-service.js. */
+app.get('/api/risks/:riskId/preview', wrap(async (req, res) => {
+  send(res, await risks.previewRisk(req, req.params.riskId));
 }));
 
 /** Mirrors `risk draft_risk` — stubbed 501 until a server-callable LLM path exists. */
@@ -231,6 +241,39 @@ app.post('/api/risks/draft', wrap(async (req, res) => {
 /** Mirrors `risk compare_risks` — stubbed 501 until the DMS Manager + LLM path exist. */
 app.post('/api/risks/compare-dpias', wrap(async (req, res) => {
   send(res, await risks.compareDpias(req));
+}));
+
+/** Full replace of compliance_risks from the live Zoho Creator connection — see risk-service.js. */
+app.post('/api/risks/sync', wrap(async (req, res) => {
+  send(res, await risks.syncFromCreator(req));
+}));
+
+/** Scripted guideline review (G6-G10, G19) — see risk-review.js and risk-guidelines.md. */
+app.post('/api/risks/review', wrap(async (req, res) => {
+  send(res, await risks.reviewGuidelines(req));
+}));
+
+
+/** Rerun the same scripted review for one risk — the Status column's per-row rerun icon. */
+app.post('/api/risks/:riskId/review', wrap(async (req, res) => {
+  send(res, await risks.reviewOneRisk(req, req.params.riskId));
+}));
+
+/* ------------------------------------------------------------------ compliance: team filters */
+
+/** GET /api/team-filters — which Creator Team_Name values sync() pulls. */
+app.get('/api/team-filters', wrap(async (req, res) => {
+  send(res, await risks.listTeamFilters(req));
+}));
+
+/** POST /api/team-filters — body: { team_name }. */
+app.post('/api/team-filters', wrap(async (req, res) => {
+  send(res, await risks.addTeamFilter(req, (req.body || {}).team_name), 201);
+}));
+
+/** DELETE /api/team-filters/:teamName — teamName is URL-encoded, see risk-service.js. */
+app.delete('/api/team-filters/:teamName', wrap(async (req, res) => {
+  send(res, await risks.removeTeamFilter(req, req.params.teamName));
 }));
 
 /* ------------------------------------------------------------------ compliance: ask */

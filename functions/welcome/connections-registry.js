@@ -323,7 +323,10 @@ const FETCH_OPERATIONS = {
   'zoho-creator': {
     label: 'List report records', method: 'GET',
     path: '/creator/v2.1/data/{owner}/{app_link}/report/{report_link}',
-    query: { max_records: '5' },
+    // Creator's v2.1 API only accepts max_records of 200/500/1000 — a smaller value (this used to
+    // be '5') gets a 400 "Please enter a valid input for 'max_records' key" instead of a result,
+    // which broke this kit's connection test with a confusing error. 200 is the smallest legal value.
+    query: { max_records: '200' },
     params: [
       { name: 'owner', in: 'path', label: 'Owner', required: true },
       { name: 'app_link', in: 'path', label: 'App link name', required: true },

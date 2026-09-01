@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { clearRouteParams } from '../lib/router';
+import { RefreshIcon, LayersIcon, CloseIcon, PlugIcon, ReauthIcon, BoltIcon, UnplugIcon } from '../lib/icons';
 
 /**
  * Connections — the 11 internal-tool integrations from connections-registry.js.
@@ -460,14 +461,23 @@ export default function Connections({ user, onNotice }) {
           </p>
         </div>
         <div className="view-actions">
-          <button className="btn btn-ghost" onClick={load} disabled={loading || busy}>⟳ Refresh</button>
           <button
-            className="btn btn-ghost"
+            className="btn btn-ghost btn-icon"
+            onClick={load}
+            disabled={loading || busy}
+            title="Refresh"
+            aria-label="Refresh"
+          >
+            <RefreshIcon />
+          </button>
+          <button
+            className="btn btn-ghost btn-icon"
             onClick={() => { setBulkOpen((o) => !o); setOpenKey(null); setProbeKey(null); }}
             disabled={busy}
-            title="One OAuth client, one consent, several services"
+            title={bulkOpen ? 'Close bulk configure' : 'Bulk configure — one OAuth client, one consent, several services'}
+            aria-label={bulkOpen ? 'Close bulk configure' : 'Bulk configure'}
           >
-            {bulkOpen ? '× Close' : '⊞ Bulk configure'}
+            {bulkOpen ? <CloseIcon /> : <LayersIcon />}
           </button>
         </div>
       </div>
@@ -553,7 +563,7 @@ export default function Connections({ user, onNotice }) {
                       {eff ? (
                         <>
                           <span className={`tag${eff.expired ? ' tag-warn' : ''}`}>
-                            {eff.source === 'user' ? 'personal' : 'team'}{eff.expired ? ' · expired' : ''}
+                            {eff.source === 'user' ? 'personal' : 'team'}
                           </span>
                           {eff.scopes_stale && (
                             <span className="tag tag-warn" title="This service asks for scopes that weren't in the grant you consented to. Re-authenticate to widen it.">
@@ -581,35 +591,64 @@ export default function Connections({ user, onNotice }) {
                       */}
                       {isOAuth && myOrTeam && (eff?.scopes_stale || eff?.expired) && (
                         <button
-                          className="btn btn-small btn-attn"
+                          className="btn btn-small btn-attn btn-icon-sm"
                           onClick={() => reauthorize(service, myOrTeam)}
                           disabled={busy}
-                          title="Re-run Zoho consent using the stored client id and secret"
+                          title="Re-authenticate — re-run Zoho consent using the stored client id and secret"
+                          aria-label="Re-authenticate"
                         >
-                          ↻ Re-authenticate
+                          <ReauthIcon />
                         </button>
                       )}
                       {service.fetch_operation && myOrTeam && (
                         <button
-                          className="btn btn-small"
+                          className="btn btn-small btn-icon-sm"
                           onClick={() => toggleProbe(service, myOrTeam)}
                           disabled={busy || probeBusy === service.key}
-                          title={`${service.fetch_operation.method} · ${service.fetch_operation.label}`}
+                          title={probeBusy === service.key ? 'Fetching…' : `Fetch — ${service.fetch_operation.method} · ${service.fetch_operation.label}`}
+                          aria-label="Fetch"
                         >
-                          {probeBusy === service.key ? '… Fetching' : '⚡ Fetch'}
+                          <BoltIcon />
                         </button>
                       )}
-                      <button className="btn btn-small" onClick={() => setOpenKey(isOpen ? null : service.key)} disabled={busy}>
-                        {isOpen ? 'Close' : (eff ? 'Reconfigure' : 'Connect')}
-                      </button>
+                      {/*
+                        Reconfigure was removed as its own action (2026-09-01): once a connection
+                        is live, Re-authenticate covers the one case that needs fixing without
+                        retyping (a stale/expired grant); anything else goes through Revoke +
+                        Connect again. Connect (and Close, while its form is open) is the only
+                        state this toggle still needs to render.
+                      */}
+                      {!eff && (
+                        <button
+                          className="btn btn-small btn-icon-sm"
+                          onClick={() => setOpenKey(isOpen ? null : service.key)}
+                          disabled={busy}
+                          title={isOpen ? 'Close' : 'Connect'}
+                          aria-label={isOpen ? 'Close' : 'Connect'}
+                        >
+                          {isOpen ? <CloseIcon /> : <PlugIcon />}
+                        </button>
+                      )}
                       {service.mine && (
-                        <button className="btn btn-small btn-danger" onClick={() => revoke(service, service.mine)} disabled={busy}>
-                          Revoke mine
+                        <button
+                          className="btn btn-small btn-danger btn-icon-sm"
+                          onClick={() => revoke(service, service.mine)}
+                          disabled={busy}
+                          title="Revoke my credential"
+                          aria-label="Revoke my credential"
+                        >
+                          <UnplugIcon />
                         </button>
                       )}
                       {service.shared && user.role === 'admin' && (
-                        <button className="btn btn-small btn-danger" onClick={() => revoke(service, service.shared)} disabled={busy}>
-                          Revoke team
+                        <button
+                          className="btn btn-small btn-danger btn-icon-sm"
+                          onClick={() => revoke(service, service.shared)}
+                          disabled={busy}
+                          title="Revoke team credential"
+                          aria-label="Revoke team credential"
+                        >
+                          <UnplugIcon />
                         </button>
                       )}
                     </div>

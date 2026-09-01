@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
+import { getTheme, setTheme, toggleTheme } from './lib/theme';
 import './App.css';
 import AuthGate from './components/AuthGate';
 import { api } from './lib/api';
 import { signOut } from './lib/catalyst';
 import { navigate, useRoute } from './lib/router';
-import Home from './views/Home';
 import Connections from './views/Connections';
 import RiskRegister from './views/RiskRegister';
+import DraftRisk from './views/DraftRisk';
+import CompareDpias from './views/CompareDpias';
 import Ask from './views/Ask';
 
 /**
@@ -14,17 +16,38 @@ import Ask from './views/Ask';
  * verified @zohocorp.com session; the server re-verifies it on every request regardless.
  */
 
-const NAV = [
-  { path: '/', label: 'Home' },
-  { path: '/connections', label: 'Connections' },
-  { path: '/risk-register', label: 'Risk Register' },
-  { path: '/ask', label: 'Ask' },
+/**
+ * Two-tier nav: a top row of module tabs, each opening a left sidebar of the sections that
+ * belong to it. Routing is unchanged (still the same flat hash paths in lib/router.js) — this is
+ * purely a grouping/presentation layer over the existing routes.
+ */
+const GROUPS = [
+  {
+    key: 'compliance',
+    label: 'Compliance Manager',
+    items: [
+      { path: '/risk-register', label: 'Risk Register' },
+      { path: '/draft-risk', label: 'Draft new risk' },
+      { path: '/compare-dpias', label: 'Compare vs. DPIA' },
+      { path: '/ask', label: 'Ask' },
+    ],
+  },
+  {
+    key: 'workspace',
+    label: 'Configuration',
+    items: [
+      { path: '/connections', label: 'Connections' },
+    ],
+  },
 ];
 
 function Shell({ user: sessionUser }) {
   const { path } = useRoute();
   const [notice, setNotice] = useState(null);
   const [serverRole, setServerRole] = useState(null);
+  const [theme, setThemeState] = useState(getTheme);
+
+  useEffect(() => { setTheme(theme); }, [theme]);
 
   const onNotice = useCallback((message) => setNotice(message), []);
 
@@ -49,6 +72,8 @@ function Shell({ user: sessionUser }) {
 
   const user = serverRole ? { ...sessionUser, role: serverRole } : sessionUser;
 
+  const activeGroup = GROUPS.find((g) => g.items.some((item) => item.path === path)) || GROUPS[0];
+
   useEffect(() => {
     if (!notice) return undefined;
     const id = setTimeout(() => setNotice(null), 4000);
@@ -58,7 +83,7 @@ function Shell({ user: sessionUser }) {
   return (
     <div className="vault">
       <header className="vault-header">
-        <button type="button" className="vault-brand" onClick={() => navigate('/')} title="Home">
+        <button type="button" className="vault-brand" onClick={() => navigate('/connections')} title="Connections">
           <span className="vault-glyph" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3z" />
@@ -76,36 +101,79 @@ function Shell({ user: sessionUser }) {
             <span className="who-initials" aria-hidden="true">{user.initials}</span>
             <span className="who-name">{user.name}</span>
           </span>
-          <button className="btn btn-ghost" type="button" onClick={() => signOut()}>
-            Sign out
+          <button
+            className="btn btn-ghost btn-icon"
+            type="button"
+            onClick={() => setThemeState((t) => toggleTheme(t))}
+            title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+            aria-label="Toggle color theme"
+          >
+            {theme === 'light' ? (
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+              </svg>
+            )}
+          </button>
+          <button
+            className="btn btn-ghost btn-icon"
+            type="button"
+            onClick={() => signOut()}
+            title="Sign out"
+            aria-label="Sign out"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
           </button>
         </div>
       </header>
 
-      <nav className="tabs" aria-label="Sections">
-        {NAV.map((item) => (
+      <nav className="module-tabs" aria-label="Modules">
+        {GROUPS.map((group) => (
           <button
-            key={item.path}
+            key={group.key}
             type="button"
-            className={`tab${path === item.path ? ' tab-on' : ''}`}
-            aria-current={path === item.path ? 'page' : undefined}
-            onClick={() => navigate(item.path)}
+            className={`module-tab${activeGroup.key === group.key ? ' module-tab-on' : ''}`}
+            aria-current={activeGroup.key === group.key ? 'true' : undefined}
+            onClick={() => navigate(group.items[0].path)}
           >
-            {item.label}
+            {group.label}
           </button>
         ))}
       </nav>
 
-      {notice && <div className="banner banner-ok" role="status">{notice}</div>}
+      <div className="workspace">
+        <aside className="sidebar" aria-label={`${activeGroup.label} sections`}>
+          {activeGroup.items.map((item) => (
+            <button
+              key={item.path}
+              type="button"
+              className={`sidebar-item${path === item.path ? ' sidebar-item-on' : ''}`}
+              aria-current={path === item.path ? 'page' : undefined}
+              onClick={() => navigate(item.path)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </aside>
 
-      {path === '/connections' && <Connections user={user} onNotice={onNotice} />}
-      {path === '/risk-register' && <RiskRegister onNotice={onNotice} />}
-      {path === '/ask' && <Ask />}
-      {path === '/' && <Home user={user} />}
+        <main className="pane">
+          {notice && <div className="banner banner-ok" role="status">{notice}</div>}
 
-      <footer className="vault-foot">
-        <span>AES-encrypted at rest · owner-scoped access · Catalyst Serverless</span>
-      </footer>
+          {path === '/connections' && <Connections user={user} onNotice={onNotice} />}
+          {path === '/risk-register' && <RiskRegister onNotice={onNotice} />}
+          {path === '/draft-risk' && <DraftRisk />}
+          {path === '/compare-dpias' && <CompareDpias />}
+          {path === '/ask' && <Ask />}
+        </main>
+      </div>
     </div>
   );
 }
