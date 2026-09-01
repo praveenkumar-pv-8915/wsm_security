@@ -1,6 +1,6 @@
 {
   "name": "wsm-security-frontend",
-  "version": "1.0.34",
+  "version": "1.0.35",
   "homepage": "index.html",
   "description": "WSM Security team workspace - vault, connections, tasks"
 }
