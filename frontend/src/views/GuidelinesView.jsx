@@ -42,6 +42,25 @@ function TagPill({ tag }) {
   );
 }
 
+/**
+ * A small always-visible key explaining the [Z]/[T]/[U]/[S]/[P] pills, shown once above the
+ * rendered doc. UI-only — deliberately NOT part of risk-guidelines.md itself, since that file is
+ * kept lean for the LLM prose review prompt (risk_manager/review/registry_review.py's source
+ * equivalent) while a human reading this modal still needs the tags explained somewhere.
+ */
+export function GuidelinesLegend() {
+  return (
+    <div className="gl-legend">
+      {Object.values(TAG_INFO).map((tag) => (
+        <span key={tag.label} className="gl-legend-item">
+          <span className={`gl-tag gl-tag-${tag.kind}`}>{tag.label}</span>
+          {tag.title}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 /** Inline formatting: **bold**, `code`, [text](url) — plain string in, array of nodes out. */
 function renderInline(text, keyPrefix) {
   const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g);

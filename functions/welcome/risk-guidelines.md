@@ -1,42 +1,5 @@
 # Risk Definition Guidelines — Compliance Management registers
 
-> **Source:** official Zoho Corp guideline **"How to derive a risk"** (v1.7,
-> revised 06-Jul-2026), Zoho Learn manual *Clause and Control Guidelines*:
-> <https://learn.zoho.in/portal/zohocorp/team/zoho-compliance/manual/clause-and-control-guidelines/article/how-to-derive-a-risk>
-> Carried over from the standalone `compliancemanager` tool's
-> `risk_manager/guidelines/RISK_GUIDELINES.md` on 2026-09-01, kept as its own file (not inlined
-> into `risk-review.js`) so the guideline text can be read, reviewed, and updated on its own.
-> **Reordered 2026-09-01** into ascending **G1 → G19** order (originally grouped by theme with
-> the numbering jumping around); the themed groupings below are unchanged, only their sequence.
-
-## Legend
-
-| Tag | Meaning |
-|---|---|
-| **[Z]** | From the official Zoho guideline article |
-| **[T]** | Tool-added review convention (language quality, DPIA coverage) — not in the article |
-| **[U]** | Mandated by the Log360 Cloud compliance owner (10-Aug-2026) |
-| **[S]** | Enforced deterministically by script |
-| **[P]** | Judged by an LLM (prose review) |
-
-The article's scoring scheme (G7–G9) applies to the **ISMS** register only; PIMS/QMS/BCMS use
-their own scales and rating bands, so those scripted scale/band checks are ISMS-scoped.
-
-## Implementation status in this app (2026-09-01)
-
-`risk-review.js` implements the **[S]** rules only — **G6, G7, G8, G9, G10, G19** — as plain JS,
-ported 1:1 from the source tool's `risk_manager/review/deterministic.py`. `POST /api/risks/review`
-runs them against every synced risk and writes the result to `REVIEW_STATUS`/`GUIDELINE_CHECKS`
-on `compliance_risks` (see risk-service.js's `reviewGuidelines`).
-
-The **[P]** rules — G1–G5, G11–G13, G15–G18 (the source tool's own reviewer never actually checked
-G15/G16 either, despite the guideline doc marking them **[P]**) — need an LLM prose review (the
-source tool's `risk_manager/review/registry_review.py`, which shells out to `claude -p`). Unlike
-`draftRisk`/`compareDpias`, this app already has a working server-callable LLM path —
-`connections-service.js`'s `chatCompletion()`, used today by `Ask` — nothing in risk-service.js
-calls it for guideline review yet. Until that's wired up, `reviewGuidelines()`'s response says so
-explicitly (`pending_llm_rules`) rather than reporting a fake pass.
-
 ## 0. Definitions (official)
 
 - **Risk** — "the potential that threats will exploit vulnerabilities of an information asset or

@@ -238,7 +238,7 @@ app.post('/api/risks/draft', wrap(async (req, res) => {
   send(res, await risks.draftRisk(req, req.body || {}), 201);
 }));
 
-/** Mirrors `risk compare_risks` — stubbed 501 until the DMS Manager + LLM path exist. */
+/** Mirrors `risk compare_risks` — DPIA coverage comparison, see risk-service.js's compareDpias(). */
 app.post('/api/risks/compare-dpias', wrap(async (req, res) => {
   send(res, await risks.compareDpias(req));
 }));

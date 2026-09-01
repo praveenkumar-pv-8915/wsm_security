@@ -1085,6 +1085,20 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   padding: 16px 18px;
 }
 
+.gl-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.gl-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+
 .gl-doc > *:first-child { margin-top: 0; }
 .gl-h { color: var(--text); font-weight: 600; margin: 20px 0 8px; }
 .gl-h3 { font-size: 14px; }

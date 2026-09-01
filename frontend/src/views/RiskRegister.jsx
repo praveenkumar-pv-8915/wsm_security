@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
-import GuidelinesView from './GuidelinesView';
+import GuidelinesView, { GuidelinesLegend } from './GuidelinesView';
 
 /**
  * Risk Register — first slice of compliancemanager (risk_manager) in the Welcome app.
@@ -905,7 +905,10 @@ export default function RiskRegister({ onNotice }) {
             {guidelines.status === 'loading' && <p className="hint">Loading…</p>}
             {guidelines.status === 'error' && <div className="banner banner-err" role="status">{guidelines.error}</div>}
             {guidelines.status === 'ok' && (
-              <div className="guidelines-text"><GuidelinesView text={guidelines.text} /></div>
+              <>
+                <GuidelinesLegend />
+                <div className="guidelines-text"><GuidelinesView text={guidelines.text} /></div>
+              </>
             )}
           </div>
         </div>

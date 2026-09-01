@@ -24,21 +24,28 @@
  *   - OWNER_ID is always blank. Creator's Risk_Owner field is a name/email, and this app's
  *     no-PII-identity convention means email/name is never stored as identity — only a Catalyst
  *     user_id, which nothing maps these owners to yet.
- *   - REVIEW_STATUS is always 'ok' and GUIDELINE_CHECKS is always empty. The guideline review
- *     (G-code pass/fail) and the DPIA coverage comparison are LLM-driven steps compliancemanager
- *     currently runs locally (`risk review_risks` / `risk compare_risks`, shelling out to
- *     `claude -p`) — there is no server-callable equivalent in this function yet (same open
- *     question as draftRisk/compareDpias below). Wire that up before REVIEW_STATUS/'dpia' can mean
- *     anything beyond "not yet reviewed."
+ *   - REVIEW_STATUS is always 'ok' out of syncFromCreator; reviewGuidelines() (POST
+ *     /api/risks/review) is what can set it to 'review'. 'dpia' is still not written anywhere —
+ *     compareDpias() below reports coverage gaps in its response rather than writing them back
+ *     onto rows, so nothing currently sets REVIEW_STATUS='dpia'. A follow-up could have
+ *     compareDpias tag the matched RISK_IDs of 'missing' rows with REVIEW_STATUS='dpia' if the
+ *     Risk Register screen should surface that inline.
  *
- * `draftRisk` and `compareDpias` mirror `risk draft_risk` / `risk compare_risks`, both of which need
- * a server-callable LLM path (compliancemanager shells out to `claude -p`) that doesn't exist yet
- * either. They're stubbed to a clear 501 rather than faked.
+ * `draftRisk` mirrors `risk draft_risk`, which needs a server-callable LLM path (compliancemanager
+ * shells out to `claude -p`) — this app now has one, chatCompletion() in connections-service.js,
+ * but draftRisk isn't wired to it yet, so it stays a clear 501 rather than faked.
+ *
+ * `compareDpias` mirrors `risk compare_risks` (risk_manager/compare_risks.py) and IS implemented —
+ * see the "compare vs. DPIA" section below — using the zoho-creator (documents + registers),
+ * zoho-writer (document export) and zoho-platformai (comparison judgement) connections this app
+ * already has, same as compliancemanager's DMS Manager + LLM path but through this app's own
+ * Connections framework instead of macOS Keychain scripts / `claude -p`.
  */
 
 const fs = require('fs');
 const path = require('path');
-const { callConnection } = require('./connections-service');
+const { callConnection, chatCompletion, AiUnavailable } = require('./connections-service');
+const { extractRiskRows } = require('./dpia-parser');
 const toolConfig = require('./tool-config-service');
 const { checkRegistryRisk, summarizeChecks, IMPLEMENTED_RULES, PENDING_LLM_RULES } = require('./risk-review');
 
@@ -547,14 +554,249 @@ async function draftRisk() {
   throw err;
 }
 
-/** POST /api/risks/compare-dpias — mirrors `risk compare_risks`. Needs the DMS Manager + LLM path. */
-async function compareDpias() {
-  const err = new Error(
-    'Comparing against DPIAs needs the DMS Manager (Zoho Writer fetch) and the same LLM path as ' +
-    'draftRisk, neither of which is wired up yet. Not implemented.'
-  );
-  err.status = 501;
-  throw err;
+/* ------------------------------------------------------------------ compare vs. DPIA */
+
+// DPIA documents live in the same Creator app/connection as the risk registers, in the
+// "Create_Template_Document_Report" report (compliancemanager's dms_manager hits the exact same
+// report — see conf/config.yaml's sources.connections.reports.documents /
+// dpia_template_contains). No new connection or DataStore table needed — this reuses the existing
+// zoho-creator (documents + registers), zoho-writer (document export) and zoho-platformai
+// (comparison judgement) connections already wired up for this app.
+const DMS_REPORT = 'Create_Template_Document_Report';
+const DPIA_TEMPLATE_CONTAINS = 'data protection impact assessment';
+
+/** One raw Creator document record -> { document_id, name, template, writer_doc_id }. */
+function mapDocRecord(record) {
+  const link = record.Document_Link;
+  const url = String((link && typeof link === 'object' ? link.url : link) || '').trim();
+  return {
+    document_id: String(record.Document_ID || '').trim(),
+    name: String(record.Document_Name || '').trim(),
+    template: String(record.Choose_Template || '').trim(),
+    writer_doc_id: url ? url.replace(/\/+$/, '').split('/').pop() : '',
+  };
+}
+
+/** Live-fetch the DMS "documents" report from the same Creator app/connection the registers use,
+ *  filtered to the configured team(s) — same pattern as fetchRegister above. */
+async function fetchDmsDocuments(req, teamNames) {
+  const criteria = `(${teamNames.map(t => `Team_Name.contains("${t}")`).join(' || ')})`;
+  const path = `/creator/v2.1/data/${CREATOR_OWNER}/${CREATOR_APP}/report/${DMS_REPORT}` +
+    `?max_records=1000&criteria=${encodeURIComponent(criteria)}`;
+  let resp;
+  try {
+    resp = await callConnection(req, 'zoho-creator', path);
+  } catch (e) {
+    throw new MissingConnection(
+      `Couldn't reach Zoho Creator for the document list: ${e.message}. Configure the Zoho Creator ` +
+      'connection on the Connections tab first.'
+    );
+  }
+  const json = await resp.json().catch(() => null);
+  if (!resp.ok) {
+    const detail = json && (json.message || json.code) ? ` — ${json.message || json.code}` : '';
+    throw new MissingConnection(
+      `Zoho Creator returned HTTP ${resp.status}${detail} fetching "${DMS_REPORT}". Check that the ` +
+      'Zoho Creator connection is active with report.READ scope (Connections tab).'
+    );
+  }
+  const records = Array.isArray(json && json.data) ? json.data : [];
+  const teamSet = new Set(teamNames);
+  return records
+    .filter(r => teamSet.has(String(r.Team_Name || '')))
+    .map(mapDocRecord);
+}
+
+/** Download one Writer document as HTML, straight through the zoho-writer connection (bypassing
+ *  the generic probe operation registered for it, which only fetches metadata — see
+ *  connections-registry.js's FETCH_OPERATIONS['zoho-writer'] vs. the real export endpoint below). */
+async function fetchWriterHtml(req, writerDocId) {
+  const path = `/writer/api/v1/download/${encodeURIComponent(writerDocId)}?format=html`;
+  let resp;
+  try {
+    resp = await callConnection(req, 'zoho-writer', path);
+  } catch (e) {
+    throw new MissingConnection(
+      `Couldn't reach Zoho Writer for document ${writerDocId}: ${e.message}. Configure the Zoho ` +
+      'Writer connection on the Connections tab first.'
+    );
+  }
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '');
+    throw new Error(
+      `Zoho Writer returned HTTP ${resp.status} for document ${writerDocId}` +
+      (body ? ` — ${body.slice(0, 200)}` : '')
+    );
+  }
+  return resp.text();
+}
+
+/** compliance_risks, compacted to just what the coverage prompt needs to judge a match — mirrors
+ *  compliancemanager's review/coverage.py `_compact_registry`. */
+async function loadRegistrySnapshot(req) {
+  const { zcql } = ds(req);
+  let rows;
+  try {
+    rows = unwrap(await zcql.executeZCQLQuery(
+      `SELECT RISK_ID, REGISTER, FEATURE, THREAT, VULNERABILITY, TITLE FROM ${TABLE}`
+    ));
+  } catch (e) {
+    throw friendlyTableError(e);
+  }
+  return rows.map(r => ({
+    risk_id: r.RISK_ID, register: r.REGISTER, feature: r.FEATURE,
+    threat: r.THREAT, vulnerability: r.VULNERABILITY, statement: r.TITLE,
+  }));
+}
+
+/** Mirrors compliancemanager's prompts/compare_dpia_registry.md, inlined the way ask-service.js
+ *  inlines its own grounding prompt rather than reading a separate markdown file at runtime. */
+function buildComparePrompt(dpia, registry) {
+  const input = { dpia: { dpia_id: dpia.dpia_id, title: dpia.title, risks: dpia.risks }, registry };
+  return [
+    "Decide, for EACH risk row in one DPIA document's RISK AND CONTROL table, whether the risk " +
+      'registers already cover it (guideline G14).',
+    '',
+    'How to judge coverage:',
+    '- A register entry covers a DPIA risk when they describe the same threat scenario and ' +
+      'consequence, even with different wording (e.g. "SSRF via user-supplied URL" matches a ' +
+      'register entry about unintended internal requests from user-supplied details).',
+    '- Match on meaning, not string overlap. The DPIA risk\'s feature context vs. a register ' +
+      "entry's `feature` is a strong signal, but a general register entry can also cover a " +
+      'feature-specific DPIA risk.',
+    '- If several register entries each cover part of the DPIA risk, list them all and use ' +
+      'confidence "medium".',
+    '- verdict is "missing" ONLY when no register entry plausibly covers the DPIA risk. Purely ' +
+      'informational rows (e.g. "No new threats") are "n/a".',
+    '',
+    'Input (JSON):',
+    JSON.stringify(input),
+    '',
+    'Respond with JSON only — no prose, no markdown code fence — in this exact shape:',
+    '{"dpia_id": "...", "results": [{"sno": "1", "dpia_risk_summary": "8-15 word summary of the ' +
+      'DPIA risk row", "verdict": "covered" | "missing" | "n/a", "matched_risk_ids": ["..."], ' +
+      '"confidence": "high" | "medium" | "low", "rationale": "one sentence: why it is covered by ' +
+      'those IDs / why nothing covers it"}]}',
+    'Every input row must appear in `results` exactly once, in order.',
+  ].join('\n');
+}
+
+/** Strip an optional ```json fence and parse. */
+function parseComparisonJson(text) {
+  const cleaned = String(text || '').trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+  return JSON.parse(cleaned);
+}
+
+async function compareOneDpia(req, dpia, registry) {
+  const { text } = await chatCompletion(req, { prompt: buildComparePrompt(dpia, registry), timeoutMs: 90_000 });
+  let parsed;
+  try {
+    parsed = parseComparisonJson(text);
+  } catch (e) {
+    throw new Error(`AI returned unparseable output: ${e.message}`);
+  }
+  return { dpia_id: dpia.dpia_id, dpia_title: dpia.title, results: Array.isArray(parsed.results) ? parsed.results : [] };
+}
+
+/**
+ * POST /api/risks/compare-dpias — mirrors `risk compare_risks` (risk_manager/compare_risks.py):
+ * pulls the DPIA documents (Creator, same team filter as the registers), fetches each one's Writer
+ * export, extracts its RISK AND CONTROL table, and asks the LLM which rows aren't covered by any
+ * compliance_risks entry (guideline G14). Uses the connections this app already has configured —
+ * zoho-creator, zoho-writer, zoho-platformai — no new connection or table required.
+ */
+async function compareDpias(req) {
+  const teamNames = await getTeamNames(req);
+  if (!teamNames.length) {
+    const err = new Error('No teams are configured — add at least one on the "Teams synced" panel.');
+    err.status = 400;
+    throw err;
+  }
+
+  const docs = await fetchDmsDocuments(req, teamNames);
+  const dpiaDocs = docs.filter(d => d.template.toLowerCase().includes(DPIA_TEMPLATE_CONTAINS));
+  if (!dpiaDocs.length) {
+    const err = new Error(
+      `No DPIA documents found for the configured team(s) — looked in "${DMS_REPORT}" for records ` +
+      "whose template contains \"Data Protection Impact Assessment\"."
+    );
+    err.status = 424;
+    throw err;
+  }
+
+  const dpias = [];
+  for (const d of dpiaDocs) {
+    const entry = { dpia_id: d.document_id, title: d.name, risks: [], fetch_error: null };
+    if (!d.writer_doc_id) {
+      entry.fetch_error = 'No Writer document link on this record.';
+    } else {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        entry.risks = extractRiskRows(await fetchWriterHtml(req, d.writer_doc_id));
+      } catch (e) {
+        entry.fetch_error = String(e.message || e).slice(0, 200);
+      }
+    }
+    dpias.push(entry);
+  }
+
+  const withRisks = dpias.filter(d => d.risks.length);
+  const fetchErrors = dpias.filter(d => d.fetch_error).map(d => ({ dpia_id: d.dpia_id, error: d.fetch_error }));
+
+  if (!withRisks.length) {
+    return {
+      success: true,
+      dpias_found: dpiaDocs.length,
+      dpias_compared: 0,
+      rows_total: 0,
+      rows_missing: 0,
+      rows_covered: 0,
+      fetch_errors: fetchErrors,
+      comparisons: [],
+      message: 'Found DPIA document(s) but none had a parseable RISK AND CONTROL table (or all ' +
+        'say "No new threats").',
+    };
+  }
+
+  const registry = await loadRegistrySnapshot(req);
+  if (!registry.length) {
+    const err = new Error(
+      'The risk registers are empty — run "Sync from Creator" on the Risk Register tab first.'
+    );
+    err.status = 400;
+    throw err;
+  }
+
+  const comparisons = [];
+  for (const d of withRisks) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      comparisons.push(await compareOneDpia(req, d, registry));
+    } catch (e) {
+      if (e instanceof AiUnavailable) {
+        const err = new Error(
+          `AI is not available: ${e.message}. Configure the Zoho PlatformAI connection on the ` +
+          'Connections tab first.'
+        );
+        err.status = 424;
+        throw err;
+      }
+      comparisons.push({ dpia_id: d.dpia_id, dpia_title: d.title, error: String(e.message || e).slice(0, 300), results: [] });
+    }
+  }
+
+  const rows = comparisons.flatMap(c => c.results || []);
+  return {
+    success: true,
+    dpias_found: dpiaDocs.length,
+    dpias_compared: comparisons.length,
+    rows_total: rows.length,
+    rows_missing: rows.filter(r => r.verdict === 'missing').length,
+    rows_covered: rows.filter(r => r.verdict === 'covered').length,
+    fetch_errors: fetchErrors,
+    errors: comparisons.filter(c => c.error).map(c => c.dpia_id),
+    comparisons,
+  };
 }
 
 /** DataStore row -> the canonical shape risk-review.js's checkRegistryRisk() expects. */
