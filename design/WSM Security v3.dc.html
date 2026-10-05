@@ -1,0 +1,1556 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/modernist-4608a7ad-2b4a-40b4-bd96-c07c4262d929/styles.css">
+<style>
+  html, body { height: 100%; margin: 0; background: #0c0d0f; }
+  ::selection { background: #ff5a41; color: #0c0d0f; }
+  a { color: #ff5a41; text-decoration: none; }
+  a:hover { color: #ff8570; }
+  input::placeholder { color: #9aa0a8; }
+  *:focus-visible { outline: 2px solid #ff5a41; outline-offset: 2px; }
+  .pane { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+  .pane.wsm-scrolling { scrollbar-color: var(--line4, #4a4f56) transparent; }
+  .pane::-webkit-scrollbar { width: 10px; height: 10px; }
+  .pane::-webkit-scrollbar-track { background: transparent; }
+  .pane::-webkit-scrollbar-thumb { background: transparent; border: 3px solid transparent; background-clip: padding-box; }
+  .pane.wsm-scrolling::-webkit-scrollbar-thumb { background: var(--line4, #4a4f56); background-clip: padding-box; }
+  @keyframes wsm-sweep { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+  @keyframes wsm-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+  @keyframes wsm-in-a { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes wsm-in-b { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes wsm-row-a { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+  @keyframes wsm-row-b { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+  @keyframes wsm-bar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  @keyframes wsm-sub-slide { from { opacity: 0; transform: translateX(26px); } to { opacity: 1; transform: none; } }
+  @keyframes wsm-sub-wipe { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes wsm-scrim { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes wsm-spin { to { transform: rotate(360deg); } }
+  button, select, input, [data-row] { transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, box-shadow 200ms ease, opacity 200ms ease; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</helmet>
+<div style="--ac: {{ t.ac }}; --ac-text: {{ t.acText }}; --ac-hov: {{ t.acHov }}; --ac-hi: {{ t.acHi }}; --ac-soft: {{ t.acSoft }}; --ac-soft2: {{ t.acSoft2 }}; --ac-tint: {{ t.acTint }}; --ac-tint2: {{ t.acTint2 }}; --ac-tint3: {{ t.acTint3 }}; --ac-ground: {{ t.acGround }}; --ac-mid: {{ t.acMid }}; --bg: {{ t.bg }}; --chrome: {{ t.chrome }}; --surf: {{ t.surf }}; --surf2: {{ t.surf2 }}; --line0: {{ t.line0 }}; --line1: {{ t.line1 }}; --line2: {{ t.line2 }}; --line3: {{ t.line3 }}; --line4: {{ t.line4 }}; --ink: {{ t.ink }}; --ink2: {{ t.ink2 }}; --ink3: {{ t.ink3 }}; --muted: {{ t.muted }}; --muted2: {{ t.muted2 }}; --muted3: {{ t.muted3 }}; --on-ac: {{ t.onAc }}; --ac2: {{ t.ac2 }}; --ac2-text: {{ t.ac2Text }}; --ac2-tint: {{ t.ac2Tint }}; --ac2-soft: {{ t.ac2Soft }}; height: 100vh; box-sizing: border-box; display: grid; grid-template-columns: 236px minmax(0, 1fr); padding: {{ z.shellPad }}; gap: {{ z.shellGap }}; background: {{ z.shellBg }}; color: var(--ink, #eef0f2); font-family: Archivo, system-ui, sans-serif; overflow: hidden;">
+
+  <aside class="pane" style="background: {{ z.railBg }}; border-right: {{ z.railEdge }}; box-shadow: {{ z.railShadow }}; display: flex; flex-direction: column; overflow: auto;">
+    <div style="display: flex; align-items: stretch; border-bottom: 1px solid var(--line1, #26292e);">
+      <div style="width: 46px; flex: none; background: var(--ac, #ff5a41); color: var(--on-ac, #0c0d0f); display: grid; place-items: center; font-weight: 800; font-size: 15px;">WS</div>
+      <div style="padding: 10px 14px; min-width: 0;">
+        <div style="font-weight: 800; font-size: 14px; line-height: 1.1; letter-spacing: -0.01em;">WSM SECURITY</div>
+        <div style="font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; margin-top: 3px; color: var(--muted, #9aa0a8);">Team workspace</div>
+      </div>
+    </div>
+
+    <nav style="display: flex; flex-direction: column; padding: 6px 0 10px;">
+      <sc-for list="{{ navGroups }}" as="g" hint-placeholder-count="3">
+        <div style="display: flex; flex-direction: column; padding: 8px 0 4px;">
+          <div style="padding: 4px 16px 6px; font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">{{ g.label }}</div>
+          <sc-for list="{{ g.items }}" as="n" hint-placeholder-count="3">
+            <button onClick="{{ n.pick }}" style="appearance: none; border: 0; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 10px; padding: 7px 16px; font-weight: {{ n.weight }}; font-size: 13px; line-height: 1.25; background: {{ n.bg }}; color: {{ n.fg }};" style-hover="background: var(--surf, #16181b); color: var(--ink, #eef0f2);">
+              <span style="width: 3px; align-self: stretch; min-height: 15px; flex: none; background: {{ n.mark }};"></span>{{ n.label }}
+              <span style="margin-left: auto; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; color: {{ n.countFg }};">{{ n.count }}</span>
+            </button>
+          </sc-for>
+        </div>
+      </sc-for>
+    </nav>
+
+    <div style="margin-top: auto; padding: 14px 16px; border-top: 1px solid var(--line1, #26292e); display: flex; flex-direction: column; gap: 10px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 30px; height: 30px; flex: none; background: var(--surf2, #23262b); color: var(--ink, #eef0f2); display: grid; place-items: center; font-weight: 800; font-size: 11px;">PP</div>
+        <div style="min-width: 0;">
+          <div style="font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Praveen Kumar P</div>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+        <button onClick="{{ goSettings }}" style="appearance: none; cursor: pointer; padding: 6px 9px; font-weight: 700; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; text-align: left; border: 1px solid {{ settingsBorder }}; background: {{ settingsBg }}; color: {{ settingsFg }};">Settings</button>
+        <button onClick="{{ signOut }}" style="appearance: none; cursor: pointer; padding: 6px 9px; font-weight: 700; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; text-align: left; border: 1px solid var(--line1, #26292e); background: transparent; color: var(--muted, #9aa0a8);" style-hover="color: var(--ink, #eef0f2); border-color: var(--line3, #33373d);">Sign out</button>
+      </div>
+    </div>
+  </aside>
+
+  <main style="min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; background: {{ z.mainBg }}; box-shadow: {{ z.mainShadow }};">
+
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: {{ z.topEdge }}; background: {{ z.topBg }};">
+      <sc-if value="{{ splitMode }}" hint-placeholder-val="{{ false }}">
+        <button onClick="{{ backToTable }}" style="appearance: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 6px 11px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; border: 1px solid var(--line3, #33373d); background: transparent; color: var(--ink, #eef0f2);" style-hover="border-color: var(--ac-text, #ff5a41); color: var(--ac-text, #ff5a41);">← All risks</button>
+      </sc-if>
+      <div style="font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ac-text, #ff5a41);">{{ crumb }}</div>
+      <sc-if value="{{ onRegister }}" hint-placeholder-val="{{ true }}">
+        <input value="{{ query }}" onChange="{{ onQuery }}" placeholder="Search issue, threat, control, team" style="margin-left: 14px; flex: 0 1 300px; min-width: 160px; background: var(--surf, #16181b); border: 1px solid var(--line1, #26292e); color: var(--ink, #eef0f2); font-family: inherit; font-size: 13px; padding: 7px 10px;">
+      </sc-if>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <sc-if value="{{ hasSelection }}" hint-placeholder-val="{{ false }}">
+          <span style="font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; padding: 5px 9px; background: var(--ac, #ff5a41); color: var(--on-ac, #0c0d0f);">{{ selectedCount }} selected</span>
+          <button style="appearance: none; cursor: pointer; padding: 6px 11px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; border: 1px solid var(--line3, #33373d); background: transparent; color: var(--ink, #eef0f2);" style-hover="border-color: var(--ac-text, #ff5a41); color: var(--ac-text, #ff5a41);">Review All</button>
+          <button onClick="{{ clearSelection }}" style="appearance: none; cursor: pointer; padding: 6px 11px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; border: 1px solid var(--line1, #26292e); background: transparent; color: var(--muted, #9aa0a8);" style-hover="color: var(--ink, #eef0f2);">Clear</button>
+        </sc-if>
+        <sc-if value="{{ onRegister }}" hint-placeholder-val="{{ true }}">
+          <span style="font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted, #9aa0a8);">{{ shownLabel }}</span>
+          <button style="appearance: none; cursor: pointer; padding: 6px 12px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; border: 1px solid var(--ac, #ff5a41); background: var(--ac, #ff5a41); color: var(--on-ac, #0c0d0f);" style-hover="background: var(--ac-hov, #ff7a66); border-color: var(--ac-hov, #ff7a66);">Sync from Creator</button>
+        </sc-if>
+        <sc-if value="{{ onSettings }}" hint-placeholder-val="{{ false }}">
+          <span style="font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Services {{ connOn }}/{{ connTotal }}</span>
+        </sc-if>
+      </div>
+    </div>
+
+    <sc-if value="{{ tableMode }}" hint-placeholder-val="{{ true }}">
+      <div style="display: grid; grid-template-rows: minmax(0, 1fr); min-height: 0;">
+        <sc-if value="{{ filterMenuOpen }}" hint-placeholder-val="{{ false }}">
+          <div onClick="{{ closeFilterMenu }}" style="position: fixed; inset: 0; z-index: 5;"></div>
+        </sc-if>
+        <div class="pane" style="overflow: auto; min-height: 0;">
+          <div style="min-width: 900px;">
+          <div style="position: sticky; top: 0; z-index: 6; display: grid; grid-template-columns: {{ tableCols }}; align-items: stretch; background: {{ z.tableHeadBg }}; border-bottom: 1px solid var(--line3, #33373d); color: var(--muted, #9aa0a8);">
+            <label style="display: flex; align-items: center; justify-content: center; padding: 11px 0; cursor: pointer; border-right: 1px solid var(--line1, #26292e);">
+              <input type="checkbox" checked="{{ allSelected }}" onChange="{{ toggleAll }}" style="width: 14px; height: 14px; accent-color: var(--ac-text, #ff5a41); cursor: pointer;">
+            </label>
+            <div style="position: relative; min-width: 0; border-right: 1px solid var(--line1, #26292e);">
+              <button onClick="{{ hStatus.toggle }}" title="{{ hStatus.hint }}" style="appearance: none; width: 100%; display: flex; align-items: center; gap: 8px; padding: 10px 10px 10px 0; background: {{ hStatus.headBg }}; border: 0; cursor: pointer; font-family: inherit; font-size: 9px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; text-align: left; color: {{ hStatus.fg }};" style-hover="background: var(--surf, #16181b);">
+                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ hStatus.label }}</span>
+                <span style="font-size: 9px; letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ac-text, #ff5a41);">{{ hStatus.summary }}</span>
+                <span style="margin-left: auto; flex: none; width: 17px; height: 17px; display: grid; place-items: center; font-size: 8px; border: 1px solid {{ hStatus.markBorder }}; background: {{ hStatus.markBg }}; color: {{ hStatus.markFg }};"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M3 4h18l-7 8.5V19l-4 2v-8.5z"></path></svg></span>
+              </button>
+              <sc-if value="{{ hStatus.open }}" hint-placeholder-val="{{ false }}">
+                <div style="position: absolute; top: 100%; left: 0; z-index: 12; width: 258px; padding: 13px 14px 12px; background: var(--surf2, #23262b); border: 1px solid var(--line4, #4a4f56); box-shadow: 0 16px 34px rgba(0,0,0,.5); text-transform: none; letter-spacing: 0;">
+                  <sc-for list="{{ hStatus.items }}" as="f" hint-placeholder-count="1">
+                    <label style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 11px;">
+                      <span style="font-size: 9px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted, #9aa0a8);">{{ f.label }}</span>
+                      <select value="{{ f.value }}" onChange="{{ f.pick }}" style="appearance: none; font-family: inherit; font-size: 12px; width: 100%; padding: 7px 9px; border: 1px solid {{ f.border }}; background: {{ f.bg }}; color: {{ f.fg }};">
+                        <sc-for list="{{ f.options }}" as="o" hint-placeholder-count="3">
+                          <option value="{{ o }}">{{ o }}</option>
+                        </sc-for>
+                      </select>
+                    </label>
+                  </sc-for>
+                  <sc-if value="{{ hStatus.hasDetail }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ toggleTableDetail }}" title="{{ detailTitle }}" style="appearance: none; cursor: pointer; width: 100%; display: flex; align-items: center; gap: 9px; padding: 7px 9px; margin-bottom: 11px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; text-align: left; border: 1px solid {{ detailBorder }}; background: {{ detailBg }}; color: {{ detailFg }};">
+                      <span style="width: 22px; height: 10px; flex: none; position: relative; background: {{ detailTrack }};"><span style="position: absolute; top: 1px; left: {{ detailKnobX }}; width: 8px; height: 8px; background: {{ detailKnob }}; transition: left 160ms ease;"></span></span>Status detail {{ detailLabel }}
+                    </button>
+                  </sc-if>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 7px;">
+                    <button onClick="{{ hStatus.clear }}" style="appearance: none; cursor: pointer; padding: 7px 9px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; text-align: left; border: 1px solid var(--line3, #33373d); background: transparent; color: var(--muted, #9aa0a8);" style-hover="color: var(--ink, #eef0f2); border-color: var(--line4, #4a4f56);">Clear</button>
+                    <button onClick="{{ closeFilterMenu }}" style="appearance: none; cursor: pointer; padding: 7px 9px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; text-align: left; border: 1px solid var(--ac, #ff5a41); background: var(--ac, #ff5a41); color: var(--on-ac, #0c0d0f);">Apply</button>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+            <div style="position: relative; min-width: 0; border-right: 1px solid var(--line1, #26292e);">
+              <button onClick="{{ hIssue.toggle }}" title="{{ hIssue.hint }}" style="appearance: none; width: 100%; display: flex; align-items: center; gap: 8px; padding: 10px 10px 10px 0; background: {{ hIssue.headBg }}; border: 0; cursor: pointer; font-family: inherit; font-size: 9px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; text-align: left; color: {{ hIssue.fg }};" style-hover="background: var(--surf, #16181b);">
+                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ hIssue.label }}</span>
+                <span style="font-size: 9px; letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ac-text, #ff5a41);">{{ hIssue.summary }}</span>
+                <span style="margin-left: auto; flex: none; width: 17px; height: 17px; display: grid; place-items: center; font-size: 8px; border: 1px solid {{ hIssue.markBorder }}; background: {{ hIssue.markBg }}; color: {{ hIssue.markFg }};"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M3 4h18l-7 8.5V19l-4 2v-8.5z"></path></svg></span>
+              </button>
+              <sc-if value="{{ hIssue.open }}" hint-placeholder-val="{{ false }}">
+                <div style="position: absolute; top: 100%; left: 0; z-index: 12; width: 258px; padding: 13px 14px 12px; background: var(--surf2, #23262b); border: 1px solid var(--line4, #4a4f56); box-shadow: 0 16px 34px rgba(0,0,0,.5); text-transform: none; letter-spacing: 0;">
+                  <sc-for list="{{ hIssue.items }}" as="f" hint-placeholder-count="1">
+                    <label style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 11px;">
+                      <span style="font-size: 9px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted, #9aa0a8);">{{ f.label }}</span>
+                      <select value="{{ f.value }}" onChange="{{ f.pick }}" style="appearance: none; font-family: inherit; font-size: 12px; width: 100%; padding: 7px 9px; border: 1px solid {{ f.border }}; background: {{ f.bg }}; color: {{ f.fg }};">
+                        <sc-for list="{{ f.options }}" as="o" hint-placeholder-count="3">
+                          <option value="{{ o }}">{{ o }}</option>
+                        </sc-for>
+                      </select>
+                    </label>
+                  </sc-for>
+                  <sc-if value="{{ hIssue.hasDetail }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ toggleTableDetail }}" title="{{ detailTitle }}" style="appearance: none; cursor: pointer; width: 100%; display: flex; align-items: center; gap: 9px; padding: 7px 9px; margin-bottom: 11px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; text-align: left; border: 1px solid {{ detailBorder }}; background: {{ detailBg }}; color: {{ detailFg }};">
+                      <span style="width: 22px; height: 10px; flex: none; position: relative; background: {{ detailTrack }};"><span style="position: absolute; top: 1px; left: {{ detailKnobX }}; width: 8px; height: 8px; background: {{ detailKnob }}; transition: left 160ms ease;"></span></span>Status detail {{ detailLabel }}
+                    </button>
+                  </sc-if>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 7px;">
+                    <button onClick="{{ hIssue.clear }}" style="appearance: none; cursor: pointer; padding: 7px 9px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; text-align: left; border: 1px solid var(--line3, #33373d); background: transparent; color: var(--muted, #9aa0a8);" style-hover="color: var(--ink, #eef0f2); border-color: var(--line4, #4a4f56);">Clear</button>
+                    <button onClick="{{ closeFilterMenu }}" style="appearance: none; cursor: pointer; padding: 7px 9px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; text-align: left; border: 1px solid var(--ac, #ff5a41); background: var(--ac, #ff5a41); color: var(--on-ac, #0c0d0f);">Apply</button>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+            <div style="position: relative; min-width: 0; border-right: 1px solid var(--line1, #26292e);">
+              <button onClick="{{ hType.toggle }}" title="{{ hType.hint }}" style="appearance: none; width: 100%; display: flex; align-items: center; gap: 8px; padding: 10px 10px 10px 0; background: {{ hType.headBg }}; border: 0; cursor: pointer; font-family: inherit; font-size: 9px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; text-align: left; color: {{ hType.fg }};" style-hover="background: var(--surf, #16181b);">
+                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ hType.label }}</span>
+                <span style="font-size: 9px; letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ac-text, #ff5a41);">{{ hType.summary }}</span>
+                <span style="margin-left: auto; flex: none; width: 17px; height: 17px; display: grid; place-items: center; font-size: 8px; border: 1px solid {{ hType.markBorder }}; background: {{ hType.markBg }}; color: {{ hType.markFg }};"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M3 4h18l-7 8.5V19l-4 2v-8.5z"></path></svg></span>
+              </button>
+              <sc-if value="{{ hType.open }}" hint-placeholder-val="{{ false }}">
+                <div style="position: absolute; top: 100%; left: 0; z-index: 12; width: 258px; padding: 13px 14px 12px; background: var(--surf2, #23262b); border: 1px solid var(--line4, #4a4f56); box-shadow: 0 16px 34px rgba(0,0,0,.5); text-transform: none; letter-spacing: 0;">
+                  <sc-for list="{{ hType.items }}" as="f" hint-placeholder-count="1">
+                    <label style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 11px;">
+                      <span style="font-size: 9px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted, #9aa0a8);">{{ f.label }}</span>
+                      <select value="{{ f.value }}" onChange="{{ f.pick }}" style="appearance: none; font-family: inherit; font-size: 12px; width: 100%; padding: 7px 9px; border: 1px solid {{ f.border }}; background: {{ f.bg }}; color: {{ f.fg }};">
+                        <sc-for list="{{ f.options }}" as="o" hint-placeholder-count="3">
+                          <option value="{{ o }}">{{ o }}</option>
+                        </sc-for>
+                      </select>
+                    </label>
+                  </sc-for>
+                  <sc-if value="{{ hType.hasDetail }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ toggleTableDetail }}" title="{{ detailTitle }}" style="appearance: none; cursor: pointer; width: 100%; display: flex; align-items: center; gap: 9px; padding: 7px 9px; margin-bottom: 11px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; text-align: left; border: 1px solid {{ detailBorder }}; background: {{ detailBg }}; color: {{ detailFg }};">
+                      <span style="width: 22px; height: 10px; flex: none; position: relative; background: {{ detailTrack }};"><span style="position: absolute; top: 1px; left: {{ detailKnobX }}; width: 8px; height: 8px; background: {{ detailKnob }}; transition: left 160ms ease;"></span></span>Status detail {{ detailLabel }}
+                    </button>
+                  </sc-if>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 7px;">
+                    <button onClick="{{ hType.clear }}" style="appearance: none; cursor: pointer; padding: 7px 9px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; text-align: left; border: 1px solid var(--line3, #33373d); background: transparent; color: var(--muted, #9aa0a8);" style-hover="color: var(--ink, #eef0f2); border-color: var(--line4, #4a4f56);">Clear</button>
+                    <button onClick="{{ closeFilterMenu }}" style="appearance: none; cursor: pointer; padding: 7px 9px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; text-align: left; border: 1px solid var(--ac, #ff5a41); background: var(--ac, #ff5a41); color: var(--on-ac, #0c0d0f);">Apply</button>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+            <div style="position: relative; min-width: 0; border-right: 1px solid var(--line1, #26292e);">
+              <button onClick="{{ hTeam.toggle }}" title="{{ hTeam.hint }}" style="appearance: none; width: 100%; display: flex; align-items: center; gap: 8px; padding: 10px 10px 10px 0; background: {{ hTeam.headBg }}; border: 0; cursor: pointer; font-family: inherit; font-size: 9px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; text-align: left; color: {{ hTeam.fg }};" style-hover="background: var(--surf, #16181b);">
+                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ hTeam.label }}</span>
+                <span style="font-size: 9px; letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ac-text, #ff5a41);">{{ hTeam.summary }}</span>
+                <span style="margin-left: auto; flex: none; width: 17px; height: 17px; display: grid; place-items: center; font-size: 8px; border: 1px solid {{ hTeam.markBorder }}; background: {{ hTeam.markBg }}; color: {{ hTeam.markFg }};"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M3 4h18l-7 8.5V19l-4 2v-8.5z"></path></svg></span>
+              </button>
+              <sc-if value="{{ hTeam.open }}" hint-placeholder-val="{{ false }}">
+                <div style="position: absolute; top: 100%; left: 0; z-index: 12; width: 258px; padding: 13px 14px 12px; background: var(--surf2, #23262b); border: 1px solid var(--line4, #4a4f56); box-shadow: 0 16px 34px rgba(0,0,0,.5); text-transform: none; letter-spacing: 0;">
+                  <sc-for list="{{ hTeam.items }}" as="f" hint-placeholder-count="1">
+                    <label style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 11px;">
+                      <span style="font-size: 9px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted, #9aa0a8);">{{ f.label }}</span>
+                      <select value="{{ f.value }}" onChange="{{ f.pick }}" style="appearance: none; font-family: inherit; font-size: 12px; width: 100%; padding: 7px 9px; border: 1px solid {{ f.border }}; background: {{ f.bg }}; color: {{ f.fg }};">
+                        <sc-for list="{{ f.options }}" as="o" hint-placeholder-count="3">
+                          <option value="{{ o }}">{{ o }}</option>
+                        </sc-for>
+                      </select>
+                    </label>
+                  </sc-for>
+                  <sc-if value="{{ hTeam.hasDetail }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ toggleTableDetail }}" title="{{ detailTitle }}" style="appearance: none; cursor: pointer; width: 100%; display: flex; align-items: center; gap: 9px; padding: 7px 9px; margin-bottom: 11px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; text-align: left; border: 1px solid {{ detailBorder }}; background: {{ detailBg }}; color: {{ detailFg }};">
+                      <span style="width: 22px; height: 10px; flex: none; position: relative; background: {{ detailTrack }};"><span style="position: absolute; top: 1px; left: {{ detailKnobX }}; width: 8px; height: 8px; background: {{ detailKnob }}; transition: left 160ms ease;"></span></span>Status detail {{ detailLabel }}
+                    </button>
+                  </sc-if>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 7px;">
+                    <button onClick="{{ hTeam.clear }}" style="appearance: none; cursor: pointer; padding: 7px 9px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; text-align: left; border: 1px solid var(--line3, #33373d); background: transparent; color: var(--muted, #9aa0a8);" style-hover="color: var(--ink, #eef0f2); border-color: var(--line4, #4a4f56);">Clear</button>
+                    <button onClick="{{ closeFilterMenu }}" style="appearance: none; cursor: pointer; padding: 7px 9px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; text-align: left; border: 1px solid var(--ac, #ff5a41); background: var(--ac, #ff5a41); color: var(--on-ac, #0c0d0f);">Apply</button>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+
+          <sc-for list="{{ tableRows }}" as="r" hint-placeholder-count="12">
+            <div>
+                <div data-row="1" style="display: grid; grid-template-columns: {{ tableCols }}; align-items: center; border-bottom: 1px solid var(--line0, #1c1f23); background: {{ r.rowBg }}; box-shadow: inset 3px 0 0 {{ r.edge }}; animation: {{ r.rowAnim }};" style-hover="background: var(--surf, #16181b);">
+                  <label style="display: flex; align-items: center; justify-content: center; padding: {{ rowPad }} 0; cursor: pointer;">
+                    <input type="checkbox" checked="{{ r.selected }}" onChange="{{ r.toggleSelect }}" style="width: 14px; height: 14px; accent-color: var(--ac-text, #ff5a41); cursor: pointer;">
+                  </label>
+                  <div style="padding: {{ rowPad }} 14px {{ rowPad }} 0; display: flex; align-items: center; gap: 8px; min-width: 0;">
+                    <span title="{{ r.recentTitle }}" style="width: {{ r.recentMark.size }}; height: {{ r.recentMark.size }}; flex: none; display: grid; place-items: center; font-size: {{ r.recentMark.font }}; font-weight: 800; border: {{ r.recentMark.bw }} solid {{ r.recentMark.fg }}; border-radius: {{ r.recentMark.radius }}; background: {{ r.recentMark.bg }}; color: {{ r.recentMark.fg }}; animation: {{ r.recentMark.anim }}; cursor: default;"><sc-if value="{{ r.recentMark.isPass }}" hint-placeholder-val="{{ true }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="1"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path><path d="M9 15.5l2 2 4-4"></path></svg></sc-if><sc-if value="{{ r.recentMark.isFail }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="1"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path><path d="M10 13.5l4 4M14 13.5l-4 4"></path></svg></sc-if></span>
+                    <sc-if value="{{ tableDetail }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size: 11px; white-space: nowrap; color: var(--muted2, #8b9198);">{{ r.reviewed }}</span>
+                    </sc-if>
+                    <span title="{{ r.guideTitle }}" style="width: {{ r.guideMark.size }}; height: {{ r.guideMark.size }}; flex: none; display: grid; place-items: center; font-size: {{ r.guideMark.font }}; font-weight: 800; border: {{ r.guideMark.bw }} solid {{ r.guideMark.fg }}; border-radius: {{ r.guideMark.radius }}; background: {{ r.guideMark.bg }}; color: {{ r.guideMark.fg }}; animation: {{ r.guideMark.anim }}; cursor: default;"><sc-if value="{{ r.guideMark.isPass }}" hint-placeholder-val="{{ true }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="1"></rect><path d="M9 2.5h6v3.5H9z"></path><path d="M9 13.5l2 2 4-4"></path></svg></sc-if><sc-if value="{{ r.guideMark.isFail }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="1"></rect><path d="M9 2.5h6v3.5H9z"></path><path d="M10 11.5l4 4M14 11.5l-4 4"></path></svg></sc-if><sc-if value="{{ r.guideMark.isRun }}" hint-placeholder-val="{{ false }}">◌</sc-if></span>
+                    <sc-if value="{{ tableDetail }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: {{ r.guideTextFg }};">{{ r.guideLabel }}</span>
+                    </sc-if>
+                  </div>
+                  <button onClick="{{ r.open }}" title="{{ r.issue }}" style="appearance: none; border: 0; background: transparent; cursor: pointer; text-align: left; padding: {{ rowPad }} 14px {{ rowPad }} 0; font-family: inherit; font-weight: 400; font-size: 14px; line-height: 1.4; color: var(--ink, #eef0f2); text-wrap: pretty; white-space: normal; overflow-wrap: anywhere; min-width: 0;" style-hover="color: var(--ac-text, #ff5a41);">{{ r.issue }}</button>
+                  <div title="{{ r.registerTitle }}" style="padding: {{ rowPad }} 14px {{ rowPad }} 0; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--muted, #9aa0a8);">{{ r.register }}</div>
+                  <div title="{{ r.team }}" style="padding: {{ rowPad }} 14px {{ rowPad }} 0; font-size: 13px; line-height: 1.4; color: var(--muted, #9aa0a8); min-width: 0; max-height: calc(37px + {{ rowPad }} + {{ rowPad }}); overflow: hidden;">{{ r.team }}</div>
+                </div>
+            </div>
+          </sc-for>
+
+          <sc-if value="{{ noRows }}" hint-placeholder-val="{{ false }}">
+            <div style="padding: 44px 18px; font-size: 13px; color: var(--muted, #9aa0a8);">No risks match this search or filter.</div>
+          </sc-if>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ splitMode }}" hint-placeholder-val="{{ false }}">
+      <div style="display: grid; grid-template-columns: {{ splitCols }}; min-height: 0; position: relative;">
+
+        <div class="pane" style="border-right: {{ z.listEdge }}; background: {{ z.listBg }}; overflow: auto; min-height: 0;" data-comment-anchor="8f9efce000-div">
+          <sc-for list="{{ listRows }}" as="r" hint-placeholder-count="10">
+            <div>
+                <div data-row="1" style="display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: start; border-bottom: 1px solid var(--line0, #1c1f23); background: {{ r.rowBg }}; box-shadow: inset 3px 0 0 {{ r.edge }}; animation: {{ r.rowAnim }};" style-hover="background: var(--surf, #16181b);">
+                  <label style="display: flex; align-items: center; justify-content: center; padding: {{ rowPad }} 0 0 6px; cursor: pointer;">
+                    <input type="checkbox" checked="{{ r.selected }}" onChange="{{ r.toggleSelect }}" style="width: 13px; height: 13px; accent-color: var(--ac-text, #ff5a41); cursor: pointer;">
+                  </label>
+                  <button onClick="{{ r.open }}" style="appearance: none; border: 0; background: transparent; cursor: pointer; width: 100%; text-align: left; padding: {{ rowPad }} 14px {{ rowPad }} 6px; font-family: inherit; color: var(--ink, #eef0f2);">
+                    <span style="display: block; font-weight: 700; font-size: 13px; line-height: 1.35;">{{ r.issue }}</span>
+                    <span style="display: block; font-size: 11px; margin-top: 4px; color: var(--muted2, #8b9198);">{{ r.team }}</span>
+                    <span style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+                      <span style="font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; padding: 2px 6px; border: 1px solid {{ r.regChip.border }}; background: {{ r.regChip.bg }}; color: {{ r.regChip.fg }};">{{ r.register }}</span>
+                      <span title="{{ r.recentTitle }}" style="width: {{ r.recentMark.size }}; height: {{ r.recentMark.size }}; flex: none; display: grid; place-items: center; font-size: {{ r.recentMark.font }}; font-weight: 800; border: {{ r.recentMark.bw }} solid {{ r.recentMark.fg }}; border-radius: {{ r.recentMark.radius }}; background: {{ r.recentMark.bg }}; color: {{ r.recentMark.fg }}; animation: {{ r.recentMark.anim }}; cursor: default;"><sc-if value="{{ r.recentMark.isPass }}" hint-placeholder-val="{{ true }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="1"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path><path d="M9 15.5l2 2 4-4"></path></svg></sc-if><sc-if value="{{ r.recentMark.isFail }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="1"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path><path d="M10 13.5l4 4M14 13.5l-4 4"></path></svg></sc-if></span>
+                      <span title="{{ r.guideTitle }}" style="width: {{ r.guideMark.size }}; height: {{ r.guideMark.size }}; flex: none; display: grid; place-items: center; font-size: {{ r.guideMark.font }}; font-weight: 800; border: {{ r.guideMark.bw }} solid {{ r.guideMark.fg }}; border-radius: {{ r.guideMark.radius }}; background: {{ r.guideMark.bg }}; color: {{ r.guideMark.fg }}; animation: {{ r.guideMark.anim }}; cursor: default;"><sc-if value="{{ r.guideMark.isPass }}" hint-placeholder-val="{{ true }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="1"></rect><path d="M9 2.5h6v3.5H9z"></path><path d="M9 13.5l2 2 4-4"></path></svg></sc-if><sc-if value="{{ r.guideMark.isFail }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="1"></rect><path d="M9 2.5h6v3.5H9z"></path><path d="M10 11.5l4 4M14 11.5l-4 4"></path></svg></sc-if><sc-if value="{{ r.guideMark.isRun }}" hint-placeholder-val="{{ false }}">◌</sc-if></span>
+                      <span title="Risk score · {{ r.scoreBand }}" style="margin-left: auto; display: flex; align-items: center; gap: 6px; padding: 2px 7px; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; font-variant-numeric: tabular-nums; background: {{ r.scoreTint }}; color: {{ r.scoreFg }};">{{ r.score }}<span style="font-weight: 700; font-size: 9px;">{{ r.scoreBand }}</span></span>
+                    </span>
+                  </button>
+                </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div class="pane" style="min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: auto; animation: {{ detailAnim }};">
+          <div style="position: sticky; top: 0; z-index: 5; background: {{ z.detailBg }}; padding: 15px 26px 14px; border-bottom: 1px solid var(--line1, #26292e);">
+            <div style="font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ac-text, #ff5a41);">{{ activeRow.register }} · {{ activeRow.team }}</div>
+            <h2 style="margin: 7px 0 0; font-size: 23px; line-height: 1.12; letter-spacing: -0.03em; text-wrap: pretty; color: var(--ink, #eef0f2);">{{ activeRow.issue }}</h2>
+          </div>
+
+          <div class="pane" style="display: flex; flex-wrap: wrap; align-items: flex-start; overflow: auto; min-height: 0;">
+
+            <div style="flex: 1 1 340px; padding: 18px 24px 12px; min-width: 0; display: flex; flex-direction: column;">
+
+              <div style="display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 16px;">
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 7px;">
+                  <span style="width: 22px; height: 22px; flex: none; display: grid; place-items: center; font-size: 10px; font-weight: 800; border: 1px solid var(--line4, #4a4f56); color: var(--ink, #eef0f2);">01</span>
+                  <span style="flex: 1; width: 1px; background: var(--line1, #26292e);"></span>
+                </div>
+                <div style="min-width: 0; padding-bottom: 20px;">
+                  <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px;">
+                    <span style="font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink, #eef0f2);">Assessment</span>
+                    <span style="font-size: 11px; color: var(--muted, #9aa0a8);">What the register records before treatment</span>
+                  </div>
+                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px 36px; margin-top: 14px;">
+                    <div style="grid-column: 1 / -1;">
+                      <div style="font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Risk</div>
+                      <div style="display: flex; flex-direction: column; gap: 9px; margin-top: 7px; max-width: 64ch; max-height: {{ fields.risk.max }}; overflow: hidden;">
+                        <sc-for list="{{ activeRow.riskLines }}" as="t" hint-placeholder-count="1">
+                          <p style="margin: 0; font-size: 15px; line-height: 1.55; color: var(--ink2, #dfe2e6);">{{ t }}</p>
+                        </sc-for>
+                      </div>
+                    <button onClick="{{ fields.risk.toggle }}" style="appearance: none; cursor: pointer; margin-top: 7px; padding: 0; border: 0; background: transparent; font-family: inherit; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; color: var(--ac-hi, #ff8570);" style-hover="color: var(--ac-text, #ff5a41);">{{ fields.risk.label }}</button>
+                    </div>
+                    <div style="min-width: 0;">
+                      <div style="font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Vulnerability</div>
+                      <div style="display: flex; flex-direction: column; gap: 9px; margin-top: 7px; max-height: {{ fields.vulnerability.max }}; overflow: hidden;">
+                        <sc-for list="{{ activeRow.vulnerabilityLines }}" as="t" hint-placeholder-count="1">
+                          <p style="margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink2, #dfe2e6);">{{ t }}</p>
+                        </sc-for>
+                      </div>
+                    <button onClick="{{ fields.vulnerability.toggle }}" style="appearance: none; cursor: pointer; margin-top: 7px; padding: 0; border: 0; background: transparent; font-family: inherit; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; color: var(--ac-hi, #ff8570);" style-hover="color: var(--ac-text, #ff5a41);">{{ fields.vulnerability.label }}</button>
+                    </div>
+                    <div style="min-width: 0;">
+                      <div style="font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Threat</div>
+                      <div style="display: flex; flex-direction: column; gap: 9px; margin-top: 7px; max-height: {{ fields.threat.max }}; overflow: hidden;">
+                        <sc-for list="{{ activeRow.threatLines }}" as="t" hint-placeholder-count="1">
+                          <p style="margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink2, #dfe2e6);">{{ t }}</p>
+                        </sc-for>
+                      </div>
+                    <button onClick="{{ fields.threat.toggle }}" style="appearance: none; cursor: pointer; margin-top: 7px; padding: 0; border: 0; background: transparent; font-family: inherit; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; color: var(--ac-hi, #ff8570);" style-hover="color: var(--ac-text, #ff5a41);">{{ fields.threat.label }}</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 16px;">
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 7px;">
+                  <span style="width: 22px; height: 22px; flex: none; display: grid; place-items: center; font-size: 10px; font-weight: 800; border: 1px solid var(--line4, #4a4f56); color: var(--ink, #eef0f2);">02</span>
+                </div>
+                <div style="min-width: 0;">
+                  <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px;">
+                    <span style="font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink, #eef0f2);">Control applied</span>
+                    <span style="font-size: 11px; color: var(--muted, #9aa0a8);">Treatment: {{ activeRow.treatment }}</span>
+                  </div>
+                  <div style="max-width: 64ch; max-height: {{ fields.control.max }}; overflow: hidden; margin-top: 10px;">
+                    <p style="margin: 0; font-size: 15px; line-height: 1.55; color: var(--ink2, #dfe2e6);">{{ activeRow.controlFull }}</p>
+                  </div>
+                    <button onClick="{{ fields.control.toggle }}" style="appearance: none; cursor: pointer; margin-top: 7px; padding: 0; border: 0; background: transparent; font-family: inherit; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; color: var(--ac-hi, #ff8570);" style-hover="color: var(--ac-text, #ff5a41);">{{ fields.control.label }}</button>
+                </div>
+              </div>
+            </div>
+
+            <div style="flex: 1 1 260px; max-width: 100%; padding: 18px 24px 18px 0; display: flex; flex-direction: column; position: sticky; top: 0; align-self: flex-start; height: 100%; overflow: hidden; box-sizing: border-box;">
+              <div style="border: 1px solid var(--line3, #33373d); background: var(--surf, #16181b);">
+                <div style="display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-bottom: 1px solid var(--line1, #26292e);">
+                  <span style="font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Risk score</span>
+                  <span title="{{ activeRow.deltaTitle }}" style="margin-left: auto; font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ac2-text, #ff5a41);">{{ activeRow.delta }}</span>
+                </div>
+                <div style="display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch;">
+                  <div style="padding: 6px 10px; box-shadow: inset 0 -2px 0 {{ activeRow.bandColor }};">
+                    <div style="font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Inherent</div>
+                    <div style="display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px; margin-top: 2px;">
+                      <span style="font-weight: 800; font-size: 18px; line-height: 1; font-variant-numeric: tabular-nums; color: {{ activeRow.bandColor }};">{{ activeRow.score }}</span>
+                      <span style="font-size: 9px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 5px; background: {{ activeRow.bandTint }}; color: {{ activeRow.bandColor }};">{{ activeRow.band }}</span>
+                    </div>
+                  </div>
+                  <div style="display: grid; place-items: center; padding: 0 2px; font-size: 14px; color: var(--muted, #9aa0a8);">→</div>
+                  <div style="padding: 6px 10px; box-shadow: inset 0 -2px 0 {{ activeRow.revisedBandColor }};">
+                    <div style="font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">After control</div>
+                    <div style="display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px; margin-top: 2px;">
+                      <span style="font-weight: 800; font-size: 18px; line-height: 1; font-variant-numeric: tabular-nums; color: {{ activeRow.revisedBandColor }};">{{ activeRow.revised }}</span>
+                      <span style="font-size: 9px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 5px; background: {{ activeRow.revisedBandTint }}; color: {{ activeRow.revisedBandColor }};">{{ activeRow.revisedBand }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--line1, #26292e);">
+                  <sc-for list="{{ activeRow.ciaRows }}" as="x" hint-placeholder-count="3">
+                    <div title="{{ x.name }}" style="display: flex; align-items: baseline; justify-content: center; gap: 5px; padding: 4px 6px; font-variant-numeric: tabular-nums; border-left: 1px solid var(--line1, #26292e);">
+                      <span style="font-size: 10px; font-weight: 800; color: var(--muted, #9aa0a8);">{{ x.letter }}</span>
+                      <span style="font-size: 12px; color: var(--ink2, #dfe2e6);">{{ x.before }}</span>
+                      <span style="font-size: 9px; color: var(--muted3, #5c626b);">→</span>
+                      <span style="font-size: 12px; font-weight: 800; color: {{ x.afterFg }};">{{ x.after }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            <div style="min-width: 0; padding: 7px 10px 8px; border: 1px solid var(--line3, #33373d); border-top: 0; background: var(--surf, #16181b);">
+              <div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px;">
+                <div style="min-width: 0;">
+                  <div style="font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Applied ISO controls</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px;">
+                  <sc-for list="{{ activeRow.iso }}" as="c" hint-placeholder-count="2">
+                    <button onClick="{{ c.toggle }}" title="{{ c.title }}" style="appearance: none; cursor: pointer; font-family: inherit; font-size: 11px; font-weight: 800; letter-spacing: 0.04em; white-space: nowrap; padding: 3px 7px; border: 1px solid {{ c.border }}; background: {{ c.bg }}; color: {{ c.fg }};" style-hover="border-color: var(--ac-text, #ff5a41);">{{ c.short }}</button>
+                  </sc-for>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 9px; margin-top: 11px;">
+                  <sc-for list="{{ activeRow.isoOpen }}" as="c" hint-placeholder-count="0">
+                    <div style="border-left: 2px solid var(--line4, #4a4f56); padding-left: 12px; animation: {{ c.anim }};">
+                      <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 9px;">
+                        <span style="font-size: 12px; font-weight: 800; letter-spacing: 0.04em; color: var(--ink, #eef0f2);">{{ c.id }}</span>
+                        <span style="font-size: 13px; color: var(--ink2, #dfe2e6);">{{ c.title }}</span>
+                      </div>
+                      <p style="margin: 5px 0 0; font-size: 13px; line-height: 1.5; color: var(--muted, #9aa0a8);">{{ c.text }}</p>
+                    </div>
+                  </sc-for>
+                </div>
+                </div>
+                <div style="min-width: 0;">
+                  <div style="font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Applied CCM controls</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px;">
+                  <sc-for list="{{ activeRow.ccm }}" as="c" hint-placeholder-count="2">
+                    <button onClick="{{ c.toggle }}" title="{{ c.title }}" style="appearance: none; cursor: pointer; font-family: inherit; font-size: 11px; font-weight: 800; letter-spacing: 0.04em; white-space: nowrap; padding: 3px 7px; border: 1px solid {{ c.border }}; background: {{ c.bg }}; color: {{ c.fg }};" style-hover="border-color: var(--ac-text, #ff5a41);">{{ c.short }}</button>
+                  </sc-for>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 9px; margin-top: 11px;">
+                  <sc-for list="{{ activeRow.ccmOpen }}" as="c" hint-placeholder-count="0">
+                    <div style="border-left: 2px solid var(--line4, #4a4f56); padding-left: 12px; animation: {{ c.anim }};">
+                      <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 9px;">
+                        <span style="font-size: 12px; font-weight: 800; letter-spacing: 0.04em; color: var(--ink, #eef0f2);">{{ c.id }}</span>
+                        <span style="font-size: 13px; color: var(--ink2, #dfe2e6);">{{ c.title }}</span>
+                      </div>
+                      <p style="margin: 5px 0 0; font-size: 13px; line-height: 1.5; color: var(--muted, #9aa0a8);">{{ c.text }}</p>
+                    </div>
+                  </sc-for>
+                </div>
+                </div>
+              </div>
+            </div>
+            <div style="min-width: 0; flex: 1 1 auto; min-height: 120px; display: flex; flex-direction: column; padding: 9px 12px 10px; border: 1px solid var(--line3, #33373d); border-top: 0; background: var(--surf, #16181b);">
+                  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-height: 22px;">
+                    <span style="font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Guideline review</span>
+                    <span style="font-size: 11px; font-weight: 700; color: {{ activeRow.guideSummaryFg }};">{{ activeRow.guideSummary }}</span>
+                    <span style="font-size: 11px; color: var(--muted, #9aa0a8);">{{ activeRow.reviewStamp }}</span>
+                    <button onClick="{{ rerunReview }}" disabled="{{ reviewing }}" style="appearance: none; margin-left: auto; cursor: {{ rerunCursor }}; padding: 4px 9px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; border: 1px solid {{ rerunBorder }}; background: transparent; color: {{ rerunFg }}; opacity: {{ rerunDim }};" style-hover="border-color: var(--ac-text, #ff5a41); color: var(--ac-text, #ff5a41);">{{ rerunLabel }}</button>
+                  </div>
+                  <div style="display: flex; gap: 2px; margin: 10px 0 8px;">
+                    <sc-for list="{{ activeRow.guidelines }}" as="g" hint-placeholder-count="10">
+                      <span title="{{ g.id }} · {{ g.state }}" style="flex: 1 1 0; height: 3px; background: {{ g.mark }}; opacity: {{ g.dim }};"></span>
+                    </sc-for>
+                  </div>
+                  <sc-if value="{{ reviewing }}" hint-placeholder-val="{{ false }}">
+                    <div style="border: 1px solid var(--line3, #33373d); padding: 10px 12px 12px; margin-bottom: 8px; background: var(--ac-ground, #141013);">
+                      <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="width: 8px; height: 8px; background: var(--ac, #ff5a41); animation: wsm-pulse 1s ease-in-out infinite;"></span>
+                        <span style="font-weight: 800; font-size: 13px; letter-spacing: 0.04em;">Review in progress</span>
+                        <span style="margin-left: auto; font-size: 11px; color: var(--muted, #9aa0a8);">{{ reviewStep }}</span>
+                      </div>
+                      <div style="height: 3px; margin-top: 10px; background: var(--surf2, #23262b); overflow: hidden;">
+                        <div style="height: 3px; width: 34%; background: var(--ac, #ff5a41); animation: wsm-sweep 1.1s linear infinite;"></div>
+                      </div>
+                      <div style="font-size: 12px; line-height: 1.45; margin-top: 8px; color: var(--muted, #9aa0a8);">Checking the entry against the current guideline set. Results below are from the last completed run.</div>
+                    </div>
+                  </sc-if>
+                  <div style="display: flex; flex-direction: column; border: 1px solid var(--line1, #26292e); flex: 1 1 0; min-height: 0; overflow: auto;">
+                    <sc-for list="{{ activeRow.guidelines }}" as="g" hint-placeholder-count="4">
+                      <div style="border-bottom: 1px solid var(--line1, #26292e); background: {{ g.bg }}; box-shadow: inset 2px 0 0 {{ g.mark }}; opacity: {{ g.dim }}; min-width: 0;">
+                        <div onClick="{{ g.toggle }}" role="button" tabindex="0" style="cursor: {{ g.cursor }}; display: grid; grid-template-columns: 16px 30px minmax(0, 1fr) auto 12px; align-items: center; gap: 10px; padding: 6px 10px 6px 12px;" style-hover="background: var(--surf2, #23262b);">
+                          <span style="font-size: 11px; font-weight: 800; text-align: center; color: {{ g.iconFg }};">{{ g.icon }}</span>
+                          <span style="font-weight: 800; font-size: 12px; letter-spacing: 0.04em; font-variant-numeric: tabular-nums;">{{ g.id }}</span>
+                          <span style="font-size: 12px; line-height: 1.35; color: var(--ink2, #dfe2e6); min-width: 0; text-wrap: pretty;">{{ g.title }}</span>
+                          <span style="font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; color: {{ g.stateFg }};">{{ g.countLabel }}</span>
+                          <span style="font-size: 12px; line-height: 1; text-align: center; color: var(--muted3, #5c626b); transform: rotate({{ g.chevRot }}); transition: transform 160ms ease;">›</span>
+                        </div>
+                        <sc-if value="{{ g.expanded }}" hint-placeholder-val="{{ false }}">
+                          <div style="display: flex; flex-direction: column; gap: 8px; padding: 2px 10px 10px 38px;">
+                            <sc-for list="{{ g.issues }}" as="i" hint-placeholder-count="1">
+                              <div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding-top: 8px; border-top: 1px solid var(--line1, #26292e);">
+                                <div style="font-size: 12px; line-height: 1.45; color: var(--ink, #eef0f2);">{{ i.text }}</div>
+                                <div style="font-size: 12px; line-height: 1.45; color: var(--muted, #9aa0a8);"><span style="display: block; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; margin-bottom: 2px; color: var(--fail-soft, #ff9683);">Suggestion</span>{{ i.suggestion }}</div>
+                              </div>
+                            </sc-for>
+                            <button onClick="{{ g.open }}" style="appearance: none; align-self: flex-start; cursor: pointer; padding: 0; border: 0; background: transparent; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; color: var(--ac-hi, #ff8570);" style-hover="color: var(--ac-text, #ff5a41);">Rule details ›</button>
+                          </div>
+                        </sc-if>
+                      </div>
+                    </sc-for>
+                  </div>
+            </div>
+            </div>
+          </div>
+
+          <div style="position: sticky; bottom: 0; z-index: 5; display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); border-top: 1px solid var(--line3, #33373d); background: var(--chrome, #000000);">
+            <div style="padding: 11px 14px; border-right: 1px solid var(--line1, #26292e);">
+              <div style="font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Treatment</div>
+              <div style="font-size: 14px; margin-top: 6px;">{{ activeRow.treatment }}</div>
+            </div>
+            <div style="padding: 11px 14px; border-right: 1px solid var(--line1, #26292e);">
+              <div style="font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Risk owner</div>
+              <div style="font-size: 14px; margin-top: 6px;">{{ activeRow.owner }}</div>
+            </div>
+            <div style="padding: 11px 14px;">
+              <div style="font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Last reviewed</div>
+              <div style="font-size: 14px; margin-top: 6px;">{{ activeRow.reviewed }}</div>
+            </div>
+          </div>
+        </div>
+
+        <sc-if value="{{ sub.open }}" hint-placeholder-val="{{ false }}">
+          <div onClick="{{ closeGuide }}" style="position: absolute; inset: 0; z-index: 7; background: {{ sp.scrim }}; pointer-events: {{ sp.scrimEvents }}; animation: wsm-scrim 200ms ease both;"></div>
+        </sc-if>
+
+        <sc-if value="{{ sub.open }}" hint-placeholder-val="{{ false }}">
+          <aside class="pane" style="position: {{ sp.pos }}; inset: {{ sp.inset }}; width: {{ sp.w }}; margin: {{ sp.margin }}; z-index: {{ sp.z }}; overflow: auto; background: {{ sp.bg }}; border-left: {{ sp.edge }}; box-shadow: {{ sp.shadow }}; animation: {{ sp.anim }}; display: flex; flex-direction: column;">
+            <div style="position: sticky; top: 0; z-index: 2; background: {{ sp.bg }}; border-bottom: 1px solid var(--line3, #33373d); padding: 14px 18px 13px;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="width: 24px; height: 24px; flex: none; display: grid; place-items: center; font-size: 13px; font-weight: 800; border: 1px solid {{ sub.mark }}; color: {{ sub.mark }};">{{ sub.icon }}</span>
+                <span style="font-weight: 800; font-size: 16px; letter-spacing: 0.04em;">{{ sub.id }}</span>
+                <span style="font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; color: {{ sub.stateFg }};">{{ sub.state }}</span>
+                <button onClick="{{ closeGuide }}" style="appearance: none; cursor: pointer; margin-left: auto; width: 26px; height: 26px; display: grid; place-items: center; font-size: 13px; font-weight: 700; border: 1px solid var(--line3, #33373d); background: transparent; color: var(--muted, #9aa0a8);" style-hover="color: var(--ink, #eef0f2); border-color: var(--line4, #4a4f56);">✕</button>
+              </div>
+              <div style="font-size: 13px; line-height: 1.4; margin-top: 9px; color: var(--ink2, #dfe2e6);">{{ sub.title }}</div>
+              <div style="font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; margin-top: 7px; color: var(--ac-text, #ff5a41);">{{ sub.source }}</div>
+            </div>
+
+            <div style="padding: 16px 18px 8px;">
+              <div style="font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">The rule</div>
+              <div style="font-size: 13px; line-height: 1.5; margin-top: 8px; color: var(--ink, #eef0f2);">{{ sub.rule }}</div>
+            </div>
+
+            <div style="padding: 14px 18px 8px;">
+              <div style="font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Checks</div>
+              <div style="display: flex; flex-direction: column; gap: 7px; margin-top: 9px;">
+                <sc-for list="{{ sub.checks }}" as="c" hint-placeholder-count="3">
+                  <div style="display: flex; align-items: center; gap: 9px;">
+                    <span style="width: 18px; height: 18px; flex: none; display: grid; place-items: center; font-size: 10px; font-weight: 800; border: 1px solid {{ c.border }}; color: {{ c.fg }};">{{ c.icon }}</span>
+                    <span style="font-size: 13px; color: var(--ink2, #dfe2e6);">{{ c.label }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="padding: 14px 18px 8px;">
+              <div style="display: flex; align-items: baseline; gap: 10px;">
+                <div style="font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Findings</div>
+                <div style="font-size: 11px; color: var(--muted2, #8b9198);">{{ sub.issueCount }}</div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 9px; margin-top: 10px;">
+                <sc-for list="{{ sub.issues }}" as="i" hint-placeholder-count="0">
+                  <div style="border: 1px solid var(--line2, #2f333a); border-left: 3px solid {{ sub.mark }}; padding: 11px 12px; background: var(--surf2, #23262b);">
+                    <div style="font-size: 13px; line-height: 1.45; color: var(--ink, #eef0f2);">{{ i.text }}</div>
+                    <div style="font-size: 12px; line-height: 1.45; margin-top: 6px; color: var(--muted, #9aa0a8);"><span style="color: var(--ac-text, #ff5a41);">Fix:</span> {{ i.suggestion }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="padding: 14px 18px 8px;">
+              <div style="font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Activity</div>
+              <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+                <sc-for list="{{ sub.trail }}" as="a" hint-placeholder-count="3">
+                  <div style="display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; align-items: baseline;">
+                    <span style="font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted3, #5c626b);">{{ a.when }}</span>
+                    <span style="font-size: 12px; line-height: 1.45; color: var(--ink3, #c9ced4);">{{ a.what }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="margin-top: auto; position: sticky; bottom: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 13px 18px; border-top: 1px solid var(--line3, #33373d); background: {{ sp.bg }};">
+              <button style="appearance: none; cursor: pointer; padding: 9px 12px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; text-align: left; border: 1px solid var(--ac, #ff5a41); background: var(--ac, #ff5a41); color: var(--on-ac, #0c0d0f);" style-hover="background: var(--ac-hov, #ff7a66); border-color: var(--ac-hov, #ff7a66);">Fix in register</button>
+              <button style="appearance: none; cursor: pointer; padding: 9px 12px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; text-align: left; border: 1px solid var(--line3, #33373d); background: transparent; color: var(--ink, #eef0f2);" style-hover="border-color: var(--ac-text, #ff5a41); color: var(--ac-text, #ff5a41);">Accept exception</button>
+            </div>
+          </aside>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ onDms }}" hint-placeholder-val="{{ false }}">
+      <div style="display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0;">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 18px; background: {{ z.contentBg }};">
+          <input value="{{ docQuery }}" onChange="{{ onDocQuery }}" placeholder="Search document, template, module" style="flex: 0 1 280px; min-width: 160px; background: var(--surf, #16181b); border: 1px solid var(--line1, #26292e); color: var(--ink, #eef0f2); font-family: inherit; font-size: 13px; padding: 7px 10px;">
+          <sc-for list="{{ docFilters }}" as="f" hint-placeholder-count="3">
+            <label style="display: flex; align-items: center; gap: 7px;">
+              <span style="font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted, #9aa0a8);">{{ f.label }}</span>
+              <select value="{{ f.value }}" onChange="{{ f.pick }}" style="appearance: none; font-family: inherit; font-size: 12px; max-width: 210px; text-overflow: ellipsis; padding: 6px 26px 6px 9px; border: 1px solid {{ f.border }}; background: {{ f.bg }}; color: {{ f.fg }};">
+                <sc-for list="{{ f.options }}" as="o" hint-placeholder-count="3">
+                  <option value="{{ o }}">{{ o }}</option>
+                </sc-for>
+              </select>
+            </label>
+          </sc-for>
+          <sc-if value="{{ docFiltersOn }}" hint-placeholder-val="{{ false }}">
+            <button onClick="{{ clearDocFilters }}" style="appearance: none; cursor: pointer; padding: 6px 11px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; border: 1px solid var(--line3, #33373d); background: transparent; color: var(--ink, #eef0f2);" style-hover="border-color: var(--ac-text, #ff5a41); color: var(--ac-text, #ff5a41);">Clear filters</button>
+          </sc-if>
+          <span style="margin-left: auto; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted, #9aa0a8);">{{ docShown }}</span>
+        </div>
+
+        <div class="pane" style="overflow: auto; min-height: 0;">
+          <div style="min-width: 1040px;">
+            <div style="position: sticky; top: 0; z-index: 3; display: grid; grid-template-columns: minmax(0, 1.6fr) 140px minmax(0, 1fr) 150px minmax(0, 1.5fr) 132px; align-items: center; background: var(--chrome, #000000); border-bottom: 1px solid var(--line3, #33373d); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">
+              <div style="padding: 11px 14px 11px 18px;">Document name</div>
+              <div style="padding: 11px 14px 11px 0;">Document ID</div>
+              <div style="padding: 11px 14px 11px 0;">Team</div>
+              <div style="padding: 11px 14px 11px 0;">Module</div>
+              <div style="padding: 11px 14px 11px 0;">Template</div>
+              <div style="padding: 11px 18px 11px 0;">Reviewed ≤ 1 yr</div>
+            </div>
+
+            <sc-for list="{{ docs }}" as="d" hint-placeholder-count="12">
+              <div data-row="1" style="display: grid; grid-template-columns: minmax(0, 1.6fr) 140px minmax(0, 1fr) 150px minmax(0, 1.5fr) 132px; align-items: center; border-bottom: 1px solid var(--line0, #1c1f23); animation: {{ d.rowAnim }};" style-hover="background: var(--surf, #16181b);">
+                <div style="padding: 14px 14px 14px 18px; min-width: 0;">
+                  <a href="#" title="Open in Zoho {{ d.app }}" style="display: inline-flex; align-items: baseline; gap: 8px; font-weight: 700; font-size: 14px; line-height: 1.35; color: var(--ink, #eef0f2);" style-hover="color: var(--ac-text, #ff5a41);">{{ d.name }}<span style="flex: none; white-space: nowrap; font-size: 11px; color: var(--muted, #9aa0a8);">↗</span></a>
+                </div>
+                <div style="padding: 14px 14px 14px 0; font-size: 12px; font-family: ui-monospace, monospace; color: var(--muted, #9aa0a8);">{{ d.did }}</div>
+                <div style="padding: 14px 14px 14px 0; font-size: 13px; color: var(--muted, #9aa0a8); min-width: 0;">{{ d.team }}</div>
+                <div style="padding: 14px 14px 14px 0;">
+                  <span style="display: inline-block; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; padding: 3px 8px; border: 1px solid var(--line2, #2f333a); color: var(--ink3, #c9ced4);">{{ d.module }}</span>
+                </div>
+                <div style="padding: 14px 14px 14px 0; font-size: 13px; line-height: 1.4; color: var(--muted, #9aa0a8); min-width: 0;">{{ d.template }}</div>
+                <div style="padding: 14px 18px 14px 0; display: flex; align-items: center; gap: 9px;">
+                  <span title="{{ d.recentTitle }}" style="width: 20px; height: 20px; flex: none; display: grid; place-items: center; font-size: 12px; font-weight: 800; border: 1px solid {{ d.recentBorder }}; color: {{ d.recentFg }};">{{ d.recentIcon }}</span>
+                  <span style="font-size: 11px; color: var(--muted, #9aa0a8);">{{ d.reviewed }}</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ onSettings }}" hint-placeholder-val="{{ false }}">
+      <div class="pane" style="overflow: auto; min-height: 0;">
+        <div style="display: flex; align-items: stretch; border-bottom: 1px solid var(--line1, #26292e);">
+          <sc-for list="{{ settingsTabs }}" as="t" hint-placeholder-count="2">
+            <button onClick="{{ t.pick }}" style="appearance: none; border: 0; border-bottom: 2px solid {{ t.mark }}; cursor: pointer; padding: 13px 20px; font-weight: 700; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; background: transparent; color: {{ t.fg }};" style-hover="color: var(--ink, #eef0f2);">{{ t.label }}</button>
+          </sc-for>
+        </div>
+
+        <sc-if value="{{ onConnections }}" hint-placeholder-val="{{ true }}">
+          <div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); border-bottom: 1px solid var(--line1, #26292e);">
+              <div style="padding: 16px 20px; border-right: 1px solid var(--line1, #26292e);">
+                <div style="font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Connections</div>
+                <div style="font-weight: 800; font-size: 26px; margin-top: 5px; font-variant-numeric: tabular-nums;">{{ connTotal }}</div>
+              </div>
+              <div style="padding: 16px 20px; border-right: 1px solid var(--line1, #26292e); box-shadow: inset 0 3px 0 {{ statOk }}; background: {{ statOkTint }};">
+                <div style="display: flex; align-items: center; gap: 7px; font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);"><span style="width: 7px; height: 7px; background: {{ statOk }};"></span>Connected</div>
+                <div style="font-weight: 800; font-size: 26px; margin-top: 5px; font-variant-numeric: tabular-nums; color: {{ statOk }};">{{ connOn }}</div>
+              </div>
+              <div style="padding: 16px 20px; border-right: 1px solid var(--line1, #26292e); box-shadow: inset 0 3px 0 {{ statWarn }}; background: {{ statWarnTint }};">
+                <div style="display: flex; align-items: center; gap: 7px; font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);"><span style="width: 7px; height: 7px; background: {{ statWarn }};"></span>Needs attention</div>
+                <div style="font-weight: 800; font-size: 26px; margin-top: 5px; font-variant-numeric: tabular-nums; color: {{ statWarnFg }};">{{ connOff }}</div>
+              </div>
+              <div style="padding: 16px 20px;">
+                <div style="font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Auth types</div>
+                <div style="font-weight: 800; font-size: 26px; margin-top: 5px; font-variant-numeric: tabular-nums;">3</div>
+              </div>
+            </div>
+
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding: 12px 20px; border-bottom: 1px solid var(--line1, #26292e);">
+              <sc-for list="{{ connFilters }}" as="f" hint-placeholder-count="3">
+                <button onClick="{{ f.pick }}" style="appearance: none; cursor: pointer; padding: 6px 11px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; border: 1px solid {{ f.border }}; background: {{ f.bg }}; color: {{ f.fg }};">{{ f.label }}</button>
+              </sc-for>
+            </div>
+
+            <sc-for list="{{ connections }}" as="c" hint-placeholder-count="12">
+              <div style="display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px 20px; border-bottom: 1px solid var(--line0, #1c1f23); box-shadow: inset 3px 0 0 {{ c.edge }};">
+                <div style="display: flex; align-items: center; gap: 12px; min-width: 0;">
+                  <span style="width: 8px; height: 8px; flex: none; background: {{ c.dot }};"></span>
+                  <div style="min-width: 0;">
+                    <div style="font-weight: 700; font-size: 14px; line-height: 1.2;">{{ c.name }}</div>
+                    <div style="font-size: 11px; font-family: ui-monospace, monospace; margin-top: 3px; color: var(--muted, #9aa0a8);">{{ c.slug }}</div>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px; justify-content: flex-end;">
+                  <span style="font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; padding: 4px 8px; border: 1px solid var(--line2, #2f333a); color: var(--muted, #9aa0a8);">{{ c.auth }}</span>
+                  <span style="font-size: 11px; color: var(--muted2, #8b9198);">{{ c.scopes }}</span>
+                  <sc-if value="{{ c.on }}" hint-placeholder-val="{{ false }}"><span style="font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700; padding: 4px 8px; background: {{ c.stateBg }}; color: {{ c.stateFg }};">{{ c.state }}</span></sc-if>
+                  <sc-if value="{{ c.on }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ c.toggle }}" title="Reconnect" aria-label="Reconnect" style="appearance: none; cursor: pointer; width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 1px solid var(--line3, #33373d); background: transparent; color: var(--ink, #eef0f2);" style-hover="border-color: var(--muted, #9aa0a8);">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"></path><path d="M21 3v6h-6"></path></svg>
+                    </button>
+                  </sc-if>
+                  <sc-if value="{{ c.off }}" hint-placeholder-val="{{ true }}">
+                  <button onClick="{{ c.toggle }}" style="appearance: none; cursor: pointer; padding: 6px 11px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; border: 1px solid {{ c.btnBorder }}; background: {{ c.btnBg }}; color: {{ c.btnFg }};">{{ c.action }}</button>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ onCompliance }}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 26px 20px;">
+            <h3 style="margin: 0 0 8px; font-size: 22px; letter-spacing: -0.02em;">Compliance</h3>
+            <p style="font-size: 14px; line-height: 1.55; max-width: 60ch; color: var(--muted, #9aa0a8);">Framework scope, review cadence and guideline sets live here. Not designed in this round — say the word and I'll build it next.</p>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ onStub }}" hint-placeholder-val="{{ false }}">
+      <div class="pane" style="overflow: auto; padding: 30px 26px;">
+        <div style="font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ac-text, #ff5a41);">Not in this round</div>
+        <h2 style="margin: 8px 0 10px; font-size: 30px; letter-spacing: -0.03em;">{{ stubTitle }}</h2>
+        <p style="font-size: 14px; line-height: 1.55; max-width: 60ch; color: var(--muted, #9aa0a8);">Risk Register, DMS Manager and Connections are the screens designed so far. Tell me which of these to take next and I'll build it in the same shell.</p>
+      </div>
+    </sc-if>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1560,&quot;height&quot;:900},&quot;colorTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cobalt&quot;,&quot;crimson&quot;,&quot;lagoon&quot;,&quot;royal&quot;,&quot;citrus&quot;,&quot;mint&quot;,&quot;blush&quot;,&quot;sky&quot;,&quot;carbon&quot;,&quot;midnight&quot;,&quot;graphite&quot;,&quot;ink&quot;,&quot;slate&quot;,&quot;forest&quot;,&quot;plum&quot;,&quot;oxide&quot;,&quot;nordic&quot;,&quot;obsidian&quot;,&quot;dune&quot;,&quot;paper&quot;,&quot;porcelain&quot;,&quot;sage&quot;],&quot;default&quot;:&quot;nordic&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Color theme&quot;},&quot;accentColor&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;electric&quot;,&quot;hot&quot;,&quot;acid&quot;,&quot;gold&quot;,&quot;jade&quot;,&quot;grape&quot;,&quot;signal&quot;,&quot;amber&quot;,&quot;cyan&quot;,&quot;violet&quot;,&quot;emerald&quot;,&quot;magenta&quot;,&quot;ice&quot;,&quot;lime&quot;,&quot;tangerine&quot;,&quot;steel&quot;],&quot;default&quot;:&quot;gold&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Color theme&quot;},&quot;secondAccent&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;electric&quot;,&quot;hot&quot;,&quot;acid&quot;,&quot;gold&quot;,&quot;jade&quot;,&quot;grape&quot;,&quot;signal&quot;,&quot;amber&quot;,&quot;cyan&quot;,&quot;violet&quot;,&quot;emerald&quot;,&quot;magenta&quot;,&quot;ice&quot;,&quot;lime&quot;,&quot;tangerine&quot;,&quot;steel&quot;],&quot;default&quot;:&quot;electric&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Color theme&quot;},&quot;paneStyle&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;flat&quot;,&quot;inset&quot;,&quot;framed&quot;,&quot;floating&quot;],&quot;default&quot;:&quot;inset&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;subPanel&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;overlay&quot;,&quot;sheet&quot;,&quot;stacked&quot;,&quot;push&quot;],&quot;default&quot;:&quot;overlay&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;statusIcons&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;box&quot;,&quot;bare&quot;,&quot;solid&quot;,&quot;dot&quot;],&quot;default&quot;:&quot;box&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;}}">
+const OK = [
+  { id: "G8", title: "Risk statement traceable to an asset" },
+  { id: "G9", title: "Control documented and owned" },
+  { id: "G10", title: "Reviewed within the agreed cadence" }
+];
+const pass = ids => OK.filter(g => ids.includes(g.id)).map(g => ({ ...g, pass: true, issues: [] }));
+const g6 = issues => ({ id: "G6", title: "Likelihood and impact scored", pass: issues.length === 0, issues });
+const fail = (id, title, issues) => ({ id, title, pass: false, issues });
+
+const RISKS = [
+  { team: "Log360 and EventLog Analyzer", issue: "Release gets extended beyond the ETA provided to customers when dependent QA and documentation tasks slip past the committed sprint window", vulnerability: "Dependent tasks get delayed", threat: "Release schedule delayed", risk: "Customers waiting for the release", score: 4,
+    controlFull: "Testing is added as part of the release checklist, and the release board reviews slipped ETAs in the weekly sync before committing an external date.",
+    treatment: "Risk Modification", owner: "Praveen Kumar P", register: "QMS", reviewed: "02 Sep 2026", recent: true,
+    guidelines: [g6([]), ...pass(["G8", "G9", "G10"])] },
+  { team: "Log360 Cloud", issue: "Product restart due to Java heap space", vulnerability: "Poor memory management, inefficient GC configuration", threat: "System crashes due to GC overuse", risk: "Product downtime, performance degradation", score: 6,
+    controlFull: "No control recorded against this risk. The guideline set requires a documented control for any score of 6 or above.",
+    treatment: "Risk Avoidance", owner: "Suresh Babu", register: "ISMS", reviewed: "28 Aug 2026", recent: true,
+    guidelines: [
+      g6([
+        { text: "Required field 'likelihood' is empty.", suggestion: "Fill in 'likelihood' in the register entry." },
+        { text: "Required field 'impact' is empty.", suggestion: "Fill in 'impact' in the register entry." }
+      ]),
+      ...pass(["G8"]),
+      fail("G9", "Control documented and owned", [
+        { text: "No control is recorded for a risk scored 6 or above.", suggestion: "Record the mitigating control and name an owner accountable for it." }
+      ]),
+      ...pass(["G10"])
+    ] },
+  { team: "Log360 Cloud", issue: "Clarity on features", vulnerability: "No proper documentation and approval process for feature scope", threat: "Customers unable to use the product, misconfiguration", risk: "Inaccurate help content and misunderstanding of the feature", score: 4,
+    controlFull: "Once the feature development is signed off, a documentation review is mandatory before the build is promoted, and the writer signs the release note.",
+    treatment: "Risk Modification", owner: "Aarti Nair", register: "QMS", reviewed: "26 Aug 2026", recent: true,
+    guidelines: [g6([]), ...pass(["G8", "G9", "G10"])] },
+  { team: "Log360 Cloud", issue: "Build validation is taking longer than desired", vulnerability: "Feature releases might get delayed", threat: "Validation window overruns the release slot", risk: "Product will not be able to keep up with the roadmap", score: 4,
+    controlFull: "No control recorded. Build validation duration is tracked in CMTools but is not yet linked to this register entry.",
+    treatment: "Risk Retention", owner: "Praveen Kumar P", register: "QMS", reviewed: "12 Jul 2024", recent: false,
+    guidelines: [
+      g6([{ text: "Required field 'impact' is empty.", suggestion: "Fill in 'impact' in the register entry." }]),
+      ...pass(["G8"]),
+      fail("G9", "Control documented and owned", [
+        { text: "Control field reads 'no control recorded'.", suggestion: "Link the CMTools validation SLA as the documented control." }
+      ]),
+      fail("G10", "Reviewed within the agreed cadence", [
+        { text: "Last review was more than 12 months ago (12 Jul 2024).", suggestion: "Schedule a review with the risk owner this cycle." }
+      ])
+    ] },
+  { team: "Log360 Cloud", issue: "Releasing a feature with issues due to improper testing", vulnerability: "Features with bugs will be available to the customer", threat: "Features are released with quality errors and deployed in production", risk: "The features are not working as expected", score: 6,
+    controlFull: "1. Test case authoring is reviewed by a second engineer. 2. Peer review is required before release sign-off, and the QA lead records the exception if it is skipped.",
+    treatment: "Risk Modification", owner: "Meera Krishnan", register: "QMS", reviewed: "21 Aug 2026", recent: true,
+    guidelines: [g6([]), ...pass(["G8", "G9", "G10"])] },
+  { team: "Log360 and EventLog Analyzer", issue: "Few test cases are missed during development", vulnerability: "Missed test cases are found at validation time", threat: "Requires additional validation to check the bugs", risk: "Release process gets delayed", score: 4,
+    controlFull: "At development time various test scenarios are captured in the spec, and the validation team reconciles the executed set against it before sign-off.",
+    treatment: "Risk Modification", owner: "Vikram Iyer", register: "QMS", reviewed: "19 Aug 2026", recent: true,
+    guidelines: [g6([]), ...pass(["G8", "G9", "G10"])] },
+  { team: "Log360 and EventLog Analyzer", issue: "Performance issue with large customer datasets", vulnerability: "It occurs when there is huge data with the customer", threat: "Product becomes unstable", risk: "Product and company reputation is affected", score: 4,
+    controlFull: "Performance testing is added as part of the release cycle with a fixed dataset profile, and regressions above the agreed threshold block the release.",
+    treatment: "Risk Modification", owner: "Suresh Babu", register: "ISMS", reviewed: "16 Aug 2026", recent: true,
+    guidelines: [g6([]), ...pass(["G8", "G9", "G10"])] },
+  { team: "Log360 Cloud", issue: "SLA violation on customer tickets", vulnerability: "Significant workload or unavailability of an assignee", threat: "Team member failing to respond within the SLA", risk: "Loss of customer satisfaction", score: 3,
+    controlFull: "In case of a spike in workload or planned leave, tickets are reassigned by the duty manager and the SLA clock is reviewed in the daily handover.",
+    treatment: "Risk Modification", owner: "Aarti Nair", register: "BCMS", reviewed: "14 Aug 2026", recent: true,
+    guidelines: [g6([]), ...pass(["G8", "G9", "G10"])] },
+  { team: "Identity Platform", issue: "Stale access for transferred employees", vulnerability: "Role changes are not reflected in the access matrix", threat: "Former team members retain production access", risk: "Unauthorised access to customer data", score: 7,
+    controlFull: "Quarterly access recertification is run against the HR transfer feed; any account unclaimed after two cycles is disabled automatically.",
+    treatment: "Risk Modification", owner: "Meera Krishnan", register: "PIMS", reviewed: "09 Sep 2026", recent: true,
+    guidelines: [g6([]), ...pass(["G8", "G9", "G10"])] },
+  { team: "Identity Platform", issue: "Consent records not retained for the full period", vulnerability: "Retention job prunes consent logs with session data", threat: "Consent evidence unavailable at audit", risk: "Regulatory finding on lawful basis", score: 5,
+    controlFull: "Consent records were moved to a separate retention class in August; the pruning job now excludes them, pending verification in the next audit window.",
+    treatment: "Risk Modification", owner: "Aarti Nair", register: "PIMS", reviewed: "05 Sep 2026", recent: true,
+    guidelines: [
+      g6([]),
+      fail("G8", "Risk statement traceable to an asset", [
+        { text: "No asset is linked to this entry.", suggestion: "Link the consent store asset from the ISMS asset register." }
+      ]),
+      ...pass(["G9", "G10"])
+    ] },
+  { team: "Cloud Infrastructure", issue: "Single-region failover untested this year", vulnerability: "Failover runbook has not been exercised since the last migration", threat: "Recovery exceeds the agreed RTO", risk: "Extended outage for cloud customers", score: 6,
+    controlFull: "A failover exercise is scheduled for the October maintenance window, with the runbook reviewed against the current topology beforehand.",
+    treatment: "Risk Modification", owner: "Suresh Babu", register: "BCMS", reviewed: "01 Sep 2026", recent: true,
+    guidelines: [
+      g6([]),
+      ...pass(["G8"]),
+      fail("G9", "Control documented and owned", [
+        { text: "The recorded control is a planned activity, not an operating one.", suggestion: "Note the interim control in force until the October exercise." }
+      ]),
+      ...pass(["G10"])
+    ] },
+  { team: "Cloud Infrastructure", issue: "Backup restore verified only by checksum", vulnerability: "No functional restore test on production snapshots", threat: "Backups restore but data is unusable", risk: "Data loss during a recovery event", score: 3,
+    controlFull: "Monthly checksum verification runs automatically; a functional restore into the staging estate is planned but not yet scheduled.",
+    treatment: "Risk Retention", owner: "Vikram Iyer", register: "BCMS", reviewed: "30 Aug 2024", recent: false,
+    guidelines: [
+      g6([]),
+      ...pass(["G8", "G9"]),
+      fail("G10", "Reviewed within the agreed cadence", [
+        { text: "Last review was more than 12 months ago (30 Aug 2024).", suggestion: "Schedule a review with the risk owner this cycle." }
+      ])
+    ] }
+];
+
+const CONTROL_LIB = {
+  "A.5.18": { title: "Access rights", text: "Access rights to information and other associated assets are provisioned, reviewed, modified and removed in line with the workspace access policy." },
+  "A.5.30": { title: "ICT readiness for business continuity", text: "ICT readiness is planned, implemented, maintained and tested against the business continuity objectives and the agreed recovery time." },
+  "A.5.34": { title: "Privacy and protection of PII", text: "Requirements for the preservation of privacy and protection of personally identifiable information are identified and met per applicable law." },
+  "A.5.37": { title: "Documented operating procedures", text: "Operating procedures for information processing facilities are documented and made available to the personnel who need them." },
+  "A.8.2": { title: "Privileged access rights", text: "The allocation and use of privileged access rights is restricted and managed through an approval and periodic recertification process." },
+  "A.8.6": { title: "Capacity management", text: "The use of resources is monitored and adjusted in line with current and expected capacity requirements, including customer data volume." },
+  "A.8.10": { title: "Information deletion", text: "Information stored in information systems, devices or in any other storage media is deleted when no longer required." },
+  "A.8.13": { title: "Information backup", text: "Backup copies of information, software and systems are maintained and regularly tested in accordance with the agreed backup policy." },
+  "A.8.14": { title: "Redundancy of information processing facilities", text: "Information processing facilities are implemented with redundancy sufficient to meet the availability requirements of the service." },
+  "A.8.16": { title: "Monitoring activities", text: "Networks, systems and applications are monitored for anomalous behaviour and appropriate action is taken to evaluate potential incidents." },
+  "A.8.18": { title: "Use of privileged utility programs", text: "The use of utility programs capable of overriding system and application controls is restricted and tightly controlled." },
+  "A.8.29": { title: "Security testing in development and acceptance", text: "Security testing processes are defined and implemented in the development lifecycle, including acceptance criteria before promotion." },
+  "A.8.31": { title: "Separation of development, test and production environments", text: "Development, test and production environments are separated and secured so that changes cannot bypass the release path." },
+  "A.8.32": { title: "Change management", text: "Changes to information processing facilities and information systems are subject to the documented change management procedure." },
+  "CCM CCC-02": { title: "Quality testing", text: "Follow a defined quality change control and testing process with established baselines, testing and release standards." },
+  "CCM CCC-03": { title: "Change management technology", text: "Manage the risks associated with applying changes to the organisation's assets, including their technology and configuration." },
+  "CCM CCC-04": { title: "Unauthorized change protection", text: "Restrict the unauthorised addition, removal, update and management of organisation assets outside the change process." },
+  "CCM CCC-05": { title: "Change agreements", text: "Include provisions limiting changes that directly impact tenants' owned environments to explicitly authorised requests." },
+  "CCM CCC-07": { title: "Detection of baseline deviation", text: "Implement detection measures with proactive notification when changes deviate from the established configuration baseline." },
+  "CCM IVS-04": { title: "Secure configuration", text: "Harden host and guest OS, hypervisor and infrastructure control plane per their respective baselines and monitor for drift." },
+  "CCM LOG-05": { title: "Audit log monitoring and response", text: "Monitor security audit logs to detect activity outside typical or expected patterns and take defined response action." },
+  "CCM DCS-06": { title: "Assets cataloguing and tracking", text: "Catalogue and track all relevant physical and logical assets located at all of the cloud service provider's sites." },
+  "CCM DSP-05": { title: "Data protection by design and default", text: "Develop systems, products and business practices based upon a principle of security by design and privacy by default." },
+  "CCM DSP-17": { title: "Sensitive data protection", text: "Define and implement processes and technical measures to protect sensitive data throughout its lifecycle." },
+  "CCM IAM-05": { title: "Least privilege", text: "Employ the least privilege principle when implementing information system access, reviewed on a defined cadence." },
+  "CCM IAM-10": { title: "Management of privileged access roles", text: "Define and implement an access process to grant and revoke privileged roles, with time-bound elevation where possible." },
+  "CCM BCR-02": { title: "Risk assessment and impact analysis", text: "Determine the impact of business disruptions and risks to establish criteria for developing continuity strategies." },
+  "CCM BCR-03": { title: "Business continuity strategy", text: "Establish strategies to reduce the impact of, withstand and recover from business disruptions within the risk appetite." },
+  "CCM BCR-08": { title: "Backup", text: "Periodically back up data stored in the cloud, ensure confidentiality, integrity and availability, and verify restoration." },
+  "CCM BCR-09": { title: "Disaster response plan", text: "Establish, document, approve and communicate a disaster response plan to recover from natural and man-made disasters." }
+};
+const ctl = id => ({ id, title: (CONTROL_LIB[id] || {}).title || "", text: (CONTROL_LIB[id] || {}).text || "" });
+
+// Per-entry impact scores (C/I/A), the revised score after treatment, and applied controls.
+const EXTRA = [
+  { cia: [2, 3, 2], revised: 2, revisedCia: [1, 2, 1], iso: ["A.5.37", "A.8.31"], ccm: ["CCM CCC-03", "CCM CCC-07"] },
+  { cia: [2, 3, 4], revised: 4, revisedCia: [2, 2, 3], iso: ["A.8.6", "A.8.16"], ccm: ["CCM IVS-04", "CCM LOG-05"] },
+  { cia: [1, 3, 2], revised: 2, revisedCia: [1, 2, 1], iso: ["A.5.37"], ccm: ["CCM DCS-06"] },
+  { cia: [1, 3, 3], revised: 3, revisedCia: [1, 2, 2], iso: ["A.8.29", "A.8.31"], ccm: ["CCM CCC-04"] },
+  { cia: [2, 4, 3], revised: 3, revisedCia: [2, 2, 2], iso: ["A.8.29", "A.8.32"], ccm: ["CCM CCC-02", "CCM CCC-05"] },
+  { cia: [1, 3, 2], revised: 2, revisedCia: [1, 2, 1], iso: ["A.8.29"], ccm: ["CCM CCC-05"] },
+  { cia: [1, 2, 4], revised: 3, revisedCia: [1, 2, 2], iso: ["A.8.6"], ccm: ["CCM IVS-04"] },
+  { cia: [1, 2, 3], revised: 2, revisedCia: [1, 1, 2], iso: ["A.5.30"], ccm: ["CCM BCR-02"] },
+  { cia: [5, 4, 2], revised: 4, revisedCia: [3, 3, 2], iso: ["A.5.18", "A.8.2", "A.8.18"], ccm: ["CCM IAM-05", "CCM IAM-10"] },
+  { cia: [4, 3, 1], revised: 3, revisedCia: [2, 2, 1], iso: ["A.5.34", "A.8.10"], ccm: ["CCM DSP-05", "CCM DSP-17"] },
+  { cia: [2, 3, 5], revised: 4, revisedCia: [2, 2, 3], iso: ["A.5.30", "A.8.14"], ccm: ["CCM BCR-03", "CCM BCR-09"] },
+  { cia: [2, 4, 3], revised: 3, revisedCia: [2, 3, 2], iso: ["A.8.13"], ccm: ["CCM BCR-08"] }
+];
+
+// Register entries may carry several statements per field.
+const MULTI = {
+  0: {
+    risk: ["Customers waiting for the release", "Committed external date is missed", "Support load rises while the fix is pending"],
+    vulnerability: ["Dependent tasks get delayed", "ETA is committed before the dependency is confirmed"],
+    threat: ["Release schedule delayed"]
+  },
+  1: {
+    risk: ["Product downtime, performance degradation", "Customer data ingestion pauses during the restart"],
+    vulnerability: ["Poor memory management, inefficient GC configuration", "Heap sizing is not reviewed against customer data volume"],
+    threat: ["System crashes due to GC overuse", "Repeated restarts during peak ingestion"]
+  },
+  4: {
+    risk: ["The features are not working as expected", "Defects reach production and need an out-of-cycle patch"],
+    vulnerability: ["Features with bugs will be available to the customer", "Peer review can be skipped without a recorded exception"],
+    threat: ["Features are released with quality errors and deployed in production"]
+  },
+  8: {
+    risk: ["Unauthorised access to customer data", "Audit finding on access governance"],
+    vulnerability: ["Role changes are not reflected in the access matrix", "Transfers are notified by email, not by the HR feed"],
+    threat: ["Former team members retain production access", "Privileged sessions from an unexpected role"]
+  },
+  10: {
+    risk: ["Extended outage for cloud customers", "RTO commitment in the customer contract is breached"],
+    vulnerability: ["Failover runbook has not been exercised since the last migration", "Runbook references the previous topology"],
+    threat: ["Recovery exceeds the agreed RTO"]
+  }
+};
+const asLines = (multi, key, single) => (multi && multi[key] ? multi[key] : [single]);
+
+const DOCS = [
+  { did: "DID_M_LaEA_77", team: "Log360 and EventLog Analyzer", template: "AI Integrated Application - Security Self-Assessment Report", name: "Log360 and EventLog analyzer Zia assistant", module: "Zia Assistant", app: "Writer", reviewed: "14 Mar 2026", recent: true },
+  { did: "DID_M_LC_76", team: "Log360 Cloud", template: "AI Integrated Application - Security Self-Assessment Report", name: "Cloud Zia assistant self-assessment", module: "Zia Assistant", app: "Writer", reviewed: "02 Feb 2026", recent: true },
+  { did: "DID_M_LC_75", team: "Log360 Cloud", template: "Data Protection Impact Assessment (Processor)", name: "AI Verdict Prediction", module: "AI Verdict", app: "Writer", reviewed: "21 Jan 2026", recent: true },
+  { did: "DID_M_LaEA_76", team: "Log360 and EventLog Analyzer", template: "Data Protection Impact Assessment (Processor)", name: "AI Verdict prediction", module: "AI Verdict", app: "Writer", reviewed: "19 Nov 2024", recent: false },
+  { did: "DID_M_LaEA_75", team: "Log360 and EventLog Analyzer", template: "Data Protection Impact Assessment (Processor)", name: "Custom LLM - Integration", module: "Custom LLM", app: "Writer", reviewed: "08 Aug 2026", recent: true },
+  { did: "DID_M_LaEA_74", team: "Log360 and EventLog Analyzer", template: "Data Protection Impact Assessment (AI feature)", name: "AI Summarization", module: "Summarization", app: "Writer", reviewed: "30 Jun 2026", recent: true },
+  { did: "DID_M_LC_74", team: "Log360 Cloud", template: "Business Impact Analysis", name: "Business Impact Analysis", module: "Business Continuity", app: "Sheet", reviewed: "12 May 2026", recent: true },
+  { did: "DID_M_LC_73", team: "Log360 Cloud", template: "Call Tree Testing Report", name: "Call tree testing", module: "Business Continuity", app: "Sheet", reviewed: "03 Sep 2024", recent: false },
+  { did: "DID_M_LC_72", team: "Log360 Cloud", template: "Cloud - CSPA Questionnaire", name: "ZIA Assistance", module: "Zia Assistant", app: "Writer", reviewed: "27 Apr 2026", recent: true },
+  { did: "DID_M_LaEA_73", team: "Log360 and EventLog Analyzer", template: "On-Premise - Security Self-Assessment Report", name: "Zia Assistant Threat Model", module: "Zia Assistant", app: "Writer", reviewed: "16 Feb 2026", recent: true },
+  { did: "DID_M_LaEA_72", team: "Log360 and EventLog Analyzer", template: "On Premise - CSPA Questionnaire", name: "Zia Assistant", module: "Zia Assistant", app: "Writer", reviewed: "22 Jul 2024", recent: false },
+  { did: "DID_M_IP_18", team: "Identity Platform", template: "Data Protection Impact Assessment (Processor)", name: "Directory sync — PII flow", module: "Directory Sync", app: "Writer", reviewed: "05 Aug 2026", recent: true },
+  { did: "DID_M_CI_11", team: "Cloud Infrastructure", template: "Business Impact Analysis", name: "Region failover impact analysis", module: "Business Continuity", app: "Sheet", reviewed: "18 Jun 2026", recent: true }
+];
+
+const CONNECTIONS = [
+  { name: "Zoho Logs", slug: "zoho-logs", auth: "OAuth 2.0", scopes: "1 scope", on: true },
+  { name: "Zoho Cliq", slug: "zoho-cliq", auth: "OAuth 2.0", scopes: "2 scopes", on: true },
+  { name: "Zoho Projects", slug: "zoho-projects", auth: "OAuth 2.0", scopes: "10 scopes", on: true },
+  { name: "Zoho Learn", slug: "zoho-learn", auth: "OAuth 2.0", scopes: "5 scopes", on: true },
+  { name: "Zoho Writer", slug: "zoho-writer", auth: "OAuth 2.0", scopes: "1 scope", on: true },
+  { name: "Zoho Sheet", slug: "zoho-sheet", auth: "OAuth 2.0", scopes: "1 scope", on: true },
+  { name: "Zoho Creator", slug: "zoho-creator", auth: "OAuth 2.0", scopes: "5 scopes", on: true },
+  { name: "Zoho WorkDrive", slug: "zoho-workdrive", auth: "OAuth 2.0", scopes: "17 scopes", on: true },
+  { name: "Zoho Hacksaw", slug: "zoho-hacksaw", auth: "OAuth 2.0", scopes: "6 scopes", on: false },
+  { name: "Zoho PlatformAI", slug: "zoho-platformai", auth: "OAuth 2.0", scopes: "1 scope · portal WSM-Sec", on: true },
+  { name: "CMTools (build automation)", slug: "zoho-cmtools", auth: "PRIVATE-TOKEN header", scopes: "—", on: false },
+  { name: "Zoho Repository", slug: "zoho-repository", auth: "Personal access token", scopes: "—", on: false }
+];
+
+const ACCENT = "var(--ac, #ff5a41)";
+const ACCENT_TEXT = "var(--ac-text, #ff5a41)";
+const lum = h => {
+  const c = [0, 1, 2].map(i => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16) / 255)
+    .map(v => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+};
+const contrast = (a, b) => {
+  const l1 = lum(a), l2 = lum(b);
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+};
+const hexRgb = h => {
+  const n = parseInt(h.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255].join(", ");
+};
+
+const GROUNDS = {
+  cobalt: { bg: "#06183f", chrome: "#030f2b", surf: "#0d2559", surf2: "#143070", line0: "#0f2350", line1: "#193a80", line2: "#21489a", line3: "#2a56b3", line4: "#4272d6", ink: "#eaf1ff", ink2: "#d2e1ff", ink3: "#adc6ff", muted: "#8fa9e6", muted2: "#7d99db", muted3: "#5470b0" },
+  crimson: { bg: "#2a0512", chrome: "#1a020b", surf: "#3d0a1d", surf2: "#4d0f26", line0: "#380a1a", line1: "#5a1231", line2: "#6e183d", line3: "#821e49", line4: "#a82f60", ink: "#ffeef3", ink2: "#ffd7e1", ink3: "#f5b6c7", muted: "#d9909f", muted2: "#c87e8f", muted3: "#9c5566" },
+  lagoon: { bg: "#02262b", chrome: "#011a1e", surf: "#04383f", surf2: "#064851", line0: "#04333a", line1: "#075a66", line2: "#086e7d", line3: "#0a8496", line4: "#12a8bd", ink: "#e7fbff", ink2: "#c9f2f9", ink3: "#a2e4ef", muted: "#7cc4d2", muted2: "#69b2c0", muted3: "#458896" },
+  royal: { bg: "#1b0640", chrome: "#110329", surf: "#2a0d5e", surf2: "#361278", line0: "#250b55", line1: "#3f1a8c", line2: "#4d21a6", line3: "#5b29bf", line4: "#7644e0", ink: "#f2ecff", ink2: "#e0d3ff", ink3: "#c6b2ff", muted: "#a48fd9", muted2: "#937dcc", muted3: "#6a55a3" },
+  citrus: { mode: "light", bg: "#fff6e3", chrome: "#fffdf7", surf: "#fffdf7", surf2: "#ffeecb", line0: "#ffe9bd", line1: "#f7d99b", line2: "#efc97c", line3: "#e0b45b", line4: "#c2913a", ink: "#2b1d05", ink2: "#3d2b09", ink3: "#5c4415", muted: "#7a5c1e", muted2: "#8a6b2a", muted3: "#ad8b4a" },
+  mint: { mode: "light", bg: "#e6fbf1", chrome: "#ffffff", surf: "#ffffff", surf2: "#d2f5e4", line0: "#cdf0df", line1: "#a9e6cb", line2: "#87d9b5", line3: "#62c99c", line4: "#3aa87a", ink: "#05231a", ink2: "#0a3527", ink3: "#145240", muted: "#1d6b53", muted2: "#2a7c62", muted3: "#4f9c83" },
+  blush: { mode: "light", bg: "#fff0f3", chrome: "#fffbfc", surf: "#fffbfc", surf2: "#ffdde4", line0: "#ffd6de", line1: "#f9b9c6", line2: "#f099ac", line3: "#e2788f", line4: "#c4506b", ink: "#2d040f", ink2: "#420a19", ink3: "#631427", muted: "#8a2038", muted2: "#9c3147", muted3: "#bd5f72" },
+  sky: { mode: "light", bg: "#e8f2ff", chrome: "#ffffff", surf: "#ffffff", surf2: "#d4e6ff", line0: "#cfe2ff", line1: "#aacdfa", line2: "#84b4f2", line3: "#5c98e6", line4: "#3574c9", ink: "#04162e", ink2: "#092342", ink3: "#123963", muted: "#1d4f87", muted2: "#2b5e96", muted3: "#5081b8" },
+  carbon: { bg: "#0c0d0f", chrome: "#000000", surf: "#16181b", surf2: "#23262b", line0: "#1c1f23", line1: "#26292e", line2: "#2f333a", line3: "#33373d", line4: "#4a4f56", ink: "#eef0f2", ink2: "#dfe2e6", ink3: "#c9ced4", muted: "#9aa0a8", muted2: "#8b9198", muted3: "#5c626b" },
+  midnight: { bg: "#0b0f1a", chrome: "#05070d", surf: "#141a26", surf2: "#1d2432", line0: "#191f2b", line1: "#232a38", line2: "#2b3342", line3: "#313a4c", line4: "#465266", ink: "#e9edf5", ink2: "#d5dbe6", ink3: "#bcc4d2", muted: "#98a1b2", muted2: "#8892a3", muted3: "#5d6778" },
+  graphite: { bg: "#121110", chrome: "#000000", surf: "#1c1a19", surf2: "#262321", line0: "#232120", line1: "#2e2b29", line2: "#35312e", line3: "#3b3835", line4: "#524e4a", ink: "#f2f0ee", ink2: "#e3e0dc", ink3: "#cfcbc6", muted: "#a5a09a", muted2: "#948f89", muted3: "#6b6660" },
+  ink: { bg: "#000000", chrome: "#000000", surf: "#0e0e0f", surf2: "#161617", line0: "#141415", line1: "#1f1f21", line2: "#2a2a2c", line3: "#343437", line4: "#4c4c50", ink: "#ffffff", ink2: "#e6e6e8", ink3: "#cbcbcf", muted: "#9c9ca2", muted2: "#8a8a90", muted3: "#5b5b61" },
+  slate: { bg: "#171a1d", chrome: "#0f1114", surf: "#20242a", surf2: "#2a2f36", line0: "#22262c", line1: "#2e343b", line2: "#373e47", line3: "#414a55", line4: "#57616e", ink: "#eef1f4", ink2: "#dde2e8", ink3: "#c6ccd4", muted: "#9fa8b3", muted2: "#8e97a3", muted3: "#646d79" },
+  forest: { bg: "#0a1210", chrome: "#050b0a", surf: "#111d1a", surf2: "#182724", line0: "#15211e", line1: "#1e2d29", line2: "#253631", line3: "#2c403a", line4: "#3f584f", ink: "#eaf2ee", ink2: "#d7e3dd", ink3: "#bfcdc6", muted: "#97a8a1", muted2: "#869891", muted3: "#5c6b65" },
+  paper: { mode: "light", bg: "#f4f2ee", chrome: "#ffffff", surf: "#ffffff", surf2: "#ebe8e2", line0: "#e6e2db", line1: "#dcd7ce", line2: "#cfc9be", line3: "#bdb6a9", line4: "#9a9184", ink: "#1b1916", ink2: "#2e2a25", ink3: "#4a443c", muted: "#6b6459", muted2: "#7d7669", muted3: "#a39b8e", onAc: "#14120f" },
+  porcelain: { mode: "light", bg: "#f3f5f7", chrome: "#ffffff", surf: "#ffffff", surf2: "#e9edf1", line0: "#e4e8ed", line1: "#d8dee5", line2: "#c9d1da", line3: "#b6c0cb", line4: "#94a0ae", ink: "#151a1f", ink2: "#28303a", ink3: "#454f5b", muted: "#5f6a77", muted2: "#6f7a87", muted3: "#98a3af", onAc: "#0f1418" },
+  sage: { mode: "light", bg: "#eef2ec", chrome: "#ffffff", surf: "#ffffff", surf2: "#e3eade", line0: "#e0e7db", line1: "#d2dccb", line2: "#c2cfba", line3: "#aebfa4", line4: "#8ba07e", ink: "#161c14", ink2: "#283024", ink3: "#46503f", muted: "#5f6c58", muted2: "#6f7c68", muted3: "#95a28e", onAc: "#121a11" },
+  oxide: { bg: "#140f0c", chrome: "#0b0806", surf: "#201814", surf2: "#2b211b", line0: "#241c17", line1: "#312620", line2: "#3a2e26", line3: "#43352c", line4: "#5d4a3e", ink: "#f4efea", ink2: "#e4dbd3", ink3: "#cfc3b9", muted: "#a79a90", muted2: "#96897f", muted3: "#6b5f56" },
+  nordic: { bg: "#1b2026", chrome: "#12171c", surf: "#242b33", surf2: "#2e3741", line0: "#262d35", line1: "#323b45", line2: "#3b4550", line3: "#45505c", line4: "#5c6875", ink: "#f0f3f6", ink2: "#dfe4ea", ink3: "#c8d0d8", muted: "#a2acb7", muted2: "#919ba7", muted3: "#68717c" },
+  obsidian: { bg: "#0d0f18", chrome: "#070811", surf: "#161a26", surf2: "#1f2431", line0: "#191d29", line1: "#242936", line2: "#2c3240", line3: "#343b4b", line4: "#495267", ink: "#eceef7", ink2: "#dadde9", ink3: "#c2c6d6", muted: "#9ba1b5", muted2: "#8a90a4", muted3: "#5f657a" },
+  dune: { bg: "#16140f", chrome: "#0c0b07", surf: "#211e16", surf2: "#2b271d", line0: "#252118", line1: "#312c21", line2: "#3a3428", line3: "#433c2e", line4: "#5b5340", ink: "#f5f1e8", ink2: "#e5e0d3", ink3: "#cec8b8", muted: "#a79f8d", muted2: "#968f7e", muted3: "#6b6557" },
+  plum: { bg: "#120e16", chrome: "#0a070d", surf: "#1c1722", surf2: "#261f2d", line0: "#201a27", line1: "#2b2434", line2: "#332b3d", line3: "#3b3247", line4: "#524764", ink: "#f1ecf5", ink2: "#dfd8e6", ink3: "#c9c1d2", muted: "#a39bad", muted2: "#928a9c", muted3: "#665f70" }
+};
+const ACCENTS = {
+  electric: { ac: "#2f6bff", acHov: "#578bff", acHi: "#84a9ff", acSoft: "#b3c9ff", acSoft2: "#d6e1ff", acTint: "#0d2470", acTint2: "#0a1c58", acTint3: "#071440", acGround: "#080c1a", acMid: "#2453cc" },
+  hot: { ac: "#ff2e63", acHov: "#ff5c85", acHi: "#ff85a3", acSoft: "#ffadc2", acSoft2: "#ffd1dd", acTint: "#5c0a22", acTint2: "#47081b", acTint3: "#350614", acGround: "#17070d", acMid: "#cc244f" },
+  acid: { ac: "#c2ec1f", acHov: "#d2f251", acHi: "#dff67f", acSoft: "#e9faa8", acSoft2: "#f3fccd", acTint: "#3c4a06", acTint2: "#2e3905", acTint3: "#222b04", acGround: "#101407", acMid: "#9abd18" },
+  gold: { ac: "#ffbb00", acHov: "#ffcb3d", acHi: "#ffd970", acSoft: "#ffe6a3", acSoft2: "#fff1cc", acTint: "#4d3800", acTint2: "#3b2b00", acTint3: "#2c2000", acGround: "#151105", acMid: "#cc9500" },
+  jade: { ac: "#00c48c", acHov: "#33d3a3", acHi: "#66deba", acSoft: "#99e9d1", acSoft2: "#ccf4e8", acTint: "#003b2a", acTint2: "#002e21", acTint3: "#002319", acGround: "#061410", acMid: "#009c70" },
+  grape: { ac: "#8b3dff", acHov: "#a367ff", acHi: "#b98bff", acSoft: "#d0b0ff", acSoft2: "#e7d7ff", acTint: "#2f0d61", acTint2: "#25094d", acTint3: "#1c073a", acGround: "#110a1c", acMid: "#6f31cc" },
+  signal: { ac: "#ff5a41", acHov: "#ff7a66", acHi: "#ff8570", acSoft: "#ffb1a2", acSoft2: "#ffc4b8", acTint: "#4d1a11", acTint2: "#3a1610", acTint3: "#2a1512", acGround: "#141013", acMid: "#c9502f" },
+  amber: { ac: "#f0a933", acHov: "#ffc064", acHi: "#ffcf8a", acSoft: "#ffdcae", acSoft2: "#ffe7c8", acTint: "#4a3106", acTint2: "#3a2605", acTint3: "#2b1d06", acGround: "#14110b", acMid: "#c98a1c" },
+  cyan: { ac: "#35c6d8", acHov: "#5fd8e6", acHi: "#8ae3ed", acSoft: "#b3edf3", acSoft2: "#d0f4f8", acTint: "#093c44", acTint2: "#072f35", acTint3: "#062429", acGround: "#0a1416", acMid: "#1f95a4" },
+  violet: { ac: "#9a7dff", acHov: "#b199ff", acHi: "#c3b1ff", acSoft: "#d6caff", acSoft2: "#e6dfff", acTint: "#2c1f63", acTint2: "#23194f", acTint3: "#1b133d", acGround: "#100e1a", acMid: "#7a61d6" },
+  emerald: { ac: "#3fc98a", acHov: "#65d8a2", acHi: "#8ee4bc", acSoft: "#b5eed3", acSoft2: "#d3f6e6", acTint: "#0b3f2a", acTint2: "#093121", acTint3: "#07261a", acGround: "#0a1512", acMid: "#249a67" },
+  magenta: { ac: "#f45ba6", acHov: "#ff7cbb", acHi: "#ff9dcb", acSoft: "#ffbcdc", acSoft2: "#ffd6e9", acTint: "#4d1130", acTint2: "#3c0d26", acTint3: "#2d0a1d", acGround: "#170b11", acMid: "#c53f81" },
+  lime: { ac: "#a8d94a", acHov: "#bde36f", acHi: "#cdea92", acSoft: "#ddf2b5", acSoft2: "#ecf8d6", acTint: "#2f3f0d", acTint2: "#25320a", acTint3: "#1c2607", acGround: "#11150a", acMid: "#82ab32" },
+  tangerine: { ac: "#ff8a3d", acHov: "#ffa366", acHi: "#ffb98a", acSoft: "#ffcfae", acSoft2: "#ffe3cd", acTint: "#4d2409", acTint2: "#3c1c07", acTint3: "#2d1505", acGround: "#16100a", acMid: "#cc6d28" },
+  steel: { ac: "#8fa3b8", acHov: "#a7b8ca", acHi: "#bccada", acSoft: "#d1dbe6", acSoft2: "#e4eaf1", acTint: "#232d38", acTint2: "#1b232c", acTint3: "#151b22", acGround: "#0d1116", acMid: "#6b7d91" },
+  ice: { ac: "#7fa9ff", acHov: "#9dbeff", acHi: "#b6cfff", acSoft: "#cfdeff", acSoft2: "#e3ecff", acTint: "#16295c", acTint2: "#111f47", acTint3: "#0d1837", acGround: "#0b0f1a", acMid: "#5a83d6" }
+};
+const zones = (id, g, light) => {
+  const card = light
+    ? "0 1px 2px rgba(0,0,0,.07), 0 14px 30px rgba(0,0,0,.09)"
+    : "0 0 0 1px " + g.line2 + ", 0 16px 34px rgba(0,0,0,.5)";
+  const recess = light
+    ? "inset 0 9px 14px -12px rgba(0,0,0,.30), inset 9px 0 14px -12px rgba(0,0,0,.22)"
+    : "inset 0 10px 16px -12px rgba(0,0,0,.9), inset 10px 0 16px -12px rgba(0,0,0,.9)";
+  const base = {
+    shellBg: g.bg, shellPad: "0", shellGap: "0",
+    railBg: g.chrome, railEdge: "1px solid " + g.line1, railShadow: "none",
+    mainBg: "transparent", mainShadow: "none",
+    topBg: g.chrome, topEdge: "1px solid " + g.line1,
+    contentBg: g.bg, tableHeadBg: g.chrome,
+    listBg: "transparent", listEdge: "1px solid " + g.line1,
+    detailBg: g.bg
+  };
+  if (id === "flat") return base;
+  if (id === "framed") return { ...base,
+    railBg: g.bg, railEdge: "2px solid " + g.line4,
+    topBg: g.bg, topEdge: "2px solid " + g.line4,
+    tableHeadBg: g.bg, listEdge: "2px solid " + g.line4 };
+  if (id === "floating") return { ...base,
+    shellBg: light ? g.surf2 : g.chrome, shellPad: "10px", shellGap: "10px",
+    railBg: g.surf, railEdge: "0", railShadow: card,
+    mainBg: g.bg, mainShadow: card,
+    topBg: light ? g.surf2 : g.surf, topEdge: "1px solid " + g.line1,
+    tableHeadBg: light ? g.surf2 : g.surf, detailBg: g.bg };
+  const sunk = light ? g.surf2 : g.chrome;
+  return { ...base,
+    railBg: g.surf2, railEdge: "1px solid " + g.line4,
+    topBg: g.surf2, topEdge: "1px solid " + g.line4,
+    mainBg: sunk, mainShadow: recess,
+    contentBg: sunk, tableHeadBg: sunk, detailBg: sunk,
+    listEdge: "1px solid " + g.line2 };
+};
+const subPane = (id, g, light) => {
+  const lift = light
+    ? "0 2px 6px rgba(0,0,0,.08), -18px 0 44px rgba(0,0,0,.13)"
+    : "0 0 0 1px " + g.line3 + ", -24px 0 54px rgba(0,0,0,.58)";
+  const base = {
+    cols: "minmax(290px, 0.7fr) minmax(0, 1.6fr)",
+    pos: "absolute", inset: "0 0 0 auto", w: "428px", h: "auto",
+    bg: g.surf, edge: "1px solid " + g.line4, shadow: lift,
+    margin: "0", scrim: "rgba(0,0,0,0)", scrimEvents: "none", z: "8",
+    anim: "wsm-sub-slide 260ms cubic-bezier(.2,.7,.3,1) both"
+  };
+  if (id === "push") return { ...base,
+    cols: "minmax(250px, 0.62fr) minmax(0, 1.35fr) 400px",
+    pos: "relative", inset: "auto", w: "auto", shadow: "none",
+    edge: "1px solid " + g.line4, anim: "wsm-sub-wipe 240ms cubic-bezier(.2,.7,.3,1) both" };
+  if (id === "sheet") return { ...base,
+    w: "440px", margin: "12px 12px 12px 0", edge: "1px solid " + g.line4 };
+  if (id === "stacked") return { ...base,
+    w: "min(66%, 640px)", scrim: light ? "rgba(20,22,26,.24)" : "rgba(0,0,0,.42)", scrimEvents: "auto" };
+  return { ...base, scrim: light ? "rgba(20,22,26,.30)" : "rgba(0,0,0,.52)", scrimEvents: "auto" };
+};
+const band = n => (n >= 6 ? "High" : n >= 4 ? "Medium" : "Low");
+const SEM = {
+  dark: {
+    fail: "#ff6a52", failSoft: "#ff9683", failTint: "rgba(255, 106, 82, 0.09)", failLine: "rgba(255, 106, 82, 0.4)",
+    band: { High: "#ff6a52", Medium: "#f0a933", Low: "#63b98c" },
+    bandTint: { High: "rgba(255, 106, 82, 0.14)", Medium: "rgba(240, 169, 51, 0.14)", Low: "rgba(99, 185, 140, 0.14)" }
+  },
+  light: {
+    fail: "#c4301a", failSoft: "#a3260f", failTint: "rgba(196, 48, 26, 0.07)", failLine: "rgba(196, 48, 26, 0.35)",
+    band: { High: "#c4301a", Medium: "#8a5a06", Low: "#1d7350" },
+    bandTint: { High: "rgba(196, 48, 26, 0.1)", Medium: "rgba(138, 90, 6, 0.12)", Low: "rgba(29, 115, 80, 0.12)" }
+  }
+};
+const sortGuides = gs => [...gs].sort((a, b) => (a.pass === b.pass ? Number(a.id.slice(1)) - Number(b.id.slice(1)) : a.pass ? 1 : -1));
+
+class Component extends DCLogic {
+  state = {
+    screen: "register", mode: "table", tab: "connections",
+    query: "", active: null, selected: {},
+    reviewing: false, reviewingIdx: null, reviewStep: "", lastRun: {},
+    conn: CONNECTIONS.reduce((a, c) => { a[c.slug] = c.on; return a; }, {}),
+    stub: "DMS Manager"
+  };
+
+  componentWillUnmount() {
+    (this._timers || []).forEach(clearTimeout);
+  }
+
+  componentDidMount() {
+    if (this._scrollBound) return;
+    this._scrollBound = true;
+    this._scrollTimers = new WeakMap();
+    this._onAnyScroll = e => {
+      const el = e.target;
+      if (!el || !el.classList || !el.classList.contains("pane")) return;
+      el.classList.add("wsm-scrolling");
+      clearTimeout(this._scrollTimers.get(el));
+      this._scrollTimers.set(el, setTimeout(() => el.classList.remove("wsm-scrolling"), 700));
+    };
+    document.addEventListener("scroll", this._onAnyScroll, true);
+  }
+
+  renderVals() {
+    const s = this.state;
+    const ground = GROUNDS[this.props.colorTheme] || GROUNDS.carbon;
+    const baseAccent = ACCENTS[this.props.accentColor] || ACCENTS.signal;
+    const light = ground.mode === "light";
+    const rgb = hexRgb(baseAccent.ac);
+    const accent = light
+      ? { ...baseAccent,
+          acText: baseAccent.acTint,
+          acHi: baseAccent.acTint,
+          acHov: baseAccent.acMid,
+          acSoft: baseAccent.acTint,
+          acSoft2: baseAccent.acTint,
+          acTint: "rgba(" + rgb + ", 0.14)",
+          acTint2: "rgba(" + rgb + ", 0.32)",
+          acTint3: "rgba(" + rgb + ", 0.16)",
+          acGround: "rgba(" + rgb + ", 0.07)" }
+      : { ...baseAccent, acText: contrast(baseAccent.ac, ground.bg) >= 4.5 ? baseAccent.ac : baseAccent.acHi };
+    const sem = SEM[ground.mode === "light" ? "light" : "dark"];
+    const z = zones(this.props.paneStyle || "inset", ground, light);
+    const secondKey = this.props.secondAccent || "none";
+    const rawAc2 = ACCENTS[secondKey] || baseAccent;
+    const rgb2 = hexRgb(rawAc2.ac);
+    const ac2 = light
+      ? { ac2: rawAc2.acMid, ac2Text: rawAc2.acTint, ac2Tint: "rgba(" + rgb2 + ", 0.14)", ac2Soft: rawAc2.acTint }
+      : { ac2: rawAc2.ac, ac2Text: contrast(rawAc2.ac, ground.bg) >= 4.5 ? rawAc2.ac : rawAc2.acHi, ac2Tint: rawAc2.acTint, ac2Soft: rawAc2.acSoft };
+    const AC2 = "var(--ac2, #ff5a41)", AC2_TEXT = "var(--ac2-text, #ff5a41)";
+    const REG_HUES = { QMS: "cyan", ISMS: "violet", BCMS: "amber", PIMS: "jade", ISO: "emerald" };
+    const regColors = false;
+    const regChip = reg => {
+      if (!regColors) return { fg: "var(--ink3, #c9ced4)", border: "var(--line2, #2f333a)", bg: "transparent" };
+      const a = ACCENTS[REG_HUES[reg]] || baseAccent;
+      const text = light ? a.acTint : (contrast(a.ac, ground.surf) >= 4.5 ? a.ac : a.acHi);
+      return { fg: text, border: light ? a.acMid : a.ac, bg: light ? "rgba(" + hexRgb(a.ac) + ", 0.12)" : a.acTint3 };
+    };
+    const inkDark = ground.mode === "light" ? ground.ink : "#0c0d0f";
+    const onAc = contrast(baseAccent.ac, inkDark) >= contrast(baseAccent.ac, "#ffffff") ? inkDark : "#ffffff";
+    const q = s.query.trim().toLowerCase();
+
+    const fReg = s.fReg || "All", fTeam = s.fTeam || "All", fGuide = s.fGuide || "All", fRecent = s.fRecent || "All", fTreat = s.fTreat || "All";
+    const all = RISKS.map((r, i) => ({ ...r, ...EXTRA[i], idx: i }));
+    const filtered = all
+      .filter(r => !q || (r.issue + r.vulnerability + r.threat + r.risk + r.team + r.controlFull + r.owner + r.register).toLowerCase().includes(q))
+      .filter(r => fReg === "All" || r.register === fReg)
+      .filter(r => fTeam === "All" || r.team === fTeam)
+      .filter(r => fTreat === "All" || r.treatment === fTreat)
+      .filter(r => fRecent === "All" || (fRecent === "Yes" ? r.recent : !r.recent))
+      .filter(r => {
+        if (fGuide === "All") return true;
+        const failed = r.guidelines.some(g => !g.pass);
+        return fGuide === "Failed" ? failed : !failed;
+      });
+
+    const sig = [q, fReg, fTeam, fTreat, fGuide, fRecent].join("|");
+    let hash = 0;
+    for (let i = 0; i < sig.length; i++) hash = (hash + sig.charCodeAt(i)) % 2048;
+    const rowKf = hash % 2 ? "wsm-row-a" : "wsm-row-b";
+    const detailKf = (s.active || 0) % 2 ? "wsm-in-a" : "wsm-in-b";
+
+    const mkFilter = (key, label, value, options) => ({
+      label, value, options,
+      pick: e => this.setState({ [key]: e.target.value }),
+      bg: value === "All" ? "var(--surf, #16181b)" : "var(--ac-tint3, #2a1512)",
+      fg: value === "All" ? "var(--ink, #eef0f2)" : "var(--ac-soft, #ffb1a2)",
+      border: value === "All" ? "var(--line1, #26292e)" : ACCENT
+    });
+    const uniq = k => Array.from(new Set(RISKS.map(r => r[k])));
+    const F = {
+      reg: mkFilter("fReg", "Registry", fReg, ["All", ...uniq("register")]),
+      team: mkFilter("fTeam", "Team", fTeam, ["All", ...uniq("team")]),
+      treat: mkFilter("fTreat", "Treatment", fTreat, ["All", ...uniq("treatment")]),
+      guide: mkFilter("fGuide", "Guideline review", fGuide, ["All", "Met", "Failed"]),
+      recent: mkFilter("fRecent", "Reviewed ≤ 1 yr", fRecent, ["All", "Yes", "No"])
+    };
+    const filters = [F.reg, F.team, F.treat, F.guide, F.recent];
+    const menu = s.filterMenu || null;
+    const mkHead = (id, label, hint, items, keys, hasDetail) => {
+      const active = items.filter(i => i.value !== "All");
+      const on = active.length > 0;
+      return {
+        id, label, hint, items, hasDetail: !!hasDetail,
+        open: menu === id,
+        summary: on ? "· " + active.map(i => i.value).join(" · ") : "",
+        fg: on ? "var(--ac-text, #ff5a41)" : menu === id ? "var(--ink, #eef0f2)" : "var(--muted, #9aa0a8)",
+        headBg: menu === id ? "var(--surf, #16181b)" : "transparent",
+        markFg: on ? "var(--on-ac, #0c0d0f)" : "var(--muted, #9aa0a8)",
+        markBg: on ? ACCENT : "transparent",
+        markBorder: on ? ACCENT : "var(--line3, #33373d)",
+        toggle: () => this.setState({ filterMenu: menu === id ? null : id }),
+        clear: () => { const patch = { filterMenu: null }; keys.forEach(k => { patch[k] = "All"; }); this.setState(patch); }
+      };
+    };
+    const hStatus = mkHead("status", "Status", "Reviewed within a year · Guideline review", [F.recent, F.guide], ["fRecent", "fGuide"], true);
+    const hIssue = mkHead("issue", "Issue", "Filter by risk treatment", [F.treat], ["fTreat"], false);
+    const hType = mkHead("type", "Type", "Filter by risk type", [F.reg], ["fReg"], false);
+    const hTeam = mkHead("team", "Team", "Filter by team", [F.team], ["fTeam"], false);
+    const iconKind = this.props.statusIcons || "box";
+    const mark = (state, round) => {
+      const m = markBase(state);
+      const svg = iconKind !== "dot";
+      return { ...m, radius: iconKind === "dot" ? "999px" : "0", isPass: svg && state === "pass", isFail: svg && state === "fail", isRun: state === "run" && svg };
+    };
+    const markBase = state => {
+      const col = state === "fail" ? sem.fail : state === "run" ? ACCENT : sem.band.Low;
+      const edge = state === "fail" ? sem.fail : state === "run" ? ACCENT : sem.band.Low;
+      const fill = state === "fail" ? sem.fail : state === "run" ? ACCENT : ground.line4;
+      const glyph = state === "fail" ? "✕" : state === "run" ? "◌" : "✓";
+      const spin = state === "run" ? "wsm-spin 1.1s linear infinite" : "none";
+      const pulse = state === "run" ? "wsm-pulse 1s ease-in-out infinite" : "none";
+      if (iconKind === "bare") return { icon: glyph, fg: col, bg: "transparent", bw: "0", radius: "0", size: "18px", font: "14px", anim: spin };
+      if (iconKind === "solid") return { icon: glyph, fg: state === "pass" ? ground.ink : (state === "run" ? onAc : "#ffffff"), bg: fill, bw: "0", radius: "0", size: "19px", font: "11px", anim: spin };
+      if (iconKind === "dot") return { icon: "", fg: col, bg: fill, bw: "0", radius: "999px", size: "10px", font: "1px", anim: pulse };
+      return { icon: glyph, fg: col, bg: "transparent", bw: "1px", radius: "0", size: "20px", font: "12px", anim: spin };
+    };
+
+    const decorate = r => {
+      const failed = r.guidelines.filter(g => !g.pass);
+      const running = !!s.reviewing && s.reviewingIdx === r.idx;
+      if (running) return {
+        ...r,
+        isRow: true, isGroup: false,
+        selected: !!s.selected[r.idx],
+        toggleSelect: () => this.setState(p => ({ selected: { ...p.selected, [r.idx]: !p.selected[r.idx] } })),
+        open: () => this.setState({ mode: "split", active: r.idx }),
+        rowBg: s.active === r.idx && s.mode === "split" ? "var(--surf, #16181b)" : "transparent",
+        edge: s.active === r.idx && s.mode === "split" ? ACCENT : "transparent",
+        recentMark: mark(r.recent ? "pass" : "fail", true),
+        recentTitle: r.recent ? "Reviewed within the last 12 months" : "Not reviewed in the last 12 months",
+        guideMark: mark("run"),
+        guideTitle: "Review in progress",
+        guideLabel: "In progress",
+        guideTextFg: "var(--ac-soft, #ffb1a2)",
+        registerTitle: "Risk type · " + r.register,
+        regChip: regChip(r.register),
+        scoreBand: band(r.score), scoreFg: sem.band[band(r.score)], scoreTint: sem.bandTint[band(r.score)]
+      };
+      return {
+        ...r,
+        isRow: true, isGroup: false,
+        selected: !!s.selected[r.idx],
+        toggleSelect: () => this.setState(p => ({ selected: { ...p.selected, [r.idx]: !p.selected[r.idx] } })),
+        open: () => this.setState({ mode: "split", active: r.idx }),
+        rowBg: s.active === r.idx && s.mode === "split" ? "var(--surf, #16181b)" : "transparent",
+        edge: s.active === r.idx && s.mode === "split" ? ACCENT : "transparent",
+        recentMark: mark(r.recent ? "pass" : "fail", true),
+        recentTitle: r.recent ? "Reviewed within the last 12 months" : "Not reviewed in the last 12 months",
+        guideMark: mark(failed.length ? "fail" : "pass"),
+        guideTitle: failed.length ? failed.map(g => g.id).join(", ") + " failed" : "All guidelines met",
+        guideLabel: failed.length ? failed.map(g => g.id).join(", ") + " failed" : "Met",
+        guideTextFg: failed.length ? sem.failSoft : "var(--muted2, #8b9198)",
+        registerTitle: "Risk type · " + r.register,
+        regChip: regChip(r.register),
+        scoreBand: band(r.score), scoreFg: sem.band[band(r.score)], scoreTint: sem.bandTint[band(r.score)]
+      };
+    };
+
+    const rows = filtered.map(decorate).map((r, i) => ({
+      ...r,
+      rowAnim: rowKf + " 300ms cubic-bezier(.2,.7,.3,1) " + Math.min(i * 28, 340) + "ms both"
+    }));
+
+    const activeSrc = RISKS[s.active] ? { ...RISKS[s.active], ...EXTRA[s.active] } : null;
+    const CIA_NAMES = { C: "Confidentiality", I: "Integrity", A: "Availability" };
+    const ciaCells = (vals, accentOn, hue) => ["C", "I", "A"].map((L, i) => ({
+      letter: L,
+      name: CIA_NAMES[L],
+      value: vals[i],
+      fg: vals[i] >= 4 ? (accentOn ? (hue || ACCENT) : "var(--ink, #eef0f2)") : "var(--ink, #eef0f2)",
+      border: vals[i] >= 4 ? (accentOn ? ACCENT : "var(--line4, #4a4f56)") : "var(--line3, #33373d)"
+    }));
+    const activeFailed = activeSrc ? activeSrc.guidelines.filter(g => !g.pass) : [];
+    const reviewing = !!s.reviewing && s.reviewingIdx === s.active;
+    const openCtl = s.openCtl || {};
+    const mkCtl = id => {
+      const c = ctl(id), open = !!openCtl[id];
+      return {
+        ...c, open,
+        short: id.replace(/^CCM /, ""),
+        anim: "wsm-in-a 220ms cubic-bezier(.2,.7,.3,1) both",
+        border: open ? AC2 : "var(--line3, #33373d)",
+        bg: open ? "var(--ac2-tint, #2a1512)" : "transparent",
+        fg: open ? "var(--ac2-soft, #ffb1a2)" : "var(--ink, #eef0f2)",
+        toggle: () => this.setState(p => ({ openCtl: { ...(p.openCtl || {}), [id]: !(p.openCtl || {})[id] } }))
+      };
+    };
+    const exp = s.expand || {};
+    const mkField = (key, collapsed) => ({
+      max: exp[key] ? "none" : collapsed,
+      label: exp[key] ? "Show less" : "Show more",
+      toggle: () => this.setState(p => ({ expand: { ...(p.expand || {}), [key]: !(p.expand || {})[key] } }))
+    });
+    const fields = {
+      risk: mkField("risk", "48px"),
+      vulnerability: mkField("vulnerability", "44px"),
+      threat: mkField("threat", "44px"),
+      control: mkField("control", "48px")
+    };
+    const active = activeSrc
+      ? {
+          ...activeSrc,
+          band: band(activeSrc.score),
+          accentFg: activeSrc.score >= 6 ? ACCENT : "var(--ink, #eef0f2)",
+          riskLines: asLines(MULTI[s.active], "risk", activeSrc.risk),
+          vulnerabilityLines: asLines(MULTI[s.active], "vulnerability", activeSrc.vulnerability),
+          threatLines: asLines(MULTI[s.active], "threat", activeSrc.threat),
+          bandColor: sem.band[band(activeSrc.score)],
+          bandTint: sem.bandTint[band(activeSrc.score)],
+          revisedBandColor: sem.band[band(activeSrc.revised)],
+          revisedBandTint: sem.bandTint[band(activeSrc.revised)],
+          revisedBand: band(activeSrc.revised),
+          revisedFg: activeSrc.revised >= 6 ? AC2_TEXT : "var(--ink, #eef0f2)",
+          revisedBorder: activeSrc.revised < activeSrc.score ? "var(--line4, #4a4f56)" : "var(--line3, #33373d)",
+          ciaCells: ciaCells(activeSrc.cia, true),
+          revisedCiaCells: ciaCells(activeSrc.revisedCia, true, AC2_TEXT),
+          ciaRows: activeSrc.cia.map((v, i) => ({ letter: "CIA"[i], name: ["Confidentiality", "Integrity", "Availability"][i], before: v, after: activeSrc.revisedCia[i], afterFg: activeSrc.revisedCia[i] < v ? AC2_TEXT : "var(--ink2, #dfe2e6)" })),
+          delta: activeSrc.revised < activeSrc.score ? "↓ " + (activeSrc.score - activeSrc.revised) : "→ 0",
+          deltaTitle: activeSrc.revised < activeSrc.score ? "Down " + (activeSrc.score - activeSrc.revised) + " after treatment" : "No change after treatment",
+          iso: activeSrc.iso.map(mkCtl),
+          ccm: activeSrc.ccm.map(mkCtl),
+          isoOpen: activeSrc.iso.map(mkCtl).filter(c => c.open),
+          ccmOpen: activeSrc.ccm.map(mkCtl).filter(c => c.open),
+          guideSummary: reviewing
+            ? "Running"
+            : activeFailed.length
+              ? activeFailed.length + (activeFailed.length === 1 ? " guideline failed" : " guidelines failed")
+              : "All guidelines met",
+          guideSummaryFg: reviewing ? "var(--muted, #9aa0a8)" : activeFailed.length ? sem.fail : "var(--muted2, #8b9198)",
+          reviewStamp: reviewing ? "" : "Last run " + (s.lastRun && s.lastRun[s.active] ? s.lastRun[s.active] : activeSrc.reviewed),
+          guidelines: sortGuides(activeSrc.guidelines).map((g, i) => ({
+            ...g,
+            anim: detailKf + " 320ms cubic-bezier(.2,.7,.3,1) " + (120 + i * 70) + "ms both",
+            icon: g.pass ? "✓" : "✕",
+            iconFg: g.pass ? "var(--ink, #eef0f2)" : sem.fail,
+            mark: g.pass ? "var(--line3, #33373d)" : sem.fail,
+            border: g.pass ? "var(--line0, #1c1f23)" : sem.failLine,
+            bg: g.pass ? "transparent" : sem.failTint,
+            state: g.pass ? "Met" : "Failed",
+            stateFg: g.pass ? "var(--muted, #9aa0a8)" : sem.fail,
+            dim: reviewing ? 0.4 : 1,
+            issues: g.issues || [],
+            open: () => this.setState({ openGuide: g.id }),
+            expanded: !!(s.expGuide && s.expGuide[g.id]),
+            chevRot: s.expGuide && s.expGuide[g.id] ? "90deg" : "0deg",
+            cursor: "pointer",
+            countLabel: g.pass ? "Pass" : (g.issues || []).length + " issue" + ((g.issues || []).length === 1 ? "" : "s"),
+            toggle: () => this.setState(st => ({ expGuide: { ...(st.expGuide || {}), [g.id]: !(st.expGuide && st.expGuide[g.id]) } })),
+            hoverBorder: g.pass ? "var(--line4, #4a4f56)" : sem.fail
+          }))
+        }
+      : { guidelines: [], flags: [] };
+
+    const NAV = [
+      { label: "Compliance Manager", items: [
+        { key: "register", label: "Risk Register", count: "211" },
+        { key: "dms", label: "DMS Manager", count: "46" },
+        { key: "dpia", label: "Compare vs. DPIA", count: "" }
+      ] },
+      { label: "Repository", items: [
+        { key: "access", label: "Access Review", count: "18" },
+        { key: "branch", label: "Protected Branch Configuration", count: "" },
+        { key: "api", label: "API Review", count: "7" }
+      ] },
+      { label: "Hacksaw", items: [
+        { key: "vuln", label: "Vulnerability Components", count: "32" },
+        { key: "deps", label: "Dependency Manager", count: "" },
+        { key: "violations", label: "Code Violation Review", count: "9" }
+      ] }
+    ];
+    const navGroups = NAV.map(g => ({
+      label: g.label,
+      items: g.items.map(n => {
+        const on = s.screen === n.key;
+        return {
+          ...n,
+          weight: on ? 700 : 500,
+          bg: on ? "var(--surf, #16181b)" : "transparent",
+          fg: on ? "var(--ink, #eef0f2)" : "var(--muted, #9aa0a8)",
+          mark: on ? ACCENT : "transparent",
+          countFg: on ? ACCENT_TEXT : "var(--muted, #9aa0a8)",
+          pick: () => this.setState({ screen: n.key, stub: n.label, mode: "table" })
+        };
+      })
+    }));
+    const stubKeys = NAV.flatMap(g => g.items.map(i => i.key)).filter(k => k !== "register");
+
+    const conns = CONNECTIONS.map(c => {
+      const on = !!s.conn[c.slug];
+      return {
+        ...c, on, off: !on,
+        dot: on ? ACCENT : "var(--muted3, #5c626b)",
+        edge: on ? ACCENT : "transparent",
+        state: on ? "personal" : "not configured",
+        stateBg: on ? "var(--ac-tint, #4d1a11)" : "transparent",
+        stateFg: on ? "var(--ac-soft2, #ffc4b8)" : "var(--muted, #9aa0a8)",
+        action: on ? "Reconnect" : "Connect",
+        btnBg: on ? "transparent" : ACCENT,
+        btnFg: on ? "var(--ink, #eef0f2)" : "var(--on-ac, #0c0d0f)",
+        btnBorder: on ? "var(--line3, #33373d)" : ACCENT,
+        toggle: () => this.setState(p => ({ conn: { ...p.conn, [c.slug]: !p.conn[c.slug] } }))
+      };
+    });
+
+    const dq = (s.docQuery || "").trim().toLowerCase();
+    const dTeam = s.dTeam || "All", dModule = s.dModule || "All", dRecent = s.dRecent || "All", dTemplate = s.dTemplate || "All";
+    const docs = DOCS
+      .filter(d => !dq || (d.name + d.did + d.team + d.template + d.module).toLowerCase().includes(dq))
+      .filter(d => dTeam === "All" || d.team === dTeam)
+      .filter(d => dModule === "All" || d.module === dModule)
+      .filter(d => dTemplate === "All" || d.template === dTemplate)
+      .filter(d => dRecent === "All" || (dRecent === "Yes" ? d.recent : !d.recent))
+      .map((d, i) => ({
+        ...d,
+        recentIcon: d.recent ? "✓" : "✕",
+        recentFg: d.recent ? "var(--ink, #eef0f2)" : sem.fail,
+        recentBorder: d.recent ? "var(--line4, #4a4f56)" : sem.fail,
+        recentTitle: d.recent ? "Reviewed within the last 12 months" : "Not reviewed in the last 12 months",
+        rowAnim: rowKf + " 300ms cubic-bezier(.2,.7,.3,1) " + Math.min(i * 28, 340) + "ms both"
+      }));
+    const docUniq = k => Array.from(new Set(DOCS.map(d => d[k])));
+    const docFilters = [
+      mkFilter("dTeam", "Team", dTeam, ["All", ...docUniq("team")]),
+      mkFilter("dModule", "Module", dModule, ["All", ...docUniq("module")]),
+      mkFilter("dTemplate", "Template", dTemplate, ["All", ...docUniq("template")]),
+      mkFilter("dRecent", "Reviewed ≤ 1 yr", dRecent, ["All", "Yes", "No"])
+    ];
+
+    const settingsOn = s.screen === "settings";
+    const connFilter = s.connFilter || "All connections";
+    const selectedCount = Object.values(s.selected).filter(Boolean).length;
+    const sp = subPane(this.props.subPanel || "overlay", ground, light);
+    const gSrc = activeSrc && s.openGuide ? activeSrc.guidelines.find(g => g.id === s.openGuide) : null;
+    const RULES = {
+      "G6": { source: "Internal · Register completeness", rule: "Every register entry records likelihood, impact, control and owner before it leaves draft.", checks: ["Likelihood present", "Impact present", "Control recorded", "Risk owner assigned"] },
+      "G8": { source: "ISO 27001 · A.5.9 Inventory of assets", rule: "The risk statement names the asset or service it applies to, so exposure can be traced.", checks: ["Asset named in statement", "Asset exists in inventory", "Service mapped to team"] },
+      "G9": { source: "ISO 27001 · A.5.36 Compliance with policies", rule: "Every risk carries a documented control and a named owner accountable for it.", checks: ["Control text recorded", "Control linked to a process", "Risk owner named"] },
+      "G10": { source: "CCM · GRC-03 Risk treatment", rule: "Each entry is reviewed within the agreed cadence, and retention is signed off by the risk owner.", checks: ["Reviewed within 12 months", "Treatment selected", "Owner sign-off"] }
+    };
+    const meta = gSrc ? (RULES[gSrc.id] || RULES.G6) : null;
+    const sub = gSrc
+      ? { open: true, id: gSrc.id, title: gSrc.title, pass: !!gSrc.pass,
+          state: gSrc.pass ? "Met" : "Failed",
+          stateFg: gSrc.pass ? "var(--muted, #9aa0a8)" : sem.fail,
+          mark: gSrc.pass ? ACCENT : sem.fail,
+          icon: gSrc.pass ? "✓" : "✕",
+          source: meta.source, rule: meta.rule,
+          issues: gSrc.issues || [],
+          issueCount: (gSrc.issues || []).length ? (gSrc.issues || []).length + " open finding" + ((gSrc.issues || []).length === 1 ? "" : "s") : "No open findings",
+          checks: meta.checks.map((c, i) => {
+            const bad = !gSrc.pass && i < (gSrc.issues || []).length;
+            return { label: c, icon: bad ? "✕" : "✓", fg: bad ? sem.fail : ACCENT, border: bad ? sem.fail : "var(--line4, #4a4f56)" };
+          }),
+          entry: active ? active.issue : "",
+          owner: activeSrc ? activeSrc.owner : "",
+          lastRun: (s.lastRun && s.lastRun[s.active]) || (activeSrc ? activeSrc.reviewed : ""),
+          trail: [
+            { when: "Today · 09:14", what: "Guideline set v4.2 applied to " + (activeSrc ? activeSrc.register : "register") },
+            { when: (s.lastRun && s.lastRun[s.active]) || (activeSrc ? activeSrc.reviewed : ""), what: gSrc.pass ? "Check passed on re-run" : "Check failed on re-run" },
+            { when: "12 Jul 2024", what: "Entry last edited by " + (activeSrc ? activeSrc.owner : "owner") }
+          ] }
+      : { open: false, issues: [], checks: [], trail: [] };
+    const detailOn = !!s.tableDetail;
+    const onRegister = s.screen === "register";
+
+    return {
+      t: { ...ground, ...accent, ...ac2, onAc },
+      z,
+      tableDetail: detailOn,
+      hStatus, hIssue, hType, hTeam,
+      filterMenuOpen: !!menu,
+      closeFilterMenu: () => this.setState({ filterMenu: null }),
+      tableCols: (detailOn ? "46px 330px" : "46px 128px") + " minmax(0, 2.1fr) 84px minmax(0, 1.1fr)",
+      toggleTableDetail: () => this.setState({ tableDetail: !detailOn }),
+      detailLabel: detailOn ? "On" : "Off",
+      detailTitle: detailOn ? "Hide the dates and guideline labels — icons only" : "Show the review date and guideline result beside the icons",
+      detailBorder: detailOn ? ACCENT : "var(--line3, #33373d)",
+      detailBg: detailOn ? "var(--ac-tint3, transparent)" : "transparent",
+      detailFg: detailOn ? ACCENT : "var(--muted, #9aa0a8)",
+      detailTrack: detailOn ? "var(--ac-tint2, #2f333a)" : "var(--line3, #33373d)",
+      detailKnob: detailOn ? ACCENT : "var(--muted3, #5c626b)",
+      detailKnobX: detailOn ? "13px" : "1px",
+      sp,
+      splitCols: sub.open ? sp.cols : "minmax(290px, 0.7fr) minmax(0, 1.6fr)",
+      sub,
+      closeGuide: () => this.setState({ openGuide: null }),
+      navGroups,
+      crumb: settingsOn ? "Settings" : onRegister ? "Compliance Manager · Risk Register" : s.screen === "dms" ? "Compliance Manager · DMS Manager" : s.stub,
+      query: s.query,
+      onQuery: e => this.setState({ query: e.target.value }),
+      shownLabel: filtered.length + " of " + RISKS.length + " shown",
+      filters,
+      filtersOn: [fReg, fTeam, fTreat, fGuide, fRecent].some(v => v !== "All"),
+      clearFilters: () => this.setState({ fReg: "All", fTeam: "All", fTreat: "All", fGuide: "All", fRecent: "All" }),
+      rowPad: "14px",
+      tableRows: rows,
+      listRows: rows,
+      noRows: filtered.length === 0,
+      allSelected: filtered.length > 0 && filtered.every(r => s.selected[r.idx]),
+      toggleAll: () => this.setState(p => {
+        const all = filtered.every(r => p.selected[r.idx]);
+        const next = { ...p.selected };
+        filtered.forEach(r => { next[r.idx] = !all; });
+        return { selected: next };
+      }),
+      hasSelection: selectedCount > 0,
+      selectedCount,
+      clearSelection: () => this.setState({ selected: {} }),
+      activeRow: active,
+      fields,
+      detailAnim: detailKf + " 260ms cubic-bezier(.2,.7,.3,1) both",
+      reviewing,
+      reviewStep: s.reviewStep || "",
+      rerunLabel: reviewing ? "Reviewing…" : "Re-run review",
+      rerunFg: reviewing ? "var(--muted, #9aa0a8)" : "var(--ink, #eef0f2)",
+      rerunBorder: reviewing ? "var(--line1, #26292e)" : "var(--line3, #33373d)",
+      rerunCursor: reviewing ? "default" : "pointer",
+      rerunDim: reviewing ? 0.7 : 1,
+      rerunReview: () => {
+        if (this.state.reviewing) return;
+        const idx = this.state.active;
+        const steps = ["Loading guideline set", "Checking required fields", "Checking control and owner", "Checking review cadence"];
+        this.setState({ reviewing: true, reviewingIdx: idx, reviewStep: steps[0] });
+        this._timers = (this._timers || []).concat(
+          steps.slice(1).map((t, i) => setTimeout(() => this.setState({ reviewStep: t }), (i + 1) * 700)),
+          setTimeout(() => this.setState(p => ({
+            reviewing: false,
+            reviewStep: "",
+            lastRun: { ...(p.lastRun || {}), [idx]: "just now" }
+          })), 2900)
+        );
+      },
+      backToTable: () => this.setState({ mode: "table" }),
+      onRegister,
+      tableMode: onRegister && s.mode === "table",
+      splitMode: onRegister && s.mode === "split" && activeSrc !== null,
+      goSettings: () => this.setState({ screen: "settings" }),
+      signOut: () => this.setState({ screen: "register", mode: "table" }),
+      settingsBg: settingsOn ? "var(--surf, #16181b)" : "transparent",
+      settingsFg: settingsOn ? "var(--ink, #eef0f2)" : "var(--muted, #9aa0a8)",
+      settingsBorder: settingsOn ? "var(--line4, #4a4f56)" : "var(--line1, #26292e)",
+      onSettings: settingsOn,
+      onDms: s.screen === "dms",
+      docs,
+      docFilters,
+      docFiltersOn: [dTeam, dModule, dTemplate, dRecent].some(v => v !== "All"),
+      clearDocFilters: () => this.setState({ dTeam: "All", dModule: "All", dTemplate: "All", dRecent: "All" }),
+      docQuery: s.docQuery || "",
+      onDocQuery: e => this.setState({ docQuery: e.target.value }),
+      docShown: docs.length + " of " + DOCS.length + " documents",
+      onStub: stubKeys.includes(s.screen) && s.screen !== "dms",
+      stubTitle: s.stub,
+      settingsTabs: [{ l: "Connections", v: "connections" }, { l: "Compliance", v: "compliance" }].map(t => {
+        const on = s.tab === t.v;
+        return { label: t.l, pick: () => this.setState({ tab: t.v }), fg: on ? "var(--ink, #eef0f2)" : "var(--muted, #9aa0a8)", mark: on ? ACCENT : "transparent" };
+      }),
+      onConnections: settingsOn && s.tab === "connections",
+      onCompliance: settingsOn && s.tab === "compliance",
+      connections: conns.filter(c => connFilter === "All connections" || (connFilter === "Connected" ? c.on : !c.on)),
+      connFilters: ["All connections", "Connected", "Needs attention"].map(l => {
+        const on = connFilter === l;
+        return {
+          label: l, pick: () => this.setState({ connFilter: l }),
+          bg: on ? "var(--surf, #16181b)" : "transparent",
+          fg: on ? "var(--ink, #eef0f2)" : "var(--muted, #9aa0a8)",
+          border: on ? "var(--line4, #4a4f56)" : "var(--line1, #26292e)"
+        };
+      }),
+      connTotal: CONNECTIONS.length,
+      connOn: Object.values(s.conn).filter(Boolean).length,
+      connOff: CONNECTIONS.length - Object.values(s.conn).filter(Boolean).length,
+      ...(() => { const off = CONNECTIONS.length - Object.values(s.conn).filter(Boolean).length;
+        return { statOk: sem.band.Low, statOkTint: sem.bandTint.Low.replace(/0\.1[24]\)/, "0.06)"),
+          statWarn: off ? sem.fail : "var(--line2, #2f333a)", statWarnTint: off ? sem.failTint : "transparent",
+          statWarnFg: off ? sem.fail : "var(--ink, #eef0f2)" }; })()
+    };
+  }
+}
+</script>
+</body>
+</html>
