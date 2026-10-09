@@ -2723,3 +2723,206 @@ select { font-size: 12px; padding: 7px 9px; }
 /* Top-bar buttons and labels never wrap — the bar is one row in the mockup, and a wrapped
    "View guidelines" pushes the whole header taller. */
 .wsm-top .btn, .wsm-top-slot .btn, .wsm-count, .wsm-th-label, .wsm-selpill { white-space: nowrap; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   DMS Manager — the mockup's filter bar over a flat, full-bleed table
+   See views/DmsDocuments.jsx and design/WSM Security v5.dc.html.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.wsm-dms {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  background: var(--chrome);
+}
+
+.wsm-dms-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+}
+.wsm-dms-bar .wsm-search { flex-basis: 280px; margin-left: 0; }
+
+.wsm-dms-filter { display: flex; align-items: center; gap: 7px; }
+.wsm-dms-filter select { max-width: 210px; text-overflow: ellipsis; padding: 6px 9px; font-size: 12px; }
+.wsm-dms-select-on { border-color: var(--ac) !important; background: var(--ac-tint3) !important; color: var(--ac-soft) !important; }
+
+.wsm-dms-shown { margin-left: auto; }
+
+.wsm-dms-pane { overflow: auto; min-height: 0; }
+.wsm-dms-table { min-width: 1040px; }
+
+.wsm-dms-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: grid;
+  align-items: center;
+  background: var(--chrome);
+  border-bottom: 1px solid var(--line3);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.wsm-dms-head > div { padding: 11px 14px 11px 0; }
+.wsm-dms-head > div:first-child { padding-left: 18px; }
+
+.wsm-dms-row {
+  display: grid;
+  align-items: center;
+  border-bottom: 1px solid var(--line0);
+}
+.wsm-dms-row:hover { background: var(--surf); }
+.wsm-dms-row > div { padding: 14px 14px 14px 0; min-width: 0; }
+.wsm-dms-row > div:first-child { padding-left: 18px; }
+
+.wsm-dms-name a, .wsm-dms-name span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.wsm-dms-name a:hover { color: var(--ac-text); }
+.wsm-dms-ext { flex: none; font-size: 11px; color: var(--muted); }
+
+.wsm-dms-id { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.wsm-dms-muted { font-size: 13px; line-height: 1.4; color: var(--muted); }
+.wsm-dms-date { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Settings › Connections — stat tiles, filter chips and one row per service
+   See views/Connections.jsx and design/WSM Security v5.dc.html.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.wsm-conn { min-width: 0; }
+
+.wsm-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  border-bottom: 1px solid var(--line1);
+}
+.wsm-stat {
+  padding: 16px 20px;
+  border-right: 1px solid var(--line1);
+}
+.wsm-stat:last-child { border-right: 0; }
+.wsm-stat .wsm-label { display: flex; align-items: center; gap: 7px; }
+.wsm-stat-dot { width: 7px; height: 7px; background: var(--line2); }
+.wsm-stat-num {
+  margin-top: 5px;
+  font-size: 26px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.wsm-stat-ok { box-shadow: inset 0 3px 0 var(--band-low); background: rgba(99, 185, 140, 0.06); }
+.wsm-stat-ok .wsm-stat-dot { background: var(--band-low); }
+.wsm-stat-ok .wsm-stat-num { color: var(--band-low); }
+.wsm-stat-warn { box-shadow: inset 0 3px 0 var(--sem-fail); background: var(--sem-fail-tint); }
+.wsm-stat-warn .wsm-stat-dot { background: var(--sem-fail); }
+.wsm-stat-warn .wsm-stat-num { color: var(--sem-fail); }
+
+.wsm-conn-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--line1);
+}
+.wsm-conn-bar-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+
+/* Filter chips — hairline, surface-filled when active. Also the "on" state for icon toggles. */
+.wsm-chipbtn {
+  padding: 6px 11px;
+  border: 1px solid var(--line1);
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.wsm-chipbtn:hover { color: var(--ink); }
+.wsm-chipbtn-on { border-color: var(--line4); background: var(--surf); color: var(--ink); }
+
+.wsm-conn-banner { margin: 14px 20px 0; }
+.wsm-conn-panel { padding: 14px 20px 0; }
+.wsm-conn-panel .card { margin-bottom: 0; }
+
+.wsm-conn-row {
+  border-bottom: 1px solid var(--line0);
+  box-shadow: inset 3px 0 0 transparent;
+}
+.wsm-conn-row-on { box-shadow: inset 3px 0 0 var(--ac); }
+.wsm-conn-row-warn { box-shadow: inset 3px 0 0 var(--sem-fail); }
+.wsm-conn-row:hover { background: var(--surf); }
+
+.wsm-conn-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 20px;
+}
+.wsm-conn-id { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.wsm-conn-text { min-width: 0; }
+.wsm-conn-name { font-weight: 700; font-size: 14px; line-height: 1.2; color: var(--ink); }
+.wsm-conn-key { margin-top: 3px; font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+
+.wsm-dot { width: 8px; height: 8px; flex: none; background: var(--muted3); }
+.wsm-dot-on { background: var(--ac); }
+.wsm-dot-warn { background: var(--sem-fail); }
+
+.wsm-conn-right {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.wsm-conn-scopes {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted2);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.wsm-conn-scopes:hover { color: var(--ac-text); }
+.wsm-conn-scopes-none { cursor: default; }
+.wsm-conn-scopes-none:hover { color: var(--muted2); }
+
+.wsm-conn-state {
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--ac-tint);
+  color: var(--ac-soft2);
+  white-space: nowrap;
+}
+.wsm-conn-state-warn { background: var(--sem-fail-tint); color: var(--sem-fail-soft); }
+.wsm-conn-state-off { background: transparent; color: var(--muted); }
+
+.wsm-conn-actions { display: inline-flex; align-items: center; gap: 6px; margin-left: 4px; }
+
+.wsm-conn-sub { margin: 0 20px 14px; }
+ul.wsm-conn-sub { margin-top: 0; }
+
+@media (max-width: 760px) {
+  .wsm-conn-main { grid-template-columns: minmax(0, 1fr); }
+  .wsm-conn-right { justify-content: flex-start; }
+}

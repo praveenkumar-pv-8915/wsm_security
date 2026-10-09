@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { clearRouteParams } from '../lib/router';
-import { RefreshIcon, LayersIcon, CloseIcon, PlugIcon, ReauthIcon, BoltIcon, UnplugIcon } from '../lib/icons';
+import { RefreshIcon, LayersIcon, CloseIcon, ReauthIcon, BoltIcon, UnplugIcon } from '../lib/icons';
 
 /**
  * Connections — the 11 internal-tool integrations from connections-registry.js.
@@ -18,6 +18,12 @@ import { RefreshIcon, LayersIcon, CloseIcon, PlugIcon, ReauthIcon, BoltIcon, Unp
  * refreshing after a service gains a scope, but it carries the grant frozen at consent time, so
  * the new scope 401s and the connection looks broken rather than under-permissioned. Re-auth reuses
  * the stored client id and secret, so nobody has to dig them out of the Zoho console again.
+ *
+ * Layout (2026-10-09) follows the "WSM Security v5" mockup's Settings › Connections screen
+ * (design/WSM Security v5.dc.html — see README › Design): four stat tiles, a row of filter chips,
+ * then one full-bleed row per service with an inset accent edge when it is connected. The admin
+ * tools the mockup does not draw — bulk configure, the fetch probe, the scopes list and the
+ * per-service connect form — open inline under their row, as before.
  */
 
 const AUTH_LABEL = {
@@ -245,6 +251,9 @@ export default function Connections({ user, onNotice }) {
   // Per-service form state, keyed by service key so switching cards doesn't leak values across.
   const [form, setForm] = useState({});
 
+  // The mockup's filter chips: All connections | Connected | Needs attention.
+  const [filter, setFilter] = useState('all');
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -447,22 +456,67 @@ export default function Connections({ user, onNotice }) {
   };
 
   const configured = connections.filter((c) => c.configured).length;
-  const needsAttention = connections.filter(
-    (c) => c.effective && (c.effective.expired || c.effective.scopes_stale)
-  ).length;
+  // "Needs attention" is anything that will fail a call right now: not configured at all, or a
+  // grant that has expired or no longer covers the scopes the registry asks for.
+  const attention = (c) => !c.configured || Boolean(c.effective && (c.effective.expired || c.effective.scopes_stale));
+  const needsAttention = connections.filter(attention).length;
+  const authTypes = new Set(connections.map((c) => c.auth_type)).size;
+
+  // The shell's top bar shows "Services on/total" while on Settings — announced from here.
+  useEffect(() => {
+    if (loading) return;
+    window.dispatchEvent(new CustomEvent('wsm:services-count', {
+      detail: { on: configured, total: connections.length },
+    }));
+  }, [loading, configured, connections.length]);
+
+  const shown = connections.filter((c) => (
+    filter === 'all' ? true : filter === 'connected' ? c.configured : attention(c)
+  ));
+
+  const FILTERS = [
+    { key: 'all', label: 'All connections' },
+    { key: 'connected', label: 'Connected' },
+    { key: 'attention', label: 'Needs attention' },
+  ];
 
   return (
-    <>
-      <div className="view-head">
-        <div>
-          <h2 className="view-title">Connections</h2>
-          <p className="view-sub">
-            Internal tool integrations · personal credentials override the team-shared one
-          </p>
+    <div className="wsm-conn">
+      <div className="wsm-stats">
+        <div className="wsm-stat">
+          <div className="wsm-label">Connections</div>
+          <div className="wsm-stat-num">{loading ? '…' : connections.length}</div>
         </div>
-        <div className="view-actions">
+        <div className="wsm-stat wsm-stat-ok">
+          <div className="wsm-label"><span className="wsm-stat-dot" aria-hidden="true" />Connected</div>
+          <div className="wsm-stat-num">{loading ? '…' : configured}</div>
+        </div>
+        <div className={`wsm-stat${!loading && needsAttention ? ' wsm-stat-warn' : ''}`}>
+          <div className="wsm-label"><span className="wsm-stat-dot" aria-hidden="true" />Needs attention</div>
+          <div className="wsm-stat-num">{loading ? '…' : needsAttention}</div>
+        </div>
+        <div className="wsm-stat">
+          <div className="wsm-label">Auth types</div>
+          <div className="wsm-stat-num">{loading ? '…' : authTypes}</div>
+        </div>
+      </div>
+
+      <div className="wsm-conn-bar">
+        {FILTERS.map((f) => (
+          <button
+            key={f.key}
+            type="button"
+            className={`wsm-chipbtn${filter === f.key ? ' wsm-chipbtn-on' : ''}`}
+            onClick={() => setFilter(f.key)}
+            aria-pressed={filter === f.key}
+          >
+            {f.label}
+          </button>
+        ))}
+        <div className="wsm-conn-bar-actions">
           <button
             className="btn btn-ghost btn-icon"
+            type="button"
             onClick={load}
             disabled={loading || busy}
             title="Refresh"
@@ -471,7 +525,8 @@ export default function Connections({ user, onNotice }) {
             <RefreshIcon />
           </button>
           <button
-            className="btn btn-ghost btn-icon"
+            className={`btn btn-ghost btn-icon${bulkOpen ? ' wsm-chipbtn-on' : ''}`}
+            type="button"
             onClick={() => { setBulkOpen((o) => !o); setOpenKey(null); setProbeKey(null); }}
             disabled={busy}
             title={bulkOpen ? 'Close bulk configure' : 'Bulk configure — one OAuth client, one consent, several services'}
@@ -482,350 +537,334 @@ export default function Connections({ user, onNotice }) {
         </div>
       </div>
 
-      <div className="conn-summary">
-        <div className="summary-chip">
-          <span className="summary-value">{connections.length}</span>
-          <span className="summary-label">Connections</span>
-        </div>
-        <div className="summary-chip">
-          <span className="summary-value summary-good">{configured}</span>
-          <span className="summary-label">Connected</span>
-        </div>
-        <div className={`summary-chip${needsAttention ? ' summary-chip-attn' : ''}`}>
-          <span className="summary-value summary-warn">{needsAttention}</span>
-          <span className="summary-label">Needs attention</span>
-        </div>
-      </div>
-
-      {error && <div className="banner banner-err" role="alert">⚠ {error}</div>}
+      {error && <div className="banner banner-err wsm-conn-banner" role="alert">{error}</div>}
 
       {bulkOpen && (
-        <BulkPanel
-          connections={connections}
-          user={user}
-          value={bulk}
-          onChange={setBulk}
-          onSubmit={startBulk}
-          busy={busy}
-        />
+        <div className="wsm-conn-panel">
+          <BulkPanel
+            connections={connections}
+            user={user}
+            value={bulk}
+            onChange={setBulk}
+            onSubmit={startBulk}
+            busy={busy}
+          />
+        </div>
       )}
 
-      <section className="card">
-        <div className="card-head">
-          <h2>Services</h2>
-          <span className="count">{loading ? '…' : `${configured}/${connections.length}`}</span>
-        </div>
-
-        {loading ? (
-          <p className="empty">
-            No catalogue returned. If the error above says a table doesn’t exist,
-            <code> connection_credentials </code> has to be created in the Catalyst console first —
-            there is no API for creating a table. See CONNECTIONS.md for the schema.
-          </p>
-        ) : connections.length === 0 ? (
-          <p className="empty">
-            No catalogue returned. If the error above says a table doesn’t exist, the DataStore
-            tables have to be created in the Catalyst console first — there is no API for it, and
-            “Seed catalogue” only fills tables that already exist. See CONNECTIONS.md for the schema.
-          </p>
-        ) : (
-          <ul className="conn-list">
-            {connections.map((service) => {
-              const isOpen = openKey === service.key;
-              const eff = service.effective;
-              const isOAuth = service.auth_type === 'oauth';
-              // Re-auth acts on a row this caller may write: their own, or the team one if admin.
-              const myOrTeam = service.mine || (user.role === 'admin' ? service.shared : null);
-              return (
-                <li key={service.key} className={`conn${service.configured ? ' conn-on' : ''}`}>
-                  <div className="conn-main">
-                    <div className="conn-id">
-                      <span className={`dot${service.configured ? ' dot-on' : ''}`} aria-hidden="true" />
-                      <div>
-                        <p className="conn-label">{service.label}</p>
-                        <p className="conn-key mono">{service.key}</p>
-                      </div>
-                    </div>
-
-                    <div className="conn-meta">
-                      <span className="tag tag-muted">{AUTH_LABEL[service.auth_type] || service.auth_type}</span>
-                      {service.scope_count > 0 && (
-                        <button
-                          type="button"
-                          className="scope-toggle"
-                          onClick={() => setScopesKey(scopesKey === service.key ? null : service.key)}
-                          aria-expanded={scopesKey === service.key}
-                          title="Show the exact scopes this service asks for"
-                        >
-                          {service.scope_count} scopes {scopesKey === service.key ? '▴' : '▾'}
-                        </button>
-                      )}
-                      {eff ? (
-                        <>
-                          <span className={`tag${eff.expired ? ' tag-warn' : ''}`}>
-                            {eff.source === 'user' ? 'personal' : 'team'}
-                          </span>
-                          {eff.scopes_stale && (
-                            <span className="tag tag-warn" title="This service asks for scopes that weren't in the grant you consented to. Re-authenticate to widen it.">
-                              scopes changed
-                            </span>
-                          )}
-                          {eff.extra_config?.portal_id && (
-                            <span className="tag tag-muted mono" title="Saved portal_id for this connection">
-                              portal: {eff.extra_config.portal_id}
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        <span className="dim">not configured</span>
-                      )}
-                    </div>
-
-                    <div className="conn-actions">
-                      {/*
-                        Only shown when it is the actual fix. Re-authenticate and Reconfigure
-                        overlap — Reconfigure opens the form and can do everything this does, plus
-                        change the client id/secret or DC. The one case this uniquely serves is a
-                        grant that has gone stale or expired, where nothing needs retyping. On a
-                        healthy row it would just be a worse Reconfigure, so it stays hidden.
-                      */}
-                      {isOAuth && myOrTeam && (eff?.scopes_stale || eff?.expired) && (
-                        <button
-                          className="btn btn-small btn-attn btn-icon-sm"
-                          onClick={() => reauthorize(service, myOrTeam)}
-                          disabled={busy}
-                          title="Re-authenticate — re-run Zoho consent using the stored client id and secret"
-                          aria-label="Re-authenticate"
-                        >
-                          <ReauthIcon />
-                        </button>
-                      )}
-                      {service.fetch_operation && myOrTeam && (
-                        <button
-                          className="btn btn-small btn-icon-sm"
-                          onClick={() => toggleProbe(service, myOrTeam)}
-                          disabled={busy || probeBusy === service.key}
-                          title={probeBusy === service.key ? 'Fetching…' : `Fetch — ${service.fetch_operation.method} · ${service.fetch_operation.label}`}
-                          aria-label="Fetch"
-                        >
-                          <BoltIcon />
-                        </button>
-                      )}
-                      {/*
-                        Reconfigure was removed as its own action (2026-09-01): once a connection
-                        is live, Re-authenticate covers the one case that needs fixing without
-                        retyping (a stale/expired grant); anything else goes through Revoke +
-                        Connect again. Connect (and Close, while its form is open) is the only
-                        state this toggle still needs to render.
-                      */}
-                      {!eff && (
-                        <button
-                          className="btn btn-small btn-icon-sm"
-                          onClick={() => setOpenKey(isOpen ? null : service.key)}
-                          disabled={busy}
-                          title={isOpen ? 'Close' : 'Connect'}
-                          aria-label={isOpen ? 'Close' : 'Connect'}
-                        >
-                          {isOpen ? <CloseIcon /> : <PlugIcon />}
-                        </button>
-                      )}
-                      {service.mine && (
-                        <button
-                          className="btn btn-small btn-danger btn-icon-sm"
-                          onClick={() => revoke(service, service.mine)}
-                          disabled={busy}
-                          title="Revoke my credential"
-                          aria-label="Revoke my credential"
-                        >
-                          <UnplugIcon />
-                        </button>
-                      )}
-                      {service.shared && user.role === 'admin' && (
-                        <button
-                          className="btn btn-small btn-danger btn-icon-sm"
-                          onClick={() => revoke(service, service.shared)}
-                          disabled={busy}
-                          title="Revoke team credential"
-                          aria-label="Revoke team credential"
-                        >
-                          <UnplugIcon />
-                        </button>
-                      )}
-                    </div>
+      {loading ? (
+        <p className="wsm-empty">Loading…</p>
+      ) : connections.length === 0 ? (
+        <p className="wsm-empty">
+          No catalogue returned. If the error above says a table doesn’t exist, the DataStore
+          tables have to be created in the Catalyst console first — there is no API for it, and
+          “Seed catalogue” only fills tables that already exist. See CONNECTIONS.md for the schema.
+        </p>
+      ) : shown.length === 0 ? (
+        <p className="wsm-empty">Nothing matches this filter.</p>
+      ) : (
+        shown.map((service, i) => {
+          const isOpen = openKey === service.key;
+          const eff = service.effective;
+          const isOAuth = service.auth_type === 'oauth';
+          // Re-auth acts on a row this caller may write: their own, or the team one if admin.
+          const myOrTeam = service.mine || (user.role === 'admin' ? service.shared : null);
+          const warn = Boolean(eff && (eff.expired || eff.scopes_stale));
+          return (
+            <div
+              key={service.key}
+              data-row="1"
+              className={`wsm-conn-row${service.configured ? ' wsm-conn-row-on' : ''}${warn ? ' wsm-conn-row-warn' : ''}`}
+              style={{ animation: `wsm-row-a 300ms var(--ease) ${Math.min(i * 28, 340)}ms both` }}
+            >
+              <div className="wsm-conn-main">
+                <div className="wsm-conn-id">
+                  <span className={`wsm-dot${service.configured ? (warn ? ' wsm-dot-warn' : ' wsm-dot-on') : ''}`} aria-hidden="true" />
+                  <div className="wsm-conn-text">
+                    <div className="wsm-conn-name">{service.label}</div>
+                    <div className="wsm-conn-key">{service.key}</div>
                   </div>
+                </div>
 
-                  {scopesKey === service.key && (
-                    <ul className="scope-list">
-                      {service.scopes.map((scope) => <li key={scope} className="mono">{scope}</li>)}
-                    </ul>
+                <div className="wsm-conn-right">
+                  <span className="tag tag-muted">{AUTH_LABEL[service.auth_type] || service.auth_type}</span>
+                  {service.scope_count > 0 ? (
+                    <button
+                      type="button"
+                      className="wsm-conn-scopes"
+                      onClick={() => setScopesKey(scopesKey === service.key ? null : service.key)}
+                      aria-expanded={scopesKey === service.key}
+                      title="Show the exact scopes this service asks for"
+                    >
+                      {service.scope_count} scope{service.scope_count === 1 ? '' : 's'} {scopesKey === service.key ? '▴' : '▾'}
+                    </button>
+                  ) : (
+                    <span className="wsm-conn-scopes wsm-conn-scopes-none">—</span>
+                  )}
+                  {eff ? (
+                    <>
+                      <span className={`wsm-conn-state${eff.expired ? ' wsm-conn-state-warn' : ''}`} title={eff.expired ? 'The stored grant has expired — re-authenticate' : undefined}>
+                        {eff.source === 'user' ? 'personal' : 'team'}{eff.expired ? ' · expired' : ''}
+                      </span>
+                      {eff.scopes_stale && (
+                        <span className="wsm-conn-state wsm-conn-state-warn" title="This service asks for scopes that weren't in the grant you consented to. Re-authenticate to widen it.">
+                          scopes changed
+                        </span>
+                      )}
+                      {eff.extra_config?.portal_id && (
+                        <span className="tag tag-muted" title="Saved portal_id for this connection">
+                          portal · {eff.extra_config.portal_id}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="wsm-conn-state wsm-conn-state-off">not configured</span>
                   )}
 
-                  {probeKey === service.key && service.fetch_operation && (
-                    <FetchPanel
-                      service={service}
-                      credential={myOrTeam}
-                      value={(name) => probeField(service.key, name)}
-                      onChange={(name, v) => setProbeField(service.key, name, v)}
-                      onRun={() => runFetch(service, myOrTeam)}
-                      busy={probeBusy === service.key}
-                      result={probeResult[service.key]}
-                      onClose={() => setProbeKey(null)}
-                    />
-                  )}
+                  <span className="wsm-conn-actions">
+                    {/*
+                      Only shown when it is the actual fix. Re-authenticate and Reconfigure
+                      overlap — Reconfigure opens the form and can do everything this does, plus
+                      change the client id/secret or DC. The one case this uniquely serves is a
+                      grant that has gone stale or expired, where nothing needs retyping. On a
+                      healthy row it would just be a worse Reconfigure, so it stays hidden.
+                    */}
+                    {isOAuth && myOrTeam && warn && (
+                      <button
+                        className="btn btn-attn btn-icon"
+                        onClick={() => reauthorize(service, myOrTeam)}
+                        disabled={busy}
+                        title="Re-authenticate — re-run Zoho consent using the stored client id and secret"
+                        aria-label="Re-authenticate"
+                      >
+                        <ReauthIcon />
+                      </button>
+                    )}
+                    {service.fetch_operation && myOrTeam && (
+                      <button
+                        className={`btn btn-icon${probeKey === service.key ? ' wsm-chipbtn-on' : ''}`}
+                        onClick={() => toggleProbe(service, myOrTeam)}
+                        disabled={busy || probeBusy === service.key}
+                        title={probeBusy === service.key ? 'Fetching…' : `Fetch — ${service.fetch_operation.method} · ${service.fetch_operation.label}`}
+                        aria-label="Fetch"
+                      >
+                        <BoltIcon />
+                      </button>
+                    )}
+                    {/*
+                      Reconfigure was removed as its own action (2026-09-01): once a connection
+                      is live, Re-authenticate covers the one case that needs fixing without
+                      retyping (a stale/expired grant); anything else goes through Revoke +
+                      Connect again. Connect (and Close, while its form is open) is the only
+                      state this toggle still needs to render.
+                    */}
+                    {!eff && (
+                      <button
+                        className={isOpen ? 'btn' : 'btn btn-primary'}
+                        onClick={() => setOpenKey(isOpen ? null : service.key)}
+                        disabled={busy}
+                      >
+                        {isOpen ? 'Close' : 'Connect'}
+                      </button>
+                    )}
+                    {service.mine && (
+                      <button
+                        className="btn btn-danger btn-icon"
+                        onClick={() => revoke(service, service.mine)}
+                        disabled={busy}
+                        title="Revoke my credential"
+                        aria-label="Revoke my credential"
+                      >
+                        <UnplugIcon />
+                      </button>
+                    )}
+                    {service.shared && user.role === 'admin' && (
+                      <button
+                        className="btn btn-danger btn-icon"
+                        onClick={() => revoke(service, service.shared)}
+                        disabled={busy}
+                        title="Revoke team credential"
+                        aria-label="Revoke team credential"
+                      >
+                        <UnplugIcon />
+                      </button>
+                    )}
+                  </span>
+                </div>
+              </div>
 
-                  {isOpen && (
-                    <div className="conn-form">
-                      <p className="hint">{service.description}</p>
-                      <div className="form-grid">
+              {scopesKey === service.key && (
+                <ul className="scope-list wsm-conn-sub">
+                  {service.scopes.map((scope) => <li key={scope} className="mono">{scope}</li>)}
+                </ul>
+              )}
+
+              {probeKey === service.key && service.fetch_operation && (
+                <div className="wsm-conn-sub">
+                  <FetchPanel
+                    service={service}
+                    credential={myOrTeam}
+                    value={(name) => probeField(service.key, name)}
+                    onChange={(name, v) => setProbeField(service.key, name, v)}
+                    onRun={() => runFetch(service, myOrTeam)}
+                    busy={probeBusy === service.key}
+                    result={probeResult[service.key]}
+                    onClose={() => setProbeKey(null)}
+                  />
+                </div>
+              )}
+
+              {isOpen && (
+                <div className="conn-form wsm-conn-sub">
+                  <p className="hint">{service.description}</p>
+                  <div className="form-grid">
+                    <label>
+                      <span>Data centre</span>
+                      <select
+                        value={field(service.key, 'dc') || service.default_dc}
+                        onChange={(e) => setField(service.key, 'dc', e.target.value)}
+                      >
+                        {service.available_dcs.map((dc) => <option key={dc} value={dc}>{dc}</option>)}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Scope</span>
+                      <select
+                        value={field(service.key, 'scope_level') || 'user'}
+                        onChange={(e) => setField(service.key, 'scope_level', e.target.value)}
+                      >
+                        <option value="user">personal (only me)</option>
+                        <option value="shared" disabled={user.role !== 'admin'}>
+                          team-shared{user.role !== 'admin' ? ' — admin only' : ''}
+                        </option>
+                      </select>
+                    </label>
+
+                    {isOAuth ? (
+                      <>
                         <label>
-                          <span>Data centre</span>
-                          <select
-                            value={field(service.key, 'dc') || service.default_dc}
-                            onChange={(e) => setField(service.key, 'dc', e.target.value)}
-                          >
-                            {service.available_dcs.map((dc) => <option key={dc} value={dc}>{dc}</option>)}
-                          </select>
+                          <span>Client ID</span>
+                          <input
+                            value={field(service.key, 'client_id')}
+                            onChange={(e) => setField(service.key, 'client_id', e.target.value)}
+                            placeholder="from the Zoho API console"
+                            autoComplete="off"
+                          />
                         </label>
                         <label>
-                          <span>Scope</span>
-                          <select
-                            value={field(service.key, 'scope_level') || 'user'}
-                            onChange={(e) => setField(service.key, 'scope_level', e.target.value)}
-                          >
-                            <option value="user">personal (only me)</option>
-                            <option value="shared" disabled={user.role !== 'admin'}>
-                              team-shared{user.role !== 'admin' ? ' — admin only' : ''}
-                            </option>
-                          </select>
+                          <span>Client secret</span>
+                          <input
+                            type="password"
+                            value={field(service.key, 'client_secret')}
+                            onChange={(e) => setField(service.key, 'client_secret', e.target.value)}
+                            placeholder="stored encrypted, never returned"
+                            autoComplete="new-password"
+                          />
                         </label>
-
-                        {isOAuth ? (
-                          <>
-                            <label>
-                              <span>Client ID</span>
-                              <input
-                                value={field(service.key, 'client_id')}
-                                onChange={(e) => setField(service.key, 'client_id', e.target.value)}
-                                placeholder="from the Zoho API console"
-                                autoComplete="off"
-                              />
-                            </label>
-                            <label>
-                              <span>Client secret</span>
-                              <input
-                                type="password"
-                                value={field(service.key, 'client_secret')}
-                                onChange={(e) => setField(service.key, 'client_secret', e.target.value)}
-                                placeholder="stored encrypted, never returned"
-                                autoComplete="new-password"
-                              />
-                            </label>
-                            {/*
-                              A self-client Zoho app has no redirect URI, so the browser consent
-                              flow below can never complete for it. This lets someone paste a
-                              refresh token they already obtained another way (e.g. the kit's
-                              setup.sh --code path) instead of clicking through Zoho.
-                            */}
-                            <label className="span-full auth-mode-toggle">
-                              <input
-                                type="checkbox"
-                                checked={field(service.key, 'auth_mode') === 'refresh_token'}
-                                onChange={(e) =>
-                                  setField(service.key, 'auth_mode', e.target.checked ? 'refresh_token' : '')
-                                }
-                              />
-                              <span>I already have a refresh token (self client — no redirect URI to consent through)</span>
-                            </label>
-                            {field(service.key, 'auth_mode') === 'refresh_token' && (
-                              <label className="span-full">
-                                <span>Refresh token</span>
-                                <input
-                                  type="password"
-                                  value={field(service.key, 'refresh_token')}
-                                  onChange={(e) => setField(service.key, 'refresh_token', e.target.value)}
-                                  placeholder="stored encrypted, never returned"
-                                  autoComplete="new-password"
-                                />
-                              </label>
-                            )}
-                            {/*
-                              Non-secret per-connection settings a service declares beyond the OAuth
-                              client itself — e.g. PlatformAI's portal_id, which OAuth consent alone
-                              doesn't produce (it's assigned separately by platformai@zohocorp.com).
-                              Driven entirely by the registry, so this needs no per-service code.
-                              Needed in both auth modes, so it's rendered outside the toggle.
-                            */}
-                            {(service.extra_config_fields || []).map((f) => (
-                              <label key={f.name}>
-                                <span>{f.label}{f.required ? '' : ' (optional)'}</span>
-                                <input
-                                  value={field(service.key, f.name)}
-                                  onChange={(e) => setField(service.key, f.name, e.target.value)}
-                                  placeholder={f.placeholder || ''}
-                                  autoComplete="off"
-                                  title={f.help || ''}
-                                />
-                              </label>
-                            ))}
-                          </>
-                        ) : (
+                        {/*
+                          A self-client Zoho app has no redirect URI, so the browser consent
+                          flow below can never complete for it. This lets someone paste a
+                          refresh token they already obtained another way (e.g. the kit's
+                          setup.sh --code path) instead of clicking through Zoho.
+                        */}
+                        <label className="span-full auth-mode-toggle">
+                          <input
+                            type="checkbox"
+                            checked={field(service.key, 'auth_mode') === 'refresh_token'}
+                            onChange={(e) =>
+                              setField(service.key, 'auth_mode', e.target.checked ? 'refresh_token' : '')
+                            }
+                          />
+                          <span>I already have a refresh token (self client — no redirect URI to consent through)</span>
+                        </label>
+                        {field(service.key, 'auth_mode') === 'refresh_token' && (
                           <label className="span-full">
-                            <span>Token</span>
+                            <span>Refresh token</span>
                             <input
                               type="password"
-                              value={field(service.key, 'token')}
-                              onChange={(e) => setField(service.key, 'token', e.target.value)}
+                              value={field(service.key, 'refresh_token')}
+                              onChange={(e) => setField(service.key, 'refresh_token', e.target.value)}
                               placeholder="stored encrypted, never returned"
                               autoComplete="new-password"
                             />
                           </label>
                         )}
-                      </div>
+                        {/*
+                          Non-secret per-connection settings a service declares beyond the OAuth
+                          client itself — e.g. PlatformAI's portal_id, which OAuth consent alone
+                          doesn't produce (it's assigned separately by platformai@zohocorp.com).
+                          Driven entirely by the registry, so this needs no per-service code.
+                          Needed in both auth modes, so it's rendered outside the toggle.
+                        */}
+                        {(service.extra_config_fields || []).map((f) => (
+                          <label key={f.name}>
+                            <span>{f.label}{f.required ? '' : ' (optional)'}</span>
+                            <input
+                              value={field(service.key, f.name)}
+                              onChange={(e) => setField(service.key, f.name, e.target.value)}
+                              placeholder={f.placeholder || ''}
+                              autoComplete="off"
+                              title={f.help || ''}
+                            />
+                          </label>
+                        ))}
+                      </>
+                    ) : (
+                      <label className="span-full">
+                        <span>Token</span>
+                        <input
+                          type="password"
+                          value={field(service.key, 'token')}
+                          onChange={(e) => setField(service.key, 'token', e.target.value)}
+                          placeholder="stored encrypted, never returned"
+                          autoComplete="new-password"
+                        />
+                      </label>
+                    )}
+                  </div>
 
-                      <div className="form-foot">
-                        {(() => {
-                          const usingRefreshToken = isOAuth && field(service.key, 'auth_mode') === 'refresh_token';
-                          return (
-                            <>
-                              <span className="hint">
-                                {usingRefreshToken
-                                  ? 'Exchanged once against Zoho to prove it works before anything is stored.'
-                                  : isOAuth
-                                  ? 'Register the callback URL shown in CONNECTIONS.md against this client before continuing.'
-                                  : 'Encrypted with AES-256-GCM before it reaches DataStore.'}
-                              </span>
-                              <button
-                                className="btn btn-primary"
-                                type="button"
-                                disabled={busy}
-                                onClick={() =>
-                                  usingRefreshToken
-                                    ? saveRefreshToken(service)
-                                    : isOAuth
-                                    ? startOAuth(service)
-                                    : saveToken(service)
-                                }
-                              >
-                                {busy
-                                  ? 'Working…'
-                                  : usingRefreshToken
-                                  ? 'Connect from refresh token'
-                                  : isOAuth
-                                  ? 'Authorise with Zoho →'
-                                  : 'Store token'}
-                              </button>
-                            </>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-    </>
+                  <div className="form-foot">
+                    {(() => {
+                      const usingRefreshToken = isOAuth && field(service.key, 'auth_mode') === 'refresh_token';
+                      return (
+                        <>
+                          <span className="hint">
+                            {usingRefreshToken
+                              ? 'Exchanged once against Zoho to prove it works before anything is stored.'
+                              : isOAuth
+                              ? 'Register the callback URL shown in CONNECTIONS.md against this client before continuing.'
+                              : 'Encrypted with AES-256-GCM before it reaches DataStore.'}
+                          </span>
+                          <button
+                            className="btn btn-primary"
+                            type="button"
+                            disabled={busy}
+                            onClick={() =>
+                              usingRefreshToken
+                                ? saveRefreshToken(service)
+                                : isOAuth
+                                ? startOAuth(service)
+                                : saveToken(service)
+                            }
+                          >
+                            {busy
+                              ? 'Working…'
+                              : usingRefreshToken
+                              ? 'Connect from refresh token'
+                              : isOAuth
+                              ? 'Authorise with Zoho →'
+                              : 'Store token'}
+                          </button>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
+    </div>
   );
 }
