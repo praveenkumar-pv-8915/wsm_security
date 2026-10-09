@@ -33,7 +33,10 @@
  *
  * `draftRisk` mirrors `risk draft_risk`, which needs a server-callable LLM path (compliancemanager
  * shells out to `claude -p`) — this app now has one, chatCompletion() in connections-service.js,
- * but draftRisk isn't wired to it yet, so it stays a clear 501 rather than faked.
+ * and draftRisk (2026-09-01) is wired up to it: it drafts one candidate entry grounded in the
+ * current compliance_risks snapshot and risk-guidelines.md's G1-G13, and self-checks the result
+ * with risk-review.js's scripted rules. It never writes anything — a human still enters it into
+ * Creator by hand.
  *
  * `compareDpias` mirrors `risk compare_risks` (risk_manager/compare_risks.py) and IS implemented —
  * see the "compare vs. DPIA" section below — using the zoho-creator (documents + registers),
@@ -120,10 +123,14 @@ function friendlyTableError(e) {
 
 const CREATOR_OWNER = 'zohointranet';
 const CREATOR_APP = 'risk-assessment';
-// Which Creator teams' risks to pull into this app — configurable from the UI (Risk Register's
-// "Teams synced" panel), backed by the shared tool_config table (not a bespoke one — any future
-// feature needing a small UI-editable setting reuses the same table via toolConfig.get/setConfig).
-const CONFIG_TOOL_KEY = 'risk_register';
+// Which Creator teams' risks (and, via listDocuments below, DMS documents) to pull into this app
+// — configurable from the UI (Risk Register's "Teams synced" panel), backed by the shared
+// tool_config table (not a bespoke one — any future feature needing a small UI-editable setting
+// reuses the same table via toolConfig.get/setConfig). TOOL_KEY is 'Compliance_manager', not
+// 'risk_register', because both Risk Register and DMS Manager (listDocuments) read/write the same
+// team_names list — there is only one team filter for the whole compliance app, not one per
+// feature (2026-09-01 decision).
+const CONFIG_TOOL_KEY = 'Compliance_manager';
 const CONFIG_TEAM_NAMES_KEY = 'team_names';
 const DEFAULT_TEAM_NAMES = ['Log360 and EventLog Analyzer'];
 
@@ -544,14 +551,184 @@ async function previewRisk(req, riskId) {
   };
 }
 
-/** POST /api/risks/draft — mirrors `risk draft_risk`. Needs a server-callable LLM path first. */
-async function draftRisk() {
-  const err = new Error(
-    'Drafting a risk needs a server-callable LLM path (compliancemanager currently shells out to ' +
-    '`claude -p`), which this function does not have yet. Not implemented.'
+/**
+ * POST /api/risks/draft — mirrors `risk draft_risk` (compliancemanager shells out to `claude -p`;
+ * here it goes through chatCompletion()/zoho-platformai, the same LLM path compareDpias() uses).
+ * Drafts ONE candidate risk register entry, grounded in the current compliance_risks snapshot (so
+ * the model sees existing risks and doesn't restate one) and in risk-guidelines.md's identification/
+ * scoring/language rules (G1-G13). Read-only: nothing is written to Creator or compliance_risks —
+ * the response is a suggestion for a human reviewer to enter into Creator themselves, same as the
+ * frontend's "Nothing is written to Creator" copy already promises.
+ */
+
+/** ISMS rating bands from G9 (1-12 Low, 13-24 Medium, 25-36 High; 0 counts as Low). */
+const scoreBand = (score) => (score <= 12 ? 'Low' : score <= 24 ? 'Medium' : 'High');
+
+/** Mirrors compareOneDpia's/ask-service's inlined-prompt style — no separate .md file read at
+ *  runtime. The user's own free-text statement is the actual source of the risk — this is a
+ *  structuring/completion task, not a pick-anything-new task: the model must build a complete
+ *  entry FROM that statement (never invent an unrelated risk), while consulting the existing
+ *  register only for style/dedupe context. */
+function buildDraftPrompt(userStatement, registry, teamNames) {
+  const sample = registry.slice(0, 40).map(r =>
+    `- ${r.risk_id} [${String(r.register || '').toUpperCase()}] ${r.statement || '(no statement)'}` +
+    (r.feature ? ` (feature: ${r.feature})` : '')
   );
-  err.status = 501;
-  throw err;
+  const shape = {
+    register: 'isms', team_name: teamNames[0] || '', feature: '...',
+    threat: '...', vulnerability: '...', issue: '',
+    title: '... (the risk statement itself, stating the consequence/harm)',
+    likelihood: 2, impact: 2, asset_value: 3,
+    treatment: 'Risk Modification', control: '...',
+    rationale: 'one sentence on why this risk is worth registering now',
+  };
+  return [
+    'The compliance team has described a risk in their own words below. Turn that description into',
+    'ONE complete, guideline-compliant candidate risk register entry for a human reviewer to check',
+    'before anything is entered into the real register. Every field must be grounded in what they',
+    "described — do not invent a different or unrelated risk. Follow these rules from this app's",
+    'risk guidelines (risk-guidelines.md):',
+    '',
+    '- G1: name a Threat and a Vulnerability (and an Issue where applicable), each derived from the',
+    "team's description — a specific, brief phrase, not boilerplate and not a restatement of one of",
+    '  the other fields.',
+    '- G2: the risk statement (title) must state the consequence/harm — loss of confidentiality,',
+    '  integrity or availability, or harm to the organization / data subjects — implied or stated by',
+    '  the description.',
+    '- G4: exactly one risk per entry — if the description bundles more than one distinct risk, pick',
+    '  the primary one it is really about.',
+    '- G5: no mitigation/control text inside the risk statement itself — that belongs only in the',
+    '  control field.',
+    '- G6: populate threat, the risk statement, likelihood, impact, a treatment option, and — when',
+    '  treatment is "Risk Modification" — a non-empty control description.',
+    '- G7 (ISMS only): Likelihood and Impact are each 0-3; Asset Value is 1-4 (infrastructure = 4,',
+    '  everything else = 3). Rate these based on how severe/likely the description makes the risk',
+    '  sound; if the description gives no signal, use reasonable middle-of-scale defaults.',
+    '- G8: inherent score = Likelihood x Impact x Asset Value for ISMS, or Likelihood x Impact for',
+    '  the other registers — you do not need to compute this yourself, just supply the ratings.',
+    '- G10: treatment is exactly one of "Risk Modification", "Risk Sharing", "Risk Avoidance",',
+    '  "Risk Retention".',
+    '- G11-G13: correct grammar and spelling, plain and precise wording (no vague quantifiers or',
+    '  unexplained abbreviations), written in third person, present/future tense — even if the',
+    "  team's own description was informal.",
+    '',
+    'Infer whichever register (isms/pims/qms/bcms), team and feature the description best fits.',
+    '',
+    `Configured team(s): ${teamNames.join(', ') || '(none configured)'}`,
+    '',
+    "The team's risk description:",
+    `"""${userStatement}"""`,
+    '',
+    'Risks already on file (context only — for style and to avoid an exact duplicate; the',
+    "description above is still the source of truth for what this entry is about):",
+    sample.length ? sample.join('\n') : '(the register is currently empty)',
+    '',
+    'Respond with JSON only — no prose, no markdown code fence — in exactly this shape:',
+    JSON.stringify(shape),
+  ].join('\n');
+}
+
+/** Strip an optional ```json fence and parse — same convention as compareDpias' parseComparisonJson. */
+function parseDraftJson(text) {
+  const cleaned = String(text || '').trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+  return JSON.parse(cleaned);
+}
+
+const VALID_REGISTERS = new Set(['isms', 'pims', 'qms', 'bcms']);
+
+async function draftRisk(req, body = {}) {
+  const statement = String(body.statement || '').trim();
+  if (!statement) {
+    const err = new Error('statement is required — describe the risk in your own words first.');
+    err.status = 400;
+    throw err;
+  }
+  if (statement.length > 4000) {
+    const err = new Error('statement must be 4000 characters or fewer.');
+    err.status = 400;
+    throw err;
+  }
+
+  const teamNames = await getTeamNames(req);
+  const registry = await loadRegistrySnapshot(req);
+
+  let text;
+  try {
+    ({ text } = await chatCompletion(req, {
+      prompt: buildDraftPrompt(statement, registry, teamNames),
+      timeoutMs: 60_000,
+    }));
+  } catch (e) {
+    if (e instanceof AiUnavailable) {
+      const err = new Error(
+        `AI is not available: ${e.message}. Configure the Zoho PlatformAI connection on the ` +
+        'Connections tab first.'
+      );
+      err.status = 424;
+      throw err;
+    }
+    throw e;
+  }
+
+  let parsed;
+  try {
+    parsed = parseDraftJson(text);
+  } catch (e) {
+    const err = new Error(`AI returned unparseable output: ${e.message}`);
+    err.status = 502;
+    throw err;
+  }
+
+  const register = VALID_REGISTERS.has(String(parsed.register || '').toLowerCase())
+    ? String(parsed.register).toLowerCase() : 'isms';
+  const isIsms = register === 'isms';
+  const toNumOrNull = (v) => (Number.isFinite(Number(v)) && String(v).trim() !== '' ? Number(v) : null);
+  const likelihood = toNumOrNull(parsed.likelihood);
+  const impact = toNumOrNull(parsed.impact);
+  const assetValue = toNumOrNull(parsed.asset_value);
+
+  // Recompute the inherent score/rating ourselves (G8/G9) rather than trust the model's arithmetic.
+  const inherentScore = likelihood !== null && impact !== null
+    ? (isIsms ? likelihood * impact * (assetValue !== null ? assetValue : 1) : likelihood * impact)
+    : null;
+  const inherentRating = inherentScore !== null ? scoreBand(inherentScore) : '';
+
+  const draft = {
+    register,
+    team_name: String(parsed.team_name || teamNames[0] || '').slice(0, 100),
+    feature: String(parsed.feature || '').slice(0, 150),
+    title: String(parsed.title || '').slice(0, 250),
+    threat: String(parsed.threat || '').slice(0, 2000),
+    vulnerability: String(parsed.vulnerability || '').slice(0, 2000),
+    issue: String(parsed.issue || '').slice(0, 2000),
+    likelihood, impact, asset_value: assetValue,
+    inherent_score: inherentScore,
+    inherent_rating: inherentRating,
+    treatment: String(parsed.treatment || '').trim(),
+    control: String(parsed.control || '').slice(0, 2000),
+    rationale: String(parsed.rationale || '').slice(0, 500),
+  };
+
+  // Self-check the draft against the same scripted guideline rules reviewGuidelines() applies to
+  // real rows (risk-review.js), so a reviewer sees upfront whether this candidate would pass.
+  const canonical = {
+    risk_id: '(draft — not yet registered)', register: draft.register, threat: draft.threat,
+    statement: draft.title, likelihood: draft.likelihood, impact: draft.impact,
+    asset_value: draft.asset_value, inherent_score: draft.inherent_score,
+    inherent_rating: draft.inherent_rating, residual_score: null, residual_rating: '',
+    treatment: draft.treatment, control_description: draft.control, raci_id: '',
+  };
+  const findings = checkRegistryRisk(canonical);
+  const checks = summarizeChecks(canonical, findings);
+
+  return {
+    success: true,
+    draft,
+    checks,
+    findings,
+    note: 'Candidate draft only — nothing has been written to Creator or compliance_risks. Review ' +
+      'it, then enter it into Creator by hand if it should be added to the register.',
+  };
 }
 
 /* ------------------------------------------------------------------ compare vs. DPIA */
@@ -565,7 +742,16 @@ async function draftRisk() {
 const DMS_REPORT = 'Create_Template_Document_Report';
 const DPIA_TEMPLATE_CONTAINS = 'data protection impact assessment';
 
-/** One raw Creator document record -> { document_id, name, template, writer_doc_id }. */
+/** One raw Creator document record -> table-ready fields — mirrors compliancemanager's
+ *  dms_manager._normalize_doc (document_id/name/template/team/added/writer_doc_id), so
+ *  listDocuments below (DMS Manager) reads the same shape the CLI's `dms list_docs` prints.
+ *
+ *  Deliberately NO submitted_by: Creator's `Submitted_By` is a person's email — third-party PII
+ *  this app never caches (see datastore-conventions.md's "No-PII identity decision", extended
+ *  2026-08-31 to block caching third-party PII, not just this app's own users). Unlike
+ *  compliance_risks's "last reviewed by" (live-fetch-only on a single row expand), there is no
+ *  per-row detail call here to fetch it live either — the whole point of this table is a bulk
+ *  persisted snapshot, so Submitted_By is dropped at the source instead of cached or re-fetched. */
 function mapDocRecord(record) {
   const link = record.Document_Link;
   const url = String((link && typeof link === 'object' ? link.url : link) || '').trim();
@@ -573,6 +759,7 @@ function mapDocRecord(record) {
     document_id: String(record.Document_ID || '').trim(),
     name: String(record.Document_Name || '').trim(),
     template: String(record.Choose_Template || '').trim(),
+    team: String(record.Team_Name || '').trim(),
     writer_doc_id: url ? url.replace(/\/+$/, '').split('/').pop() : '',
   };
 }
@@ -699,13 +886,59 @@ async function compareOneDpia(req, dpia, registry) {
 }
 
 /**
- * POST /api/risks/compare-dpias — mirrors `risk compare_risks` (risk_manager/compare_risks.py):
- * pulls the DPIA documents (Creator, same team filter as the registers), fetches each one's Writer
- * export, extracts its RISK AND CONTROL table, and asks the LLM which rows aren't covered by any
- * compliance_risks entry (guideline G14). Uses the connections this app already has configured —
- * zoho-creator, zoho-writer, zoho-platformai — no new connection or table required.
+ * "Compare vs. DPIA" runs as an async job rather than one long HTTP request: with several DPIA
+ * documents each needing a Writer fetch + an LLM comparison call, this can run well past what's
+ * comfortable to hold a single request open for. POST /api/risks/compare-dpias creates a job row
+ * in `dpia_comparison_jobs` (manual DataStore table, same as compliance_risks — see the schema
+ * note above submitCompareDpiasJob below) and kicks off the actual work as a DETACHED promise —
+ * the HTTP response returns immediately with a job_id. GET /api/risks/compare-dpias/:jobId is how
+ * the UI polls status ('running' with total/completed/current) and picks up the result once
+ * STATUS flips to 'done' (or the error once it flips to 'failed').
+ *
+ * The detached job keeps running in this same function's container after the response is sent —
+ * req.catalystAdmin is a token-bearing SDK client, not tied to the HTTP socket, so it stays usable
+ * for the DataStore/Creator/Writer/PlatformAI calls the job makes afterward. This relies on
+ * Catalyst's Advanced I/O execution model (a persistent Express process, not a per-request
+ * freeze) — it hasn't been load-tested against Catalyst scaling an idle container down mid-job. If
+ * a job is ever seen stuck in 'running' with COMPLETED not advancing, that assumption is the first
+ * thing to check.
+ *
+ * Table (create manually, same as compliance_risks — see datastore-conventions.md's template):
+ *   dpia_comparison_jobs
+ *     STATUS         Var Char 20   Mandatory   'running' | 'done' | 'failed'
+ *     OWNER_ID       Var Char 50               user_id who started the run — informational only
+ *     TOTAL          Int                       units of work queued for this run
+ *     COMPLETED      Int           default 0   units of work finished so far
+ *     CURRENT_LABEL  Var Char 255              e.g. "Comparing DID_M_LC_70 — <doc name>"
+ *     RESULT         Text                      JSON result, set once STATUS='done'
+ *     ERROR          Text                      message, set once STATUS='failed'
+ *     CREATED_AT     Var Char 20               String(Date.now()), this app's epoch-ms convention
+ *     FINISHED_AT    Var Char 20               set once the job leaves 'running'
+ *   The job id the API hands out is just this table's own ROWID.
  */
-async function compareDpias(req) {
+const JOBS_TABLE = 'dpia_comparison_jobs';
+
+function jobs(req) {
+  const app = req.catalystAdmin || req.catalystApp;
+  if (!app) throw new Error('Catalyst authentication required');
+  return { table: app.datastore().table(JOBS_TABLE), zcql: app.zcql() };
+}
+
+function friendlyJobsTableError(e) {
+  const msg = String(e && e.message || '');
+  if (/table/i.test(msg) && /(not exist|invalid|not found)/i.test(msg)) {
+    return new MissingTable(
+      `The "${JOBS_TABLE}" DataStore table doesn't exist yet — create it first (see the schema in ` +
+      'functions/welcome/risk-service.js, just above submitCompareDpiasJob).'
+    );
+  }
+  return e;
+}
+
+/** POST /api/risks/compare-dpias — validates up front (team filter, DPIA docs found, registers
+ *  non-empty — all fast Creator/DataStore reads), then creates the job row and detaches the real
+ *  work. Returns fast; the caller polls getCompareDpiasJob for progress. */
+async function submitCompareDpiasJob(req) {
   const teamNames = await getTeamNames(req);
   if (!teamNames.length) {
     const err = new Error('No teams are configured — add at least one on the "Teams synced" panel.');
@@ -724,8 +957,60 @@ async function compareDpias(req) {
     throw err;
   }
 
+  const registry = await loadRegistrySnapshot(req);
+  if (!registry.length) {
+    const err = new Error(
+      'The risk registers are empty — run "Sync from Creator" on the Risk Register tab first.'
+    );
+    err.status = 400;
+    throw err;
+  }
+
+  const { table } = jobs(req);
+  let inserted;
+  try {
+    inserted = await table.insertRow({
+      STATUS: 'running',
+      OWNER_ID: String(req.userId || ''),
+      TOTAL: dpiaDocs.length,
+      COMPLETED: 0,
+      CURRENT_LABEL: '',
+      RESULT: '',
+      ERROR: '',
+      CREATED_AT: String(Date.now()),
+      FINISHED_AT: '',
+    });
+  } catch (e) {
+    throw friendlyJobsTableError(e);
+  }
+  const jobId = String(inserted.ROWID);
+
+  // Detached — deliberately not awaited, see the comment above.
+  runCompareDpiasJob(req, jobId, dpiaDocs, registry).catch(e => {
+    console.error(`compare-dpias job ${jobId} crashed:`, e);
+    table.updateRow({
+      ROWID: jobId,
+      STATUS: 'failed',
+      ERROR: String((e && e.message) || e).slice(0, 2000),
+      FINISHED_AT: String(Date.now()),
+    }).catch(e2 => console.error(`compare-dpias job ${jobId}: failed to record crash:`, e2.message));
+  });
+
+  return { success: true, job_id: jobId, total: dpiaDocs.length };
+}
+
+/** The detached worker: fetch+parse every DPIA, then compare each one with risks against the
+ *  registry, writing progress to the job row after each step and the final result at the end. */
+async function runCompareDpiasJob(req, jobId, dpiaDocs, registry) {
+  const { table } = jobs(req);
+  const touch = fields => table.updateRow({ ROWID: jobId, ...fields })
+    .catch(e => console.error(`compare-dpias job ${jobId}: progress update failed:`, e.message));
+
   const dpias = [];
+  let completed = 0;
   for (const d of dpiaDocs) {
+    // eslint-disable-next-line no-await-in-loop
+    await touch({ CURRENT_LABEL: `Fetching ${d.document_id} — ${d.name}`.slice(0, 255) });
     const entry = { dpia_id: d.document_id, title: d.name, risks: [], fetch_error: null };
     if (!d.writer_doc_id) {
       entry.fetch_error = 'No Writer document link on this record.';
@@ -738,13 +1023,16 @@ async function compareDpias(req) {
       }
     }
     dpias.push(entry);
+    completed += 1;
+    // eslint-disable-next-line no-await-in-loop
+    await touch({ COMPLETED: completed });
   }
 
   const withRisks = dpias.filter(d => d.risks.length);
   const fetchErrors = dpias.filter(d => d.fetch_error).map(d => ({ dpia_id: d.dpia_id, error: d.fetch_error }));
 
   if (!withRisks.length) {
-    return {
+    const result = {
       success: true,
       dpias_found: dpiaDocs.length,
       dpias_compared: 0,
@@ -756,37 +1044,44 @@ async function compareDpias(req) {
       message: 'Found DPIA document(s) but none had a parseable RISK AND CONTROL table (or all ' +
         'say "No new threats").',
     };
+    await table.updateRow({
+      ROWID: jobId, STATUS: 'done', RESULT: JSON.stringify(result), FINISHED_AT: String(Date.now()),
+      CURRENT_LABEL: '',
+    });
+    return;
   }
 
-  const registry = await loadRegistrySnapshot(req);
-  if (!registry.length) {
-    const err = new Error(
-      'The risk registers are empty — run "Sync from Creator" on the Risk Register tab first.'
-    );
-    err.status = 400;
-    throw err;
-  }
+  // Comparison rows join the same progress bar as the fetch rows, so it counts up to a total
+  // fixed at the start rather than jumping backwards once fetching finishes.
+  await touch({ TOTAL: dpiaDocs.length + withRisks.length });
 
   const comparisons = [];
   for (const d of withRisks) {
+    // eslint-disable-next-line no-await-in-loop
+    await touch({ CURRENT_LABEL: `Comparing ${d.dpia_id} — ${d.title}`.slice(0, 255) });
     try {
       // eslint-disable-next-line no-await-in-loop
       comparisons.push(await compareOneDpia(req, d, registry));
     } catch (e) {
       if (e instanceof AiUnavailable) {
-        const err = new Error(
-          `AI is not available: ${e.message}. Configure the Zoho PlatformAI connection on the ` +
-          'Connections tab first.'
-        );
-        err.status = 424;
-        throw err;
+        await table.updateRow({
+          ROWID: jobId,
+          STATUS: 'failed',
+          ERROR: `AI is not available: ${e.message}. Configure the Zoho PlatformAI connection on ` +
+            'the Connections tab first.',
+          FINISHED_AT: String(Date.now()),
+        });
+        return;
       }
       comparisons.push({ dpia_id: d.dpia_id, dpia_title: d.title, error: String(e.message || e).slice(0, 300), results: [] });
     }
+    completed += 1;
+    // eslint-disable-next-line no-await-in-loop
+    await touch({ COMPLETED: completed });
   }
 
   const rows = comparisons.flatMap(c => c.results || []);
-  return {
+  const result = {
     success: true,
     dpias_found: dpiaDocs.length,
     dpias_compared: comparisons.length,
@@ -797,6 +1092,52 @@ async function compareDpias(req) {
     errors: comparisons.filter(c => c.error).map(c => c.dpia_id),
     comparisons,
   };
+  await table.updateRow({
+    ROWID: jobId, STATUS: 'done', RESULT: JSON.stringify(result), FINISHED_AT: String(Date.now()),
+    CURRENT_LABEL: '',
+  });
+}
+
+/** GET /api/risks/compare-dpias/:jobId — the UI's poll endpoint. */
+async function getCompareDpiasJob(req, jobId) {
+  if (!/^\d+$/.test(String(jobId))) {
+    const err = new Error('Invalid job id');
+    err.status = 400;
+    throw err;
+  }
+  const { zcql } = jobs(req);
+  let rows;
+  try {
+    rows = unwrap(await zcql.executeZCQLQuery(
+      'SELECT ROWID, STATUS, TOTAL, COMPLETED, CURRENT_LABEL, RESULT, ERROR, CREATED_AT, FINISHED_AT ' +
+      `FROM ${JOBS_TABLE} WHERE ROWID = ${jobId}`
+    ));
+  } catch (e) {
+    throw friendlyJobsTableError(e);
+  }
+  if (!rows.length) {
+    const err = new Error(`No such comparison job "${jobId}".`);
+    err.status = 404;
+    throw err;
+  }
+  const row = rows[0];
+  const base = {
+    success: true,
+    job_id: String(row.ROWID),
+    status: row.STATUS,
+    total: Number(row.TOTAL || 0),
+    completed: Number(row.COMPLETED || 0),
+    current: row.CURRENT_LABEL || '',
+  };
+  if (row.STATUS === 'done') {
+    let result = null;
+    try { result = JSON.parse(row.RESULT || 'null'); } catch { /* leave null, RESULT was empty/corrupt */ }
+    return { ...base, result };
+  }
+  if (row.STATUS === 'failed') {
+    return { ...base, error: row.ERROR || 'Comparison failed.' };
+  }
+  return base;
 }
 
 /** DataStore row -> the canonical shape risk-review.js's checkRegistryRisk() expects. */
@@ -830,24 +1171,57 @@ function toCanonical(row) {
 const REVIEW_SELECT_COLUMNS =
   'ROWID, RISK_ID, REGISTER, TITLE, THREAT, RISK_TREATMENT, CONTROL, ' +
   'INHERENT_SCORE, INHERENT_RATING, REVISED_SCORE, REVISED_RATING, ' +
-  'LIKELIHOOD, IMPACT, ASSET_VALUE, RACI_ID, REVIEW_STATUS';
+  'LIKELIHOOD, IMPACT, ASSET_VALUE, RACI_ID, REVIEW_STATUS, GUIDELINE_CHECKS';
 
-/** Run the scripted checks on one already-fetched row and write the result. Shared by the bulk
- *  and single-risk review endpoints so they can never drift out of sync with each other. */
-async function reviewRow(table, row) {
+// ZCQL caps a single SELECT at 300 rows, so the bulk review paginates instead of assuming one
+// query returns the whole register (211 risks today — one more sync away from silently reviewing
+// only the first 300). `LIMIT offset, count` is the documented ZCQL form; if a backend ever
+// rejects it we fall back to the plain unpaged query rather than failing the whole run.
+const REVIEW_PAGE = 200;
+// Catalyst's bulk row API takes up to 200 rows per call. Reviewing 200+ risks with one updateRow
+// each is what made "Review guidelines" time out (Advanced I/O caps a request well below the time
+// 200 sequential writes take) — batching is the fix, together with skipping unchanged rows.
+const UPDATE_CHUNK = 100;
+
+async function fetchAllReviewRows(zcql) {
+  const all = [];
+  for (let offset = 0; ; offset += REVIEW_PAGE) {
+    // eslint-disable-next-line no-await-in-loop
+    const page = unwrap(await zcql.executeZCQLQuery(
+      `SELECT ${REVIEW_SELECT_COLUMNS} FROM ${TABLE} ORDER BY ROWID LIMIT ${offset}, ${REVIEW_PAGE}`
+    ));
+    all.push(...page);
+    if (page.length < REVIEW_PAGE) return all;
+  }
+}
+
+/** Scripted checks for one already-fetched row, with no write — the shared core of the bulk and
+ *  single-risk review paths. Returns the row patch too, so the caller decides how to write it. */
+function computeReview(row) {
   const risk = toCanonical(row);
   const findings = checkRegistryRisk(risk);
   const checks = summarizeChecks(risk, findings);
   const status = findings.length ? 'review' : 'ok';
   // GUIDELINE_CHECKS carries both the pass/fail summary (checks) and the actual finding detail
   // (problem/suggestion text) behind each failed rule, so the UI can show *why* G6 failed instead
-  // of just the pill. Stored as one object so no new DataStore column is needed; toPublic() below
-  // stays backward-compatible with rows written before this shape existed (plain [[code,result]]).
-  await table.updateRow({
-    ROWID: String(row.ROWID),
-    REVIEW_STATUS: status,
-    GUIDELINE_CHECKS: JSON.stringify({ results: checks, findings }),
-  });
+  // of just the pill. Stored as one object so no new DataStore column is needed; toPublic() stays
+  // backward-compatible with rows written before this shape existed (plain [[code,result]]).
+  const serialized = JSON.stringify({ results: checks, findings });
+  const changed = row.REVIEW_STATUS !== status || (row.GUIDELINE_CHECKS || '') !== serialized;
+  return {
+    status,
+    checks,
+    findings,
+    changed,
+    patch: { ROWID: String(row.ROWID), REVIEW_STATUS: status, GUIDELINE_CHECKS: serialized },
+  };
+}
+
+/** Run the scripted checks on one already-fetched row and write the result. Used by the
+ *  single-risk endpoint; the bulk run batches its writes instead (see reviewGuidelines). */
+async function reviewRow(table, row) {
+  const { status, checks, findings, changed, patch } = computeReview(row);
+  if (changed) await table.updateRow(patch);
   return { status, checks, findings };
 }
 
@@ -855,17 +1229,27 @@ async function reviewGuidelines(req) {
   const { table, zcql } = ds(req);
   let rows;
   try {
-    rows = unwrap(await zcql.executeZCQLQuery(`SELECT ${REVIEW_SELECT_COLUMNS} FROM ${TABLE}`));
+    rows = await fetchAllReviewRows(zcql);
   } catch (e) {
-    throw friendlyTableError(e);
+    try {
+      rows = unwrap(await zcql.executeZCQLQuery(`SELECT ${REVIEW_SELECT_COLUMNS} FROM ${TABLE}`));
+    } catch (e2) {
+      throw friendlyTableError(e2);
+    }
   }
 
   let ok = 0;
   let needsReview = 0;
+  const patches = [];
   for (const row of rows) {
-    // eslint-disable-next-line no-await-in-loop
-    const { status } = await reviewRow(table, row);
+    const { status, changed, patch } = computeReview(row);
     if (status === 'ok') ok += 1; else needsReview += 1;
+    if (changed) patches.push(patch);
+  }
+
+  for (let i = 0; i < patches.length; i += UPDATE_CHUNK) {
+    // eslint-disable-next-line no-await-in-loop
+    await table.updateRows(patches.slice(i, i + UPDATE_CHUNK));
   }
 
   return {
@@ -873,6 +1257,7 @@ async function reviewGuidelines(req) {
     reviewed: rows.length,
     ok,
     needs_review: needsReview,
+    updated: patches.length,
     rules_implemented: IMPLEMENTED_RULES,
     pending_llm_rules: PENDING_LLM_RULES,
   };
@@ -935,8 +1320,270 @@ async function getGuidelines() {
   };
 }
 
+/* ------------------------------------------------------------------ DMS Manager (persisted) */
+
+// dms_documents — persisted snapshot of the DMS "documents" report, same pull-and-replace pattern
+// as compliance_risks above (see ds()/ensureSynced()/syncFromCreator() there). Table: manual
+// console create, see datastore-conventions.md's dms_documents worked example — Var Char
+// DOCUMENT_ID [Mandatory+Unique], NAME, TEMPLATE, TEAM_NAME, WRITER_DOC_ID. No SUBMITTED_BY column
+// — Creator's Submitted_By is a person's email, third-party PII this app never persists (see
+// mapDocRecord's comment and datastore-conventions.md's No-PII identity decision). No ADDED_DATE
+// either (dropped 2026-09-01, per explicit request) — display-only metadata nothing reads, not
+// worth a column.
+const DMS_TABLE = 'dms_documents';
+
+function dmsDs(req) {
+  const app = req.catalystAdmin || req.catalystApp;
+  if (!app) throw new Error('Catalyst authentication required');
+  return { table: app.datastore().table(DMS_TABLE), zcql: app.zcql() };
+}
+
+// The module-level `unwrap` above is bound to compliance_risks' own TABLE constant — reusing it
+// here silently mis-shaped every dms_documents row (ZCQL nests each row under the table name, e.g.
+// { dms_documents: {...} }, and unwrap's `r[TABLE] || r` fallback returned that whole wrapper
+// instead of the inner row whenever TABLE !== 'dms_documents'). A dedicated unwrap avoids that.
+const unwrapDms = rows => (rows || []).map(r => r[DMS_TABLE] || r);
+
+/**
+ * Any DataStore/ZCQL failure against dms_documents becomes an actionable, non-5xx error instead of
+ * a masked "Internal error" (index.js's global handler masks any unhandled >=500 — see
+ * datastore-conventions.md's "Debugging the fail-closed auth gates" section for why that matters).
+ * The specific "table doesn't exist" case gets a message naming the exact columns to create;
+ * anything else still gets the real underlying message surfaced at 424 rather than swallowed.
+ */
+function friendlyDmsTableError(e) {
+  const msg = String(e && e.message || '');
+  if (/table/i.test(msg) && /(not exist|invalid|not found)/i.test(msg)) {
+    return new MissingTable(
+      `The "${DMS_TABLE}" DataStore table doesn't exist yet — create it first (Var Char DOCUMENT_ID ` +
+      '[Mandatory+Unique], Var Char NAME, Var Char TEMPLATE, Var Char TEAM_NAME, Var Char WRITER_DOC_ID ' +
+      '— no SUBMITTED_BY [PII] or ADDED_DATE [unused]). See datastore-conventions.md.'
+    );
+  }
+  if (e instanceof MissingTable || e instanceof MissingConnection || e.status) return e;
+  return new MissingTable(`Unexpected "${DMS_TABLE}" DataStore error: ${msg || e}`);
+}
+
+const dmsToPublic = row => ({
+  document_id: row.DOCUMENT_ID,
+  name: row.NAME,
+  template: row.TEMPLATE,
+  team: row.TEAM_NAME,
+  writer_doc_id: row.WRITER_DOC_ID,
+});
+
+/**
+ * POST /api/dms/documents/sync — full replace of dms_documents from the live Zoho Creator
+ * connection, same team filter as Risk Register. Mirrors syncFromCreator above.
+ */
+async function syncDmsDocuments(req) {
+  const { table, zcql } = dmsDs(req);
+  const teamNames = await getTeamNames(req);
+  if (!teamNames.length) {
+    const err = new Error('No teams are configured to sync — add at least one on the "Teams synced" panel.');
+    err.status = 400;
+    throw err;
+  }
+  const docs = await fetchDmsDocuments(req, teamNames);
+
+  // DOCUMENT_ID is Mandatory + Unique — de-dupe defensively, same rationale as syncFromCreator's
+  // RISK_ID de-dupe (Creator does not guarantee a uniquely-keyed report never repeats a row).
+  const seen = new Set();
+  const deduped = [];
+  for (const doc of docs) {
+    if (!doc.document_id || seen.has(doc.document_id)) continue;
+    seen.add(doc.document_id);
+    deduped.push(doc);
+  }
+
+  let existing;
+  try {
+    existing = unwrapDms(await zcql.executeZCQLQuery(`SELECT ROWID FROM ${DMS_TABLE}`));
+  } catch (e) {
+    throw friendlyDmsTableError(e);
+  }
+  for (const row of existing) {
+    // eslint-disable-next-line no-await-in-loop
+    await table.deleteRow(row.ROWID);
+  }
+  for (const doc of deduped) {
+    // eslint-disable-next-line no-await-in-loop
+    await table.insertRow({
+      DOCUMENT_ID: doc.document_id,
+      NAME: doc.name,
+      TEMPLATE: doc.template,
+      TEAM_NAME: doc.team,
+      WRITER_DOC_ID: doc.writer_doc_id,
+    });
+  }
+  return { success: true, count: deduped.length };
+}
+
+/** Auto-sync once, only the first time dms_documents is empty — mirrors ensureSynced above. A
+ *  manual "Sync from Creator" action (POST /api/dms/documents/sync) is how a refresh happens
+ *  after that. */
+async function ensureDmsSynced(req) {
+  const { zcql } = dmsDs(req);
+  let existing;
+  try {
+    existing = unwrapDms(await zcql.executeZCQLQuery(`SELECT ROWID FROM ${DMS_TABLE} LIMIT 1`));
+  } catch (e) {
+    throw friendlyDmsTableError(e);
+  }
+  if (existing.length) return;
+  await syncDmsDocuments(req);
+}
+
+/**
+ * GET /api/dms/documents — DMS Manager: mirrors compliancemanager's `dms list_docs`, reading the
+ * persisted `dms_documents` table (auto-synced once when empty; POST /api/dms/documents/sync
+ * refreshes it after that) — same persisted-snapshot pattern as listRisks/compliance_risks, not a
+ * live Creator call on every page load. Shares the same team_names config as Risk Register
+ * (CONFIG_TOOL_KEY = 'Compliance_manager' above) — one team filter for the whole app.
+ */
+async function listDocuments(req) {
+  await ensureDmsSynced(req);
+  const { zcql } = dmsDs(req);
+  let rows;
+  try {
+    rows = unwrapDms(await zcql.executeZCQLQuery(`SELECT * FROM ${DMS_TABLE}`));
+  } catch (e) {
+    throw friendlyDmsTableError(e);
+  }
+  return { success: true, documents: rows.map(dmsToPublic) };
+}
+
+/* ------------------------------------------------------------------ DMS Manager: workflow status */
+
+// Live status check against Zoho WorkDrive's Workflow API — per document, on demand (row-expand),
+// never persisted and never baked into the bulk dms_documents sync. Two reasons: (1) this app's
+// zoho-workdrive connection already has the WorkDrive.workflows.READ / WorkDrive.workflowinstances.READ
+// scopes granted (no new consent needed), verified against compliancemanager's own equivalent
+// check (see the DMS workflow status note this was ported from); (2) a document's Writer doc id
+// (WRITER_DOC_ID, already on the dms_documents row) doubles as its WorkDrive resource id, so no
+// extra lookup step exists either — GET /workdrive/api/v1/files/<writer_doc_id>/workflowinstances
+// is the whole call.
+//
+// Requirements covered here (2026-09-01 DMS Manager workflow requirements):
+//   1. Fetch last-reviewed / last-approved dates — done, from completed workflow instances.
+//   2. Flag a review workflow that has been open too long — done (WORKFLOW_OPEN_TOO_LONG_DAYS).
+//   3. Flag a last-approved date more than 3 months old — done (APPROVAL_STALE_DAYS = 90).
+//   4. Flag the doc's revision history vs. the workflow's last-approved date not syncing — NOT
+//      implemented. This needs a verified Zoho Writer revision-history endpoint (this app's
+//      zoho-writer connection only has ZohoWriter.documentEditor.ALL, and no revision-history call
+//      has been confirmed against it yet) — flag_history_mismatch is always `null` (unknown),
+//      never a silent "false"/"no mismatch", until that's built. Follow-up work, not guessed at.
+
+const WORKFLOW_INSTANCE_STATUS = { IN_PROGRESS: 1, COMPLETED: 2, CANCELLED: 4 };
+
+// "Open for long time" (requirement 2) has no fixed business rule from Creator/WorkDrive to read
+// off, so this is a reasonable default, not a spec — adjust here if the team wants a different
+// cutoff. "More than 3 months" (requirement 3) IS an explicit rule, so that one is exact.
+const WORKFLOW_OPEN_TOO_LONG_DAYS = 14;
+const APPROVAL_STALE_DAYS = 90;
+const DAY_MS = 86_400_000;
+
+/** Live-fetch one document's workflow instances from WorkDrive. Returns [] — not an error — when
+ *  there's no writer_doc_id, the zoho-workdrive connection isn't configured, or WorkDrive simply
+ *  has no workflow history for this file; most DMS documents never had a workflow attached, and
+ *  that's a normal state to show plainly, not a fault to surface as an error banner. */
+async function fetchWorkflowInstances(req, writerDocId) {
+  if (!writerDocId) return [];
+  let resp;
+  try {
+    resp = await callConnection(
+      req, 'zoho-workdrive', `/workdrive/api/v1/files/${encodeURIComponent(writerDocId)}/workflowinstances`
+    );
+  } catch {
+    return [];
+  }
+  if (!resp.ok) return [];
+  const json = await resp.json().catch(() => null);
+  return Array.isArray(json && json.data) ? json.data : [];
+}
+
+/**
+ * Reduce one document's raw WorkDrive workflow instances into what DMS Manager needs. Field names
+ * (attributes.instance_status / current_state_info / created_time / modified_time) follow the
+ * standard WorkDrive Workflow API v1 shape — if a real response differs, this is the one place to
+ * adjust, once inspected against a live connection.
+ */
+function summarizeWorkflow(instances) {
+  const attrs = (i) => i.attributes || i;
+  const timeOf = (i) => Number(attrs(i).modified_time || attrs(i).created_time || 0) || null;
+  const stateName = (i) => String(attrs(i).current_state_info?.name || attrs(i).workflow_name || '');
+  const byNewest = (a, b) => (timeOf(b) || 0) - (timeOf(a) || 0);
+
+  const inProgress = instances.filter((i) => Number(attrs(i).instance_status) === WORKFLOW_INSTANCE_STATUS.IN_PROGRESS);
+  const completed = instances.filter((i) => Number(attrs(i).instance_status) === WORKFLOW_INSTANCE_STATUS.COMPLETED);
+
+  const current = [...inProgress].sort(byNewest)[0];
+  const currentState = current ? stateName(current).trim() : '';
+  const pendingSince = current ? timeOf(current) : null;
+  const pendingDays = pendingSince ? (Date.now() - pendingSince) / DAY_MS : null;
+
+  // One workflow instance per run, not separate review/approval resources — distinguish which by
+  // matching the state/workflow name, same as compliancemanager's own DMS workflow check does.
+  const reviewed = completed.filter((i) => /review/i.test(stateName(i))).sort(byNewest)[0];
+  const approved = completed.filter((i) => /approv/i.test(stateName(i))).sort(byNewest)[0];
+
+  const lastReviewedAt = reviewed ? timeOf(reviewed) : null;
+  const lastApprovedAt = approved ? timeOf(approved) : null;
+  const approvalAgeDays = lastApprovedAt ? (Date.now() - lastApprovedAt) / DAY_MS : null;
+
+  return {
+    current_state: currentState || null,
+    pending_since: pendingSince,
+    pending_days: pendingDays,
+    last_reviewed_at: lastReviewedAt,
+    last_approved_at: lastApprovedAt,
+    flag_open_too_long: pendingDays !== null && pendingDays > WORKFLOW_OPEN_TOO_LONG_DAYS,
+    flag_never_approved: lastApprovedAt === null,
+    flag_stale_approval: approvalAgeDays !== null && approvalAgeDays > APPROVAL_STALE_DAYS,
+    // requirement 4 — see the file-header note above; always unknown, not a guessed false.
+    flag_history_mismatch: null,
+  };
+}
+
+/**
+ * GET /api/dms/documents/:documentId/workflow — one document's live WorkDrive workflow status
+ * (requirements 1-3). Reads the document's WRITER_DOC_ID from the persisted dms_documents row
+ * (no live Creator call needed for that part), then calls WorkDrive live — nothing here is cached.
+ */
+async function getDocumentWorkflow(req, documentId) {
+  const { zcql } = dmsDs(req);
+  let rows;
+  try {
+    rows = unwrapDms(await zcql.executeZCQLQuery(
+      `SELECT NAME, WRITER_DOC_ID FROM ${DMS_TABLE} WHERE DOCUMENT_ID = '${esc(documentId)}'`
+    ));
+  } catch (e) {
+    throw friendlyDmsTableError(e);
+  }
+  if (!rows.length) {
+    const err = new Error(`Document '${documentId}' not found — refresh or sync the document list first.`);
+    err.status = 404;
+    throw err;
+  }
+  const { NAME: name, WRITER_DOC_ID: writerDocId } = rows[0];
+  if (!writerDocId) {
+    return {
+      success: true, document_id: documentId, name, workflow: null,
+      note: 'No Writer document link on this record — nothing to check in WorkDrive.',
+    };
+  }
+  const instances = await fetchWorkflowInstances(req, writerDocId);
+  if (!instances.length) {
+    return {
+      success: true, document_id: documentId, name, workflow: null,
+      note: 'No workflow history found in WorkDrive for this document.',
+    };
+  }
+  return { success: true, document_id: documentId, name, workflow: summarizeWorkflow(instances) };
+}
+
 module.exports = {
-  listRisks, getRisk, previewRisk, draftRisk, compareDpias, syncFromCreator, TABLE,
+  listRisks, getRisk, previewRisk, draftRisk, submitCompareDpiasJob, getCompareDpiasJob, syncFromCreator, TABLE,
   listTeamFilters, addTeamFilter, removeTeamFilter, reviewGuidelines, reviewOneRisk,
-  getGuidelines,
+  getGuidelines, listDocuments, syncDmsDocuments, DMS_TABLE, getDocumentWorkflow,
 };

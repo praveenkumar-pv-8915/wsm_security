@@ -1,8 +1,13 @@
 /**
- * Light/Dark theme persistence. Applies a `data-theme` attribute on <html>, which App.css's
- * `:root[data-theme="light"]` block reads to swap the neutral role tokens (see
- * claude/ui-design-system.md). No system-preference detection — defaults to the app's existing
- * dark "Indigo" theme unless the user has explicitly switched.
+ * Light/Dark ground persistence. Applies a `data-theme` attribute on <html>, which App.css's
+ * `:root[data-theme="light"]` block reads to swap the ground and invert the accent ramp.
+ *
+ * The app's ground tokens come from the "WSM Security v3" mockup: dark is `nordic`, light is
+ * `porcelain`, both on the `gold` accent with `electric` as the second accent. The mockup's own
+ * theme and accent pickers are deliberately not shipped — they were an exploration tool, so the
+ * palette is fixed and only the light/dark ground is user-switchable.
+ *
+ * No system-preference detection — defaults to dark unless the user has explicitly switched.
  */
 
 const STORAGE_KEY = 'wsm-security-theme';

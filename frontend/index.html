@@ -7,6 +7,11 @@
     <link rel="icon" type="image/x-icon" href="/wsm-favicon.ico" />
     <link rel="icon" type="image/png" sizes="512x512" href="/wsm-icon-512.png" />
     <link rel="apple-touch-icon" href="/wsm-touch-icon.png" />
+    <!-- Archivo is the mockup's face (claude/wsm-security-v3-mockup.html); the stack falls back
+         to system-ui if the CDN is unreachable, which only costs the tighter tracking. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <!-- Catalyst Web SDK + per-project init. Loaded eagerly and NOT deferred so
          window.catalyst exists before React mounts. init.js is rewritten by
          Catalyst's CDN to carry this project's auth config; it only resolves on
@@ -16,7 +21,7 @@
     <script src="/__catalyst/sdk/init.js"></script>
     <style>
       /* pre-hydration shell: match app theme to avoid flash */
-      html { background: #0d1117; }
+      html { background: #12171c; }
     </style>
   </head>
   <body>

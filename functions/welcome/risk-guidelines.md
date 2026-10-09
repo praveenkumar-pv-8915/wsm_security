@@ -48,6 +48,13 @@
   Transfer (Sharing)** (risk or control owned by another team), **Risk Avoidance** (terminate the
   activity), **Risk Retention** (accept). Untreated / shared / avoided risks are classified *Risk
   evaluation in progress* pending further analysis.
+- **G20 [U][P]** — **AI-related risks** (risks arising from AI/LLM features, models, agents,
+  training data, prompts or AI-assisted processing of data) must be rated **High** unless the risk
+  is **completely contained** — every identified threat path closed by an implemented and tested
+  control, with no residual exposure left open. Partial mitigation, compensating controls still in
+  progress, or a containment that depends on a third-party model provider's behaviour do **not**
+  count as contained: the rating stays High until containment is demonstrated, and the entry must
+  say what makes it contained before any lower rating is accepted.
 
 ## 3. Language quality (tool-added)
 

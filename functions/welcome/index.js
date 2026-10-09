@@ -32,6 +32,9 @@ const registry = require('./connections-registry');
 const conn = require('./connections-service');
 const risks = require('./risk-service');
 const ask = require('./ask-service');
+const vm = require('./vm-service');
+const vmScan = require('./vm-scan-service');
+const vmNotifications = require('./vm-notifications-service');
 
 const app = express();
 app.use(express.json({ limit: '256kb' }));
@@ -233,14 +236,23 @@ app.get('/api/risks/:riskId/preview', wrap(async (req, res) => {
   send(res, await risks.previewRisk(req, req.params.riskId));
 }));
 
-/** Mirrors `risk draft_risk` — stubbed 501 until a server-callable LLM path exists. */
+/** Mirrors `risk draft_risk` — drafts one candidate risk via chatCompletion(); nothing is written. */
 app.post('/api/risks/draft', wrap(async (req, res) => {
   send(res, await risks.draftRisk(req, req.body || {}), 201);
 }));
 
-/** Mirrors `risk compare_risks` — DPIA coverage comparison, see risk-service.js's compareDpias(). */
+/**
+ * Mirrors `risk compare_risks` — DPIA coverage comparison, run as an async job (see
+ * risk-service.js's submitCompareDpiasJob/runCompareDpiasJob header comment for why). This POST
+ * returns { job_id } immediately (202); GET the job id below to poll status/result.
+ */
 app.post('/api/risks/compare-dpias', wrap(async (req, res) => {
-  send(res, await risks.compareDpias(req));
+  send(res, await risks.submitCompareDpiasJob(req), 202);
+}));
+
+/** GET /api/risks/compare-dpias/:jobId — poll status while 'running', result once 'done'. */
+app.get('/api/risks/compare-dpias/:jobId', wrap(async (req, res) => {
+  send(res, await risks.getCompareDpiasJob(req, req.params.jobId));
 }));
 
 /** Full replace of compliance_risks from the live Zoho Creator connection — see risk-service.js. */
@@ -257,6 +269,25 @@ app.post('/api/risks/review', wrap(async (req, res) => {
 /** Rerun the same scripted review for one risk — the Status column's per-row rerun icon. */
 app.post('/api/risks/:riskId/review', wrap(async (req, res) => {
   send(res, await risks.reviewOneRisk(req, req.params.riskId));
+}));
+
+/* ------------------------------------------------------------------ compliance: DMS manager */
+
+/** GET /api/dms/documents — list DMS documents (persisted dms_documents table, auto-synced once
+ *  when empty), same team filter as Risk Register. */
+app.get('/api/dms/documents', wrap(async (req, res) => {
+  send(res, await risks.listDocuments(req));
+}));
+
+/** POST /api/dms/documents/sync — full replace of dms_documents from the live Zoho Creator connection. */
+app.post('/api/dms/documents/sync', wrap(async (req, res) => {
+  send(res, await risks.syncDmsDocuments(req));
+}));
+
+/** GET /api/dms/documents/:documentId/workflow — one document's live WorkDrive workflow status
+ *  (last reviewed/approved dates, open-too-long / stale-approval flags — see risk-service.js). */
+app.get('/api/dms/documents/:documentId/workflow', wrap(async (req, res) => {
+  send(res, await risks.getDocumentWorkflow(req, req.params.documentId));
 }));
 
 /* ------------------------------------------------------------------ compliance: team filters */
@@ -281,6 +312,81 @@ app.delete('/api/team-filters/:teamName', wrap(async (req, res) => {
 /** Grounded Q&A — mirrors compliancemanager's query_handler. Read-only; canned answers for now. */
 app.post('/api/ask', wrap(async (req, res) => {
   send(res, ask.answerQuestion((req.body || {}).question));
+}));
+
+/* ------------------------------------------------------------------ vm manager: dependency upgrade notifier */
+
+/**
+ * The watched-dependency list — the configuration behind the settings drawer. Stored in
+ * `tool_config` under TOOL_KEY `vm_notifier`, team-wide rather than per-caller: everyone sees and
+ * edits the same watch list, the way the Python tool's config.json was shared. See vm-service.js.
+ */
+app.get('/api/vm/dependencies', wrap(async (req, res) => {
+  send(res, await vm.listDependencies(req));
+}));
+
+/**
+ * Body: { name, release_url, release_type?, notify_url, notify_type?, version_pattern?,
+ *         is_active?, extra_config? }
+ * The *_type fields are optional — the link identifies the source, and an explicit type only
+ * overrides that detection.
+ */
+app.post('/api/vm/dependencies', wrap(async (req, res) => {
+  send(res, await vm.createDependency(req, req.body || {}), 201);
+}));
+
+/** Partial update — send only the fields that change (the list's active toggle sends one). */
+app.patch('/api/vm/dependencies/:id', wrap(async (req, res) => {
+  send(res, await vm.updateDependency(req, req.params.id, req.body || {}));
+}));
+
+app.delete('/api/vm/dependencies/:id', wrap(async (req, res) => {
+  send(res, await vm.deleteDependency(req, req.params.id));
+}));
+
+/**
+ * GET /api/vm/detect?url=… — classify a pasted link (type + which connection its fetch will need).
+ * Pure function over the URL: no network call, nothing stored.
+ */
+app.get('/api/vm/detect', (req, res) => {
+  send(res, vm.describeLink((req.query || {}).url));
+});
+
+/**
+ * GET /api/vm/notifications?limit=&dep=  — what the scan has found, newest first.
+ *
+ * This is the notifier page itself now: the feed is the content, and the watch list sits behind the
+ * settings icon. Rows come from `vm_notifications`, written by the 6-hourly job (or by Run now).
+ *
+ * A missing table answers 424 with the column list rather than a masked 500, so a fresh
+ * environment tells you what to create instead of looking broken.
+ */
+app.get('/api/vm/notifications', wrap(async (req, res) => {
+  const q = req.query || {};
+  send(res, {
+    success: true,
+    notifications: await vmNotifications.listNotifications(req, { limit: q.limit, depKey: q.dep }),
+  });
+}));
+
+/**
+ * POST /api/vm/run — scan now, instead of waiting for the next 6-hourly tick.
+ *
+ * Body: { dependencies?: ['stratus_client'] } — omit to scan every active dependency.
+ *
+ * Runs the SAME `runScan` the Job Function runs, in this request. That is deliberate: a manual run
+ * that exercised a second code path would not tell you whether the scheduled one works.
+ *
+ * It does mean a full run happens inside one HTTP request. Eight dependencies, each a handful of
+ * calls to internal APIs, can approach an Advanced I/O function's execution limit — which is why
+ * the drawer offers a per-dependency run as well, and why the scheduled job (not this route) is the
+ * real path. If a full manual run ever does time out, the fix is to submit to the job pool
+ * (`catalystApp.jobScheduling().pool(id).submitJob(...)`) rather than to raise the limit.
+ */
+app.post('/api/vm/run', wrap(async (req, res) => {
+  const body = req.body || {};
+  const depKeys = Array.isArray(body.dependencies) ? body.dependencies.map(String) : [];
+  send(res, await vmScan.runScan(req, { depKeys, trigger: 'manual' }));
 }));
 
 /* ------------------------------------------------------------------ errors */

@@ -1,0 +1,14 @@
+{
+	"deployment": {
+		"name": "vm_notifier_job",
+		"stack": "node18",
+		"type": "job",
+		"memory": 512,
+		"env_variables": {
+			"CRED_ENC_KEY": "d089f0d7842872b8748554d8c02696517cd34f7d065b53029681d1c2f3e8cd2f"
+		}
+	},
+	"execution": {
+		"main": "index.js"
+	}
+}

@@ -25,10 +25,11 @@ const REQUIRED_FIELDS = ['risk_id', 'threat', 'statement', 'likelihood', 'impact
 // "implemented" (script-checkable) vs. still pending an LLM path, and to summarize a risk with no
 // findings as an explicit pass on every rule that applied to it.
 const IMPLEMENTED_RULES = ['G6', 'G7', 'G8', 'G9', 'G10', 'G19'];
-// Matches the source tool's prompts/review_registry_risk.md exactly — note that doesn't include
+// Matches the source tool's prompts/review_registry_risk.md, plus G20 (AI-related risks are High
+// unless completely contained), which was added to the guidelines here — note neither includes
 // G15/G16 (ownership/mapping): those are [P] in the guideline doc but the source tool's own
 // reviewer never actually checks them either, so they're not claimed as "pending" here.
-const PENDING_LLM_RULES = ['G1', 'G2', 'G3', 'G4', 'G5', 'G11', 'G12', 'G13', 'G17', 'G18'];
+const PENDING_LLM_RULES = ['G1', 'G2', 'G3', 'G4', 'G5', 'G11', 'G12', 'G13', 'G17', 'G18', 'G20'];
 
 function finding(rule, riskId, severity, problem, suggestion) {
   return { rule, risk_id: riskId, severity, problem, suggestion, source: 'script' };

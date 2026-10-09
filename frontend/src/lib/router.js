@@ -13,7 +13,8 @@
 
 import { useEffect, useState } from 'react';
 
-export const ROUTES = ['/connections', '/risk-register', '/draft-risk', '/compare-dpias', '/ask'];
+export const ROUTES = ['/connections', '/compliance-config', '/risk-register', '/dms-documents',
+  '/draft-risk', '/compare-dpias', '/ask', '/dependency-upgrade-notifier'];
 
 // Home was removed as a route (2026-09-01) — Connections is now the landing page, so both an
 // empty hash and any unrecognized path fall back to it.

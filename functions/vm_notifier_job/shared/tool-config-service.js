@@ -1,3 +1,9 @@
+/* GENERATED COPY — do not edit.
+ * Source: functions/welcome/tool-config-service.js
+ * Regenerate: node scripts/sync-job-modules.js   (npm run sync:job)
+ * Why: Catalyst packages each function directory separately, so the job function cannot require
+ * across into functions/welcome at runtime. See functions/vm_notifier_job/index.js.
+ */
 /**
  * tool_config — a small, generic, UI-editable configuration store shared by any feature in this
  * app that needs a setting changeable without a redeploy (Risk Register's synced-teams list is the

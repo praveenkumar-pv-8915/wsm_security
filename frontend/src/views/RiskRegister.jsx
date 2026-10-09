@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api, ApiError } from '../lib/api';
 import GuidelinesView, { GuidelinesLegend } from './GuidelinesView';
 
@@ -7,29 +8,46 @@ import GuidelinesView, { GuidelinesLegend } from './GuidelinesView';
  *
  * The list comes from the `compliance_risks` DataStore table, filled by "Sync from Creator" (a
  * full pull-and-replace from the real Zoho Creator connection — see risk-service.js), scoped to
- * whichever Creator Team_Name values are configured in the "Teams synced" panel below (backed by
- * its own `compliance_team_filters` table — editable here, no redeploy needed to add a team).
+ * whichever Creator Team_Name values are configured in Configuration > Compliance (see
+ * ComplianceConfig.jsx — backed by the shared `tool_config` table, no redeploy needed to add a team).
  *
  * Issue/Vulnerability/Threat/Risk/Risk score/Control/Risk treatment/Revised risk score are real
  * columns on every row now (populated by syncFromCreator/mapRegisterRecord in risk-service.js —
- * none of them are PII). Expanding a row makes one live call to Creator (GET
+ * none of them are PII). Opening a risk makes one live call to Creator (GET
  * /api/risks/:riskId/preview) only for "last reviewed by", since that's a reviewer's email and the
  * one field this app's datastore-conventions.md says must never be cached.
  *
- * "Draft new risk" and "Compare vs. DPIAs" moved out to their own Compliance Manager sub-tabs
- * (see DraftRisk.jsx/CompareDpias.jsx and App.jsx's GROUPS) — they currently return a clear 501,
- * see claude/compliancemanager-integration-design.md for what's still open.
- *
- * "Review guidelines" already runs the scripted checks against every risk currently loaded from
+ * "Review guidelines" runs the scripted checks against every risk currently loaded from
  * compliance_risks in one call (risk-service.js's reviewGuidelines) — that's the bulk run; the
  * per-row rerun icon in the Status column reruns just one risk.
  *
- * The old Register/Status/Severity/Team filter row above the table was removed (2026-09-01) — the
- * same filtering now lives in each column header's own filter icon (see COLUMNS below), so there's
- * no longer a separate control duplicating what the table header already offers. Register has no
- * column of its own yet, so it has no header filter either; only `q` (the search icon) and
- * pagination still go to the server — every column filter matches client-side against whatever
- * page of risks is currently loaded, same as before.
+ * ── Layout (2026-10-05) ──────────────────────────────────────────────────────────────────────
+ * Rebuilt to the "WSM Security v3" mockup (claude/wsm-security-v3-mockup.html; see
+ * claude/wsm-security-v3-refactor.md). Two modes, as in the mockup:
+ *
+ *   table  the default — status · issue · registry · score · team, one scroll pane with a sticky
+ *          header whose columns carry their own filter menus.
+ *   split  opened by clicking a risk — a narrow list beside a detail pane holding the assessment,
+ *          the score card, the guideline review and a sticky treatment footer. "← All risks"
+ *          returns to table mode.
+ *
+ * The thirteen-column table it replaces put Vulnerability / Threat / Risk / Control inline, where
+ * every one of them truncated to a tooltip. They are full-width prose in the detail pane now.
+ *
+ * Three deliberate departures from the mockup, each because the mockup had no real data behind it:
+ *   · the mockup's row checkboxes and "Review all / N selected" are not here — there is no
+ *     bulk-review-a-subset endpoint, only all-risks (POST /api/risks/review) and one risk
+ *     (POST /api/risks/:riskId/review), both of which are wired to buttons already;
+ *   · a score column stays in table mode. The mockup drops it (score only appears in split mode),
+ *     but these registers carry real inherent/revised scores and hiding them behind a click would
+ *     lose information the old table showed;
+ *   · pagination stays. The mockup shows 12 rows and a bare counter; this register is 211 risks
+ *     over 11 pages, so the counter sits beside real page controls.
+ * The mockup's score card also has CIA rows and a risk owner; `compliance_risks` has neither
+ * field, so those are left out rather than faked.
+ *
+ * Filtering is unchanged: only `q` (search) and pagination go to the server — every column filter
+ * matches client-side against whatever page of risks is currently loaded.
  */
 
 /** Fixed set of valid treatment values — mirrors risk-review.js's VALID_TREATMENTS, which is what
@@ -50,25 +68,44 @@ const NUMERIC_OPERATORS = [
   { value: 'notBetween', label: 'Not between' },
 ];
 
-/** Columns shown in the table. `hideable: false` columns can't be turned off from the Columns
- *  menu (Status + Risk are the ones that make a row identifiable). `filterType` decides which kind
- *  of popover the header's filter icon opens — see the header render and columnMatches() below. */
+/**
+ * Columns in table mode. `hideable: false` columns can't be turned off from the Columns menu
+ * (Status + Issue are what make a row identifiable now that Risk is the detail headline).
+ * `filterType` decides which kind of panel the header's filter menu opens — see columnMatches().
+ *
+ * Every column the old table had still has a filter here, including the ones that no longer have
+ * a cell of their own (Vulnerability, Threat, Risk, Control, Risk treatment, Revised, Updated):
+ * they live in `EXTRA_FILTERS` and hang off the Issue header, so filtering on them did not go away
+ * with their columns.
+ */
 const COLUMNS = [
-  { key: 'status', label: 'Status', hideable: false, filterKey: 'status', filterType: 'status' },
-  { key: 'team', label: 'Team', hideable: true, filterKey: 'team', filterType: 'select' },
-  { key: 'issue', label: 'Issue', hideable: true, filterKey: 'issue', filterType: 'text' },
-  { key: 'vulnerability', label: 'Vulnerability', hideable: true, filterKey: 'vulnerability', filterType: 'text' },
-  { key: 'threat', label: 'Threat', hideable: true, filterKey: 'threat', filterType: 'text' },
-  { key: 'title', label: 'Risk', hideable: false, filterKey: 'title', filterType: 'text' },
-  { key: 'score', label: 'Risk score', hideable: true, filterKey: 'score', filterType: 'numeric' },
-  { key: 'control', label: 'Control', hideable: true, filterKey: 'control', filterType: 'text' },
-  { key: 'treatment', label: 'Risk treatment', hideable: true, filterKey: 'treatment', filterType: 'select' },
-  { key: 'revised', label: 'Revised risk score', hideable: true, filterKey: 'revised', filterType: 'numeric' },
-  { key: 'updated', label: 'Updated', hideable: true, filterKey: 'updated', filterType: 'text' },
+  { key: 'status', label: 'Status', hideable: false, filterKey: 'status', filterType: 'status', width: '128px' },
+  { key: 'riskid', label: 'Risk ID', hideable: true, filterKey: 'riskid', filterType: 'text', width: '124px' },
+  { key: 'issue', label: 'Issue', hideable: false, filterKey: 'issue', filterType: 'text', width: 'minmax(0, 2.1fr)' },
+  { key: 'register', label: 'Registry', hideable: true, filterKey: 'register', filterType: 'select', width: '96px' },
+  { key: 'score', label: 'Risk score', hideable: true, filterKey: 'score', filterType: 'numeric', width: '124px' },
+  { key: 'team', label: 'Team', hideable: true, filterKey: 'team', filterType: 'select', width: 'minmax(0, 1.1fr)' },
 ];
+
+/** Filters with no column of their own — rendered inside the Issue header's menu. */
+const EXTRA_FILTERS = [
+  { key: 'vulnerability', label: 'Vulnerability', filterKey: 'vulnerability', filterType: 'text' },
+  { key: 'threat', label: 'Threat', filterKey: 'threat', filterType: 'text' },
+  { key: 'title', label: 'Risk', filterKey: 'title', filterType: 'text' },
+  { key: 'control', label: 'Control', filterKey: 'control', filterType: 'text' },
+  { key: 'treatment', label: 'Risk treatment', filterKey: 'treatment', filterType: 'select' },
+  { key: 'revised', label: 'Revised risk score', filterKey: 'revised', filterType: 'numeric' },
+  { key: 'updated', label: 'Updated', filterKey: 'updated', filterType: 'text' },
+];
+
+const ALL_FILTERS = [...COLUMNS, ...EXTRA_FILTERS];
+
 const COLUMNS_STORAGE_KEY = 'wsm.riskRegister.hiddenColumns';
 const DEFAULT_PAGE_SIZE = 20;
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50, 100];
+
+/** Collapsed heights for the detail pane's Show more fields — the mockup's own values. */
+const FIELD_COLLAPSED = { issue: '48px', vulnerability: '44px', threat: '44px', control: '48px' };
 
 function loadHiddenColumns() {
   try {
@@ -112,20 +149,24 @@ function numericMatches(rawValue, filter) {
   }
 }
 
-/** One risk + its already-computed guideline-status icon, against one column's filter value.
- *  Dispatches on `col.filterType`; each type stores a different shape in `columnFilters` (plain
- *  string for text/select/status, `{ op, a, b }` for numeric — see numericMatches above). */
+/** One risk + its already-computed guideline-status icon, against one filter's value. Dispatches
+ *  on `filterType`; each type stores a different shape in `columnFilters` (plain string for
+ *  text/select/status, `{ op, a, b }` for numeric — see numericMatches above). */
 function columnMatches(risk, gsIcon, col, value) {
   if (col.filterType === 'status') {
     return !value || gsIcon === value;
   }
   if (col.filterType === 'numeric') {
-    const raw = col.key === 'revised' ? risk.revised_score : risk.inherent_score;
+    const raw = col.filterKey === 'revised' ? risk.revised_score : risk.inherent_score;
     return numericMatches(raw, value);
   }
   if (col.filterType === 'select') {
     if (!value) return true;
-    const field = col.key === 'team' ? risk.team_name : risk.risk_treatment;
+    const field = {
+      team: risk.team_name,
+      treatment: risk.risk_treatment,
+      register: risk.register,
+    }[col.filterKey];
     return field === value;
   }
   // text
@@ -133,6 +174,7 @@ function columnMatches(risk, gsIcon, col, value) {
   const v = String(value).trim().toLowerCase();
   if (!v) return true;
   const field = {
+    riskid: risk.risk_id,
     issue: risk.issue,
     vulnerability: risk.vulnerability,
     threat: risk.threat,
@@ -144,12 +186,27 @@ function columnMatches(risk, gsIcon, col, value) {
 }
 
 /** Whether a stored filter value (of whatever shape) is actually doing anything right now — used
- *  for the filter icon's "active" dot and the toolbar's "N of M" count. */
+ *  for the funnel mark's active state, the header summary and the "N of M" count. */
 function isFilterActive(value) {
   if (!value) return false;
   if (typeof value === 'string') return value.trim() !== '';
   if (typeof value === 'object') return Boolean(value.op);
   return false;
+}
+
+/** The mockup prints active filter values next to the column label — `· Log360 Cloud`. */
+function filterSummary(col, value) {
+  if (!isFilterActive(value)) return '';
+  if (col.filterType === 'numeric') {
+    const op = NUMERIC_OPERATORS.find((o) => o.value === value.op);
+    const range = value.op === 'between' || value.op === 'notBetween';
+    const nums = range ? [value.a, value.b].filter((n) => n !== '' && n != null).join('–') : (value.a ?? '');
+    return `${op ? op.label.toLowerCase() : value.op}${nums ? ` ${nums}` : ''}`;
+  }
+  if (col.filterType === 'status') {
+    return (STATUS_FILTER_OPTIONS.find((o) => o.value === value) || {}).label || '';
+  }
+  return String(value);
 }
 
 /**
@@ -161,18 +218,28 @@ function isFilterActive(value) {
  */
 function guidelineStatus(checks) {
   if (!checks || checks.length === 0) {
-    return { icon: 'unreviewed', label: 'Not reviewed yet' };
+    return { icon: 'unreviewed', label: 'Not reviewed yet', failed: 0, total: 0 };
   }
   const failed = checks.filter(([, result]) => result !== 'pass').length;
   if (failed > 0) {
-    return { icon: 'fail', label: `${failed} of ${checks.length} guideline check${checks.length === 1 ? '' : 's'} failed` };
+    return {
+      icon: 'fail',
+      label: `${failed} of ${checks.length} guideline check${checks.length === 1 ? '' : 's'} failed`,
+      failed,
+      total: checks.length,
+    };
   }
-  return { icon: 'ok', label: `Guideline OK — ${checks.length} check${checks.length === 1 ? '' : 's'} passed` };
+  return {
+    icon: 'ok',
+    label: `Guideline OK — ${checks.length} check${checks.length === 1 ? '' : 's'} passed`,
+    failed: 0,
+    total: checks.length,
+  };
 }
 
 /** A failed rule (e.g. G6) can have more than one finding (risk-review.js's checkRegistryRisk can
- *  push several problems under the same code) — group guideline_findings by rule so the drawer can
- *  show every problem/suggestion behind a failed pill, not just the first one. */
+ *  push several problems under the same code) — group guideline_findings by rule so the detail
+ *  pane can show every problem/suggestion behind a failed check, not just the first one. */
 function findingsByRule(findings) {
   const map = {};
   for (const f of findings || []) {
@@ -181,94 +248,276 @@ function findingsByRule(findings) {
   return map;
 }
 
-/** Inline stroke SVGs — never emoji, per the app's UI design system. */
-const STATUS_ICONS = {
-  ok: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M8 12.5l2.5 2.5 5.5-6" />
-    </svg>
-  ),
-  fail: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7.5v6" />
-      <path d="M12 16.5h.01" />
-    </svg>
-  ),
-  unreviewed: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="3 3">
-      <circle cx="12" cy="12" r="9" />
-    </svg>
-  ),
-};
+/** Failures first, then by rule number — the mockup's sortGuides. */
+function sortChecks(checks) {
+  return [...(checks || [])].sort((a, b) => {
+    const aPass = a[1] === 'pass';
+    const bPass = b[1] === 'pass';
+    if (aPass !== bPass) return aPass ? 1 : -1;
+    return String(a[0]).localeCompare(String(b[0]), undefined, { numeric: true });
+  });
+}
 
+/**
+ * Severity band. The mockup derives High/Medium/Low from the score itself (`n >= 6 ? High : n >= 4
+ * ? Medium : Low`); these registers carry a real severity from Creator, normalized server-side by
+ * risk-service.js's SEVERITY_MAP, so the band comes from that instead of being recomputed.
+ */
+const SEVERITY_BAND = { critical: 'high', high: 'high', medium: 'medium', low: 'low' };
+/** Mirrors risk-service.js's SEVERITY_MAP, so REVISED_RATING (raw Creator text, e.g. "Very High")
+ *  bands the same way SEVERITY does. */
+const RATING_TO_SEVERITY = { 'Very High': 'critical', High: 'high', Medium: 'medium', Low: 'low', 'Very Low': 'low' };
+
+function bandOf(severity) {
+  return SEVERITY_BAND[severity] || 'low';
+}
+
+const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+
+/**
+ * The mockup's two status marks say different things: the calendar is "reviewed inside the agreed
+ * cadence", the clipboard is "guideline review result". Only the second comes from `checks`, so
+ * the first is derived from `updated_at` against a one-year cadence (G10's own window). An
+ * unparseable or missing date reads as idle rather than as a failure.
+ */
+function recencyMark(updatedAt) {
+  if (!updatedAt) return 'idle';
+  const t = Date.parse(updatedAt);
+  if (Number.isNaN(t)) return 'idle';
+  return Date.now() - t <= YEAR_MS ? 'pass' : 'fail';
+}
+
+/** Inline stroke SVGs — never emoji, per the app's UI design system. The two status glyphs are the
+ *  mockup's: a calendar tick for "reviewed", a clipboard tick for "guideline checked". */
+const CALENDAR_ICON = (
+  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="5" width="18" height="16" rx="1" />
+    <path d="M8 3v4M16 3v4M3 10h18" />
+    <path d="M8.5 15.5l2.2 2.2 4.3-4.6" />
+  </svg>
+);
+const CLIPBOARD_ICON = (
+  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 4H6a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-3" />
+    <rect x="9" y="2.5" width="6" height="3.5" rx="1" />
+    <path d="M8.5 13.5l2.2 2.2 4.3-4.6" />
+  </svg>
+);
+const CLOCK_ICON = (
+  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="3 3">
+    <circle cx="12" cy="12" r="9" />
+  </svg>
+);
 const RERUN_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 12a9 9 0 0 1 15.3-6.4L21 8" />
     <path d="M21 3v5h-5" />
     <path d="M21 12a9 9 0 0 1-15.3 6.4L3 16" />
     <path d="M3 21v-5h5" />
   </svg>
 );
-const FILTER_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5z" />
+const FUNNEL_ICON = (
+  <svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor">
+    <path d="M3 4h18l-7 8.5V19l-4 2v-8.5z" />
   </svg>
 );
 const SEARCH_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="11" cy="11" r="7" />
     <path d="M21 21l-4.3-4.3" />
   </svg>
 );
 const COLUMNS_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="4" width="18" height="16" rx="2" />
-    <path d="M9 4v16" />
-    <path d="M15 4v16" />
+  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="16" />
+    <path d="M9 4v16M15 4v16" />
   </svg>
 );
 const CHEVRON_LEFT_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M15 18l-6-6 6-6" />
   </svg>
 );
 const CHEVRON_RIGHT_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M9 18l6-6-6-6" />
   </svg>
 );
-const BOOK_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-  </svg>
-);
-// critical/high both read as "severe" (red); medium is amber, low is green — a full traffic-light
-// scale. Previously medium and low shared the same muted-gray tag and were indistinguishable.
-const SEVERITY_TAG = { critical: 'tag tag-bad', high: 'tag tag-bad', medium: 'tag tag-warn', low: 'tag tag-good' };
-// Mirrors risk-service.js's SEVERITY_MAP, so REVISED_RATING (raw Creator text, e.g. "Very High") gets
-// the same tag coloring as SEVERITY (already normalized server-side from the same Risk_Rating scale).
-const RATING_TO_SEVERITY = { 'Very High': 'critical', High: 'high', Medium: 'medium', Low: 'low', 'Very Low': 'low' };
+
+/** The 20px hairline status box from the mockup's `markBase`, in its default `box` form. */
+function StatusMark({ kind, icon, title }) {
+  return (
+    <span className={`wsm-mark wsm-mark-${kind}`} title={title}>{icon}</span>
+  );
+}
+
+/** Score + band pill, the mockup's score badge. */
+function ScoreBadge({ score, band, label, title }) {
+  if (score === '' || score == null) return <span className="wsm-score wsm-score-none">—</span>;
+  return (
+    <span className={`wsm-score wsm-score-${band}`} title={title}>
+      {score}
+      {label && <span className="wsm-score-band">{label}</span>}
+    </span>
+  );
+}
+
+/**
+ * A detail-pane field: uppercase label, prose, and Show more.
+ *
+ * The mockup renders Show more unconditionally on these four fields because its copy was written
+ * to overflow. Real register entries are often one line, so the control is measured in — it
+ * appears only when the text is actually taller than its collapsed band, which keeps short
+ * fields from carrying a button that does nothing.
+ */
+function Field({ name, label, value, expanded, onToggle, full }) {
+  const collapsed = FIELD_COLLAPSED[name];
+  const isOpen = Boolean(expanded);
+  const bodyRef = useRef(null);
+  const [overflows, setOverflows] = useState(false);
+
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el || !collapsed) return undefined;
+    const measure = () => {
+      // Measured against the collapsed band, so the answer doesn't flip while expanded.
+      const limit = parseFloat(collapsed);
+      setOverflows(el.scrollHeight > limit + 1);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [collapsed, value]);
+
+  return (
+    <div className={`wsm-field${full ? ' wsm-field-full' : ''}`}>
+      <div className="wsm-label">{label}</div>
+      <div ref={bodyRef} className="wsm-field-body" style={{ maxHeight: isOpen ? 'none' : collapsed }}>
+        <p>{value || '—'}</p>
+      </div>
+      {collapsed && value && overflows && (
+        <button type="button" className="wsm-more" onClick={() => onToggle(name)}>
+          {isOpen ? 'Show less' : 'Show more'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Column-header filter menu — label, active-value summary, funnel mark, and a 258px panel. */
+function FilterMenu({ col, extras, filters, open, onOpen, onClose, onSet, onSetNumeric, onClear, teamOptions, registerOptions }) {
+  const cols = [col, ...(extras || [])];
+  const anyActive = cols.some((c) => isFilterActive(filters[c.filterKey]));
+  const summary = filterSummary(col, filters[col.filterKey]);
+
+  const renderInput = (c) => {
+    const value = filters[c.filterKey];
+    if (c.filterType === 'text') {
+      return (
+        <input
+          type="text"
+          placeholder={`Filter ${c.label.toLowerCase()}…`}
+          value={value || ''}
+          onChange={(e) => onSet(c.filterKey, e.target.value)}
+        />
+      );
+    }
+    if (c.filterType === 'select') {
+      const options = c.filterKey === 'team' ? teamOptions
+        : c.filterKey === 'register' ? registerOptions
+          : TREATMENT_OPTIONS;
+      return (
+        <select value={value || ''} onChange={(e) => onSet(c.filterKey, e.target.value)}>
+          <option value="">All</option>
+          {options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+        </select>
+      );
+    }
+    if (c.filterType === 'status') {
+      return (
+        <select value={value || ''} onChange={(e) => onSet(c.filterKey, e.target.value)}>
+          {STATUS_FILTER_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+        </select>
+      );
+    }
+    const nf = value || {};
+    const isRange = nf.op === 'between' || nf.op === 'notBetween';
+    return (
+      <>
+        <select value={nf.op || ''} onChange={(e) => onSetNumeric(c.filterKey, { op: e.target.value })}>
+          <option value="">Operator…</option>
+          {NUMERIC_OPERATORS.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
+        </select>
+        {nf.op && (
+          <div className="col-filter-numeric-inputs">
+            <input
+              type="number"
+              placeholder={isRange ? 'Min' : 'Value'}
+              value={nf.a ?? ''}
+              onChange={(e) => onSetNumeric(c.filterKey, { a: e.target.value })}
+            />
+            {isRange && (
+              <input
+                type="number"
+                placeholder="Max"
+                value={nf.b ?? ''}
+                onChange={(e) => onSetNumeric(c.filterKey, { b: e.target.value })}
+              />
+            )}
+          </div>
+        )}
+      </>
+    );
+  };
+
+  return (
+    <div className="wsm-th">
+      <button type="button" className="wsm-th-btn" onClick={() => (open ? onClose() : onOpen(col.key))}>
+        <span className="wsm-th-label">{col.label}</span>
+        {summary && <span className="wsm-th-summary">· {summary}</span>}
+        <span className={`wsm-th-mark${anyActive ? ' wsm-th-mark-on' : ''}`} aria-hidden="true">{FUNNEL_ICON}</span>
+      </button>
+      {open && (
+        <>
+          <div className="col-filter-pop-overlay" onClick={onClose} />
+          <div className="col-filter-pop">
+            {cols.map((c) => (
+              <label key={c.key} className="wsm-filter-field">
+                <span className="wsm-filter-label">{c.label}</span>
+                {renderInput(c)}
+              </label>
+            ))}
+            <div className="wsm-filter-foot">
+              <button
+                type="button"
+                className="btn btn-ghost btn-small"
+                onClick={() => cols.forEach((c) => onClear(c.filterKey))}
+                disabled={!anyActive}
+              >
+                Clear
+              </button>
+              <button type="button" className="btn" onClick={onClose}>Done</button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function RiskRegister({ onNotice }) {
-  // Only `q` (search) and pagination go to the server now — see the file header comment for why
-  // register/status/severity/team lost their old dedicated row.
+  // Only `q` (search) and pagination go to the server — see the file header comment.
   const [filters, setFilters] = useState({ q: '', page: 1 });
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [state, setState] = useState({ status: 'loading', risks: [], error: '', total: 0, page: 1, limit: DEFAULT_PAGE_SIZE });
   const [teamOptions, setTeamOptions] = useState([]);
+  const [registerOptions, setRegisterOptions] = useState([]);
   const [openId, setOpenId] = useState(null);
   const [preview, setPreview] = useState({}); // risk_id -> { status: 'loading'|'ok'|'error', data?, error? }
   const [busy, setBusy] = useState(false);
   const [rerunning, setRerunning] = useState({}); // risk_id -> true while its rerun is in flight
-
-  // Teams synced — the configured Creator Team_Name allow-list (compliance_team_filters table).
-  const [teamFilters, setTeamFilters] = useState([]);
-  const [newTeam, setNewTeam] = useState('');
-  const [teamsBusy, setTeamsBusy] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Guidelines viewer.
   const [guidelinesOpen, setGuidelinesOpen] = useState(false);
@@ -278,47 +527,37 @@ export default function RiskRegister({ onNotice }) {
   const [hiddenColumns, setHiddenColumns] = useState(loadHiddenColumns);
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
 
-  // Per-column header filters — value shape depends on the column's filterType (see columnMatches).
+  // Per-column header filters — value shape depends on filterType (see columnMatches).
   const [columnFilters, setColumnFilters] = useState({});
   const [openFilterCol, setOpenFilterCol] = useState(null);
 
-  // Search collapsed to an icon on the table header instead of an always-visible field.
   const [searchOpen, setSearchOpen] = useState(false);
 
-  const loadTeamFilters = useCallback(() => {
-    api('/team-filters')
-      .then((r) => setTeamFilters(r.teams || []))
-      .catch((err) => onNotice?.(err instanceof ApiError ? err.message : 'Could not load teams synced.'));
-  }, [onNotice]);
+  /** Which detail-pane fields are expanded past their collapsed band, and which guideline rows
+   *  are showing their findings. Both reset when another risk is opened. */
+  const [expandedFields, setExpandedFields] = useState({});
+  const [openCheck, setOpenCheck] = useState(null);
 
-  useEffect(() => { loadTeamFilters(); }, [loadTeamFilters]);
-
-  const addTeamFilter = async () => {
-    const name = newTeam.trim();
-    if (!name) return;
-    setTeamsBusy(true);
-    try {
-      await api('/team-filters', { method: 'POST', body: { team_name: name } });
-      setNewTeam('');
-      loadTeamFilters();
-    } catch (err) {
-      onNotice?.(err instanceof ApiError ? err.message : 'Adding the team failed.');
-    } finally {
-      setTeamsBusy(false);
+  /**
+   * The shell's top bar (App.jsx) owns the breadcrumb; the mockup puts this view's search, counter
+   * and actions in the same bar. Portalling into the slot the shell renders keeps that one row
+   * without the shell having to know anything about risks.
+   */
+  const [slot, setSlot] = useState(null);
+  const slotPoll = useRef(null);
+  useEffect(() => {
+    const find = () => {
+      const el = document.getElementById('wsm-top-slot');
+      if (el) { setSlot(el); return true; }
+      return false;
+    };
+    if (!find()) {
+      // The slot is a sibling in the same commit, so one more tick is always enough; the interval
+      // is only a guard against the view being mounted outside the shell (tests, storybook).
+      slotPoll.current = setInterval(() => { if (find()) clearInterval(slotPoll.current); }, 50);
     }
-  };
-
-  const removeTeamFilter = async (teamName) => {
-    setTeamsBusy(true);
-    try {
-      await api(`/team-filters/${encodeURIComponent(teamName)}`, { method: 'DELETE' });
-      loadTeamFilters();
-    } catch (err) {
-      onNotice?.(err instanceof ApiError ? err.message : 'Removing the team failed.');
-    } finally {
-      setTeamsBusy(false);
-    }
-  };
+    return () => clearInterval(slotPoll.current);
+  }, []);
 
   const load = useCallback(() => {
     setState((s) => ({ ...s, status: 'loading' }));
@@ -338,10 +577,15 @@ export default function RiskRegister({ onNotice }) {
           page: r.page ?? (filters.page || 1),
           limit: r.limit ?? pageSize,
         });
-        // Team dropdown reflects whatever page is currently loaded — same as every other column
-        // filter, which only ever sees the current page (see the file header comment).
-        const teams = Array.from(new Set(risks.map((x) => x.team_name).filter(Boolean))).sort();
-        setTeamOptions(teams);
+        // Dropdowns reflect whatever page is currently loaded — same as every other column filter,
+        // which only ever sees the current page (see the file header comment).
+        setTeamOptions(Array.from(new Set(risks.map((x) => x.team_name).filter(Boolean))).sort());
+        setRegisterOptions(Array.from(new Set(risks.map((x) => x.register).filter(Boolean))).sort());
+        // The rail shows a count beside each section (the mockup's nav). The total only exists
+        // here, and an event is cheaper than the shell making its own /risks call just to count.
+        window.dispatchEvent(new CustomEvent('wsm:section-count', {
+          detail: { path: '/risk-register', count: r.total ?? risks.length },
+        }));
       })
       .catch((err) => setState({ status: 'error', risks: [], error: err.message, total: 0, page: 1, limit: pageSize }));
   }, [filters, pageSize]);
@@ -365,6 +609,7 @@ export default function RiskRegister({ onNotice }) {
     () => api('/risks/sync', { method: 'POST' }).then(load),
     { reloadAlways: true }
   );
+
   // Scripted guideline review (G6-G10, G19 — see risk-review.js/risk-guidelines.md), run in bulk
   // against every risk currently in compliance_risks in one call. The other rules (G1-G5/G11-
   // G13/G15-G18) need an LLM path this app doesn't have yet, so the summary says so rather than
@@ -394,10 +639,12 @@ export default function RiskRegister({ onNotice }) {
       }));
   };
 
-  const toggleRow = (riskId) => {
-    const next = openId === riskId ? null : riskId;
-    setOpenId(next);
-    if (next && !preview[riskId]) {
+  /** Open a risk into split mode. The one live Creator call for "last reviewed by" happens here. */
+  const openRisk = (riskId) => {
+    setOpenId(riskId);
+    setExpandedFields({});
+    setOpenCheck(null);
+    if (riskId && !preview[riskId]) {
       setPreview((p) => ({ ...p, [riskId]: { status: 'loading' } }));
       api(`/risks/${encodeURIComponent(riskId)}/preview`)
         .then((r) => setPreview((p) => ({ ...p, [riskId]: { status: 'ok', data: r.preview } })))
@@ -408,10 +655,10 @@ export default function RiskRegister({ onNotice }) {
     }
   };
 
-  /** Status column's per-row rerun icon — reruns just this one risk's scripted guideline checks
-   *  (POST /api/risks/:riskId/review) and patches the row in place, without a full-list reload. */
+  /** Per-risk rerun of the scripted guideline checks (POST /api/risks/:riskId/review); patches the
+   *  row in place rather than reloading the list. */
   const rerunGuideline = (event, riskId) => {
-    event.stopPropagation(); // don't also toggle the row's expand panel
+    event?.stopPropagation();
     if (rerunning[riskId]) return;
     setRerunning((r) => ({ ...r, [riskId]: true }));
     api(`/risks/${encodeURIComponent(riskId)}/review`, { method: 'POST' })
@@ -451,13 +698,16 @@ export default function RiskRegister({ onNotice }) {
     setFilters((f) => ({ ...f, page: 1 }));
   };
 
+  const toggleField = (name) => setExpandedFields((prev) => ({ ...prev, [name]: !prev[name] }));
+
   const visibleRisks = useMemo(
     () => state.risks.filter((r) => {
       const gsIcon = guidelineStatus(r.checks).icon;
-      return COLUMNS.every((c) => columnMatches(r, gsIcon, c, columnFilters[c.filterKey]));
+      return ALL_FILTERS.every((c) => columnMatches(r, gsIcon, c, columnFilters[c.filterKey]));
     }),
     [state.risks, columnFilters]
   );
+
   const activeColumns = COLUMNS.filter((c) => !hiddenColumns.has(c.key));
   const hasColumnFilters = Object.values(columnFilters).some(isFilterActive);
 
@@ -466,434 +716,486 @@ export default function RiskRegister({ onNotice }) {
   const rangeStart = state.total === 0 ? 0 : (currentPage - 1) * (state.limit || pageSize) + 1;
   const rangeEnd = Math.min(currentPage * (state.limit || pageSize), state.total);
 
-  return (
+  const active = openId ? state.risks.find((x) => x.risk_id === openId) : null;
+  const splitMode = Boolean(active);
+
+  // The open risk can vanish from view when a filter changes or a page loads — fall back to table
+  // mode rather than leaving the detail pane showing a row that is no longer in the list.
+  useEffect(() => {
+    if (openId && !state.risks.some((x) => x.risk_id === openId)) setOpenId(null);
+  }, [state.risks, openId]);
+
+  const countLabel = state.status === 'loading'
+    ? 'Loading…'
+    : hasColumnFilters
+      ? `${visibleRisks.length} of ${state.risks.length} shown`
+      : state.total > 0
+        ? `${rangeStart}–${rangeEnd} of ${state.total} risks`
+        : 'No risks';
+
+  /* ── top bar ─────────────────────────────────────────────────────────────────────────────── */
+
+  const topBar = (
     <>
-      <div className="view-head">
-        <div>
-          <h2 className="view-title">Risk Register</h2>
-          <p className="view-sub">
-            Pulled from the ISMS / PIMS / QMS / BCMS registers, reviewed against the risk guidelines.
-          </p>
-        </div>
-        <div className="view-actions">
-          <button
-            className="btn btn-ghost btn-icon"
-            onClick={() => setSettingsOpen(true)}
-            aria-label="Risk Register settings"
-            title="Settings"
-          >
-            ⚙
+      {splitMode && (
+        <button type="button" className="btn btn-ghost" onClick={() => setOpenId(null)}>← All risks</button>
+      )}
+
+      <div className={`wsm-search${searchOpen ? ' wsm-search-open' : ''}`}>
+        {searchOpen ? (
+          <input
+            type="search"
+            autoFocus
+            placeholder="Search risk ID, title…"
+            value={filters.q}
+            onChange={(e) => setFilters({ ...filters, q: e.target.value, page: 1 })}
+            onBlur={() => { if (!filters.q) setSearchOpen(false); }}
+          />
+        ) : (
+          <button type="button" className="btn btn-ghost btn-icon" onClick={() => setSearchOpen(true)} title="Search" aria-label="Search risks">
+            {SEARCH_ICON}
           </button>
-          <button className="btn btn-ghost" onClick={openGuidelines}>View guidelines</button>
-          <button className="btn btn-ghost" onClick={syncFromCreator} disabled={busy}>Sync from Creator</button>
-          <button className="btn btn-primary" onClick={reviewGuidelines} disabled={busy}>Review guidelines</button>
-        </div>
+        )}
       </div>
 
-      <section className="card">
-        {state.status === 'error' && (
-          <div className="banner banner-err" role="status">{state.error}</div>
-        )}
-        {state.status !== 'error' && (
-          <>
-            <div className="table-toolbar">
-              <div className="pagination-left">
-                <span className="table-count">
-                  {state.status === 'loading'
-                    ? 'Loading…'
-                    : hasColumnFilters
-                      ? `${visibleRisks.length} of ${state.risks.length} on this page — ${state.total} total`
-                      : state.total > 0
-                        ? `Showing ${rangeStart}–${rangeEnd} of ${state.total} risk${state.total === 1 ? '' : 's'}`
-                        : 'No risks to show'}
-                </span>
-                <label className="pagination-size">
-                  <span>Rows per page</span>
-                  <select
-                    value={pageSize}
-                    onChange={(e) => changePageSize(Number(e.target.value))}
-                  >
-                    {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                </label>
-                <div className="pagination-controls">
-                  <button
-                    type="button"
-                    className="icon-btn-sm"
-                    onClick={() => setFilters({ ...filters, page: currentPage - 1 })}
-                    disabled={currentPage <= 1}
-                    aria-label="Previous page"
-                    title="Previous page"
-                  >
-                    {CHEVRON_LEFT_ICON}
-                  </button>
-                  <span className="pagination-page">Page {currentPage} of {totalPages}</span>
-                  <button
-                    type="button"
-                    className="icon-btn-sm"
-                    onClick={() => setFilters({ ...filters, page: currentPage + 1 })}
-                    disabled={currentPage >= totalPages}
-                    aria-label="Next page"
-                    title="Next page"
-                  >
-                    {CHEVRON_RIGHT_ICON}
-                  </button>
-                </div>
-              </div>
-              <div className="table-toolbar-actions">
-                <div className={`table-search${searchOpen ? ' table-search-open' : ''}`}>
-                  {searchOpen && (
-                    <input
-                      type="search"
-                      autoFocus
-                      placeholder="Risk ID, title…"
-                      value={filters.q}
-                      onChange={(e) => setFilters({ ...filters, q: e.target.value, page: 1 })}
-                      onBlur={() => { if (!filters.q) setSearchOpen(false); }}
-                    />
-                  )}
-                  <button
-                    type="button"
-                    className="icon-btn-sm"
-                    onClick={() => setSearchOpen((v) => !v)}
-                    aria-label="Search risks"
-                    title="Search"
-                  >
-                    {SEARCH_ICON}
-                  </button>
-                </div>
-                <div className="col-filter-wrap">
-                  <button
-                    type="button"
-                    className="icon-btn-sm"
-                    onClick={() => setColumnsMenuOpen((v) => !v)}
-                    aria-label="Show or hide columns"
-                    title="Columns"
-                  >
-                    {COLUMNS_ICON}
-                  </button>
-                  {columnsMenuOpen && (
-                    <>
-                      <div className="col-filter-pop-overlay" onClick={() => setColumnsMenuOpen(false)} />
-                      <div className="col-filter-pop columns-menu">
-                        <div className="sec-title" style={{ margin: '0 0 6px' }}>Columns shown</div>
-                        {COLUMNS.map((c) => (
-                          <label key={c.key} className="columns-menu-row">
-                            <input
-                              type="checkbox"
-                              checked={!hiddenColumns.has(c.key)}
-                              disabled={!c.hideable}
-                              onChange={() => toggleColumn(c.key)}
-                            />
-                            <span>{c.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
+      <div className="wsm-top-right">
+        <div className="wsm-pager">
+          <button
+            type="button"
+            className="btn btn-ghost btn-icon"
+            onClick={() => setFilters({ ...filters, page: currentPage - 1 })}
+            disabled={currentPage <= 1}
+            aria-label="Previous page"
+            title="Previous page"
+          >
+            {CHEVRON_LEFT_ICON}
+          </button>
+          <span className="wsm-count">{countLabel}</span>
+          <button
+            type="button"
+            className="btn btn-ghost btn-icon"
+            onClick={() => setFilters({ ...filters, page: currentPage + 1 })}
+            disabled={currentPage >= totalPages}
+            aria-label="Next page"
+            title="Next page"
+          >
+            {CHEVRON_RIGHT_ICON}
+          </button>
+        </div>
 
-            <div className="table-scroll table-scroll-tall">
-              <table className="cred-table risk-table">
-                <thead>
-                  <tr>
-                    {activeColumns.map((c) => (
-                      <th key={c.key} title={c.key === 'status' ? 'Guideline review status' : undefined}>
-                        <span className="th-label">
-                          {c.label}
-                          <span className="col-filter-wrap">
-                            <button
-                              type="button"
-                              className={`icon-btn-sm${isFilterActive(columnFilters[c.filterKey]) ? ' icon-btn-active' : ''}`}
-                              onClick={() => setOpenFilterCol(openFilterCol === c.key ? null : c.key)}
-                              aria-label={`Filter ${c.label}`}
-                              title={`Filter ${c.label}`}
-                            >
-                              {FILTER_ICON}
-                            </button>
-                            {openFilterCol === c.key && (
-                              <>
-                                <div className="col-filter-pop-overlay" onClick={() => setOpenFilterCol(null)} />
-                                <div className="col-filter-pop">
-                                  {c.filterType === 'text' && (
-                                    <input
-                                      type="text"
-                                      autoFocus
-                                      placeholder={`Filter ${c.label.toLowerCase()}…`}
-                                      value={columnFilters[c.filterKey] || ''}
-                                      onChange={(e) => setColumnFilter(c.filterKey, e.target.value)}
-                                    />
-                                  )}
-                                  {c.filterType === 'select' && (
-                                    <select
-                                      value={columnFilters[c.filterKey] || ''}
-                                      onChange={(e) => setColumnFilter(c.filterKey, e.target.value)}
-                                    >
-                                      <option value="">All</option>
-                                      {(c.key === 'team' ? teamOptions : TREATMENT_OPTIONS).map((opt) => (
-                                        <option key={opt} value={opt}>{opt}</option>
-                                      ))}
-                                    </select>
-                                  )}
-                                  {c.filterType === 'status' && (
-                                    <select
-                                      value={columnFilters[c.filterKey] || ''}
-                                      onChange={(e) => setColumnFilter(c.filterKey, e.target.value)}
-                                    >
-                                      {STATUS_FILTER_OPTIONS.map((opt) => (
-                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                      ))}
-                                    </select>
-                                  )}
-                                  {c.filterType === 'numeric' && (() => {
-                                    const nf = columnFilters[c.filterKey] || {};
-                                    const isRange = nf.op === 'between' || nf.op === 'notBetween';
-                                    return (
-                                      <>
-                                        <select
-                                          value={nf.op || ''}
-                                          onChange={(e) => setNumericFilter(c.filterKey, { op: e.target.value })}
-                                        >
-                                          <option value="">Operator…</option>
-                                          {NUMERIC_OPERATORS.map((op) => (
-                                            <option key={op.value} value={op.value}>{op.label}</option>
-                                          ))}
-                                        </select>
-                                        {nf.op && (
-                                          <div className="col-filter-numeric-inputs">
-                                            <input
-                                              type="number"
-                                              placeholder={isRange ? 'Min' : 'Value'}
-                                              value={nf.a ?? ''}
-                                              onChange={(e) => setNumericFilter(c.filterKey, { a: e.target.value })}
-                                            />
-                                            {isRange && (
-                                              <input
-                                                type="number"
-                                                placeholder="Max"
-                                                value={nf.b ?? ''}
-                                                onChange={(e) => setNumericFilter(c.filterKey, { b: e.target.value })}
-                                              />
-                                            )}
-                                          </div>
-                                        )}
-                                      </>
-                                    );
-                                  })()}
-                                  <button
-                                    type="button"
-                                    className="btn btn-ghost btn-small"
-                                    onClick={() => clearColumnFilter(c.filterKey)}
-                                    disabled={!isFilterActive(columnFilters[c.filterKey])}
-                                  >
-                                    Clear
-                                  </button>
-                                </div>
-                              </>
-                            )}
-                          </span>
-                        </span>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleRisks.map((r) => {
-                    const gs = guidelineStatus(r.checks);
-                    const cell = {
-                      status: (
-                        <td key="status">
-                          <span className="status-cell">
-                            <span className={`status-icon status-icon-${gs.icon}`} title={gs.label}>
-                              {STATUS_ICONS[gs.icon]}
-                            </span>
-                            <button
-                              type="button"
-                              className="icon-btn-sm"
-                              onClick={(e) => rerunGuideline(e, r.risk_id)}
-                              disabled={rerunning[r.risk_id]}
-                              title="Rerun guideline review for this risk"
-                              aria-label="Rerun guideline review for this risk"
-                            >
-                              <span className={rerunning[r.risk_id] ? 'spin' : ''}>{RERUN_ICON}</span>
-                            </button>
-                          </span>
-                        </td>
-                      ),
-                      team: <td key="team" title={r.team_name}><span className="cell-clip-multi">{r.team_name || '—'}</span></td>,
-                      issue: <td key="issue" title={r.issue}><span className="cell-clip-multi">{r.issue || '—'}</span></td>,
-                      vulnerability: <td key="vulnerability" title={r.vulnerability}><span className="cell-clip-multi">{r.vulnerability || '—'}</span></td>,
-                      threat: <td key="threat" title={r.threat}><span className="cell-clip-multi">{r.threat || '—'}</span></td>,
-                      title: <td key="title" className="strong" title={r.title}><span className="cell-clip-multi">{r.title}</span></td>,
-                      score: (
-                        <td key="score" className="ta-right" style={{ whiteSpace: 'normal' }}>
-                          <span className={SEVERITY_TAG[r.severity] || 'tag'}>
-                            {r.inherent_score || '—'} {r.severity ? `(${r.severity})` : ''}
-                          </span>
-                        </td>
-                      ),
-                      control: <td key="control" title={r.control}><span className="cell-clip-multi">{r.control || '—'}</span></td>,
-                      treatment: <td key="treatment" title={r.risk_treatment}><span className="cell-clip-multi">{r.risk_treatment || '—'}</span></td>,
-                      revised: (
-                        <td key="revised" className="ta-right" style={{ whiteSpace: 'normal' }}>
-                          <span className={SEVERITY_TAG[RATING_TO_SEVERITY[r.revised_rating]] || 'tag'}>
-                            {r.revised_score || '—'} {r.revised_rating ? `(${r.revised_rating})` : ''}
-                          </span>
-                        </td>
-                      ),
-                      updated: <td key="updated" className="dim">{r.updated_at}</td>,
-                    };
-                    return (
-                      <tr key={r.risk_id} onClick={() => toggleRow(r.risk_id)} className={openId === r.risk_id ? 'row-on' : ''} style={{ cursor: 'pointer' }}>
-                        {activeColumns.map((c) => cell[c.key])}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              {state.status === 'ok' && visibleRisks.length === 0 && (
-                <p className="empty">No risks match these filters.</p>
-              )}
-              {state.status === 'loading' && <p className="empty">Loading…</p>}
-            </div>
-          </>
-        )}
-      </section>
+        <label className="wsm-rows">
+          <span className="wsm-label">Rows</span>
+          <select value={pageSize} onChange={(e) => changePageSize(Number(e.target.value))}>
+            {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </label>
 
-      {openId && (() => {
-        const r = state.risks.find((x) => x.risk_id === openId);
-        if (!r) return null;
-        const pv = preview[openId];
-        const gs = guidelineStatus(r.checks);
-        const byRule = findingsByRule(r.guideline_findings);
-        return (
-          <div className="risk-drawer-backdrop" onClick={() => setOpenId(null)}>
-            <aside className="risk-drawer" onClick={(e) => e.stopPropagation()}>
-              <div className="risk-drawer-head">
-                <div>
-                  <h2 className="risk-drawer-title">{r.title}</h2>
-                  <p className="hint">{r.risk_id} · {(r.register || '').toUpperCase()}</p>
-                </div>
-                <button className="modal-close" onClick={() => setOpenId(null)} aria-label="Close" title="Close">×</button>
-              </div>
-
-              <dl className="kv">
-                <dt>Feature</dt><dd>{r.feature || '—'}</dd>
-                <dt>Team</dt><dd>{r.team_name || '—'}</dd>
-                <dt>Issue</dt><dd>{r.issue || '—'}</dd>
-                <dt>Vulnerability</dt><dd>{r.vulnerability || '—'}</dd>
-                <dt>Threat</dt><dd>{r.threat || '—'}</dd>
-                <dt>Risk score</dt>
-                <dd>
-                  <span className={SEVERITY_TAG[r.severity] || 'tag'}>
-                    {r.inherent_score || '—'} {r.severity ? `(${r.severity})` : ''}
-                  </span>
-                </dd>
-                <dt>Control</dt><dd>{r.control || '—'}</dd>
-                <dt>Risk treatment</dt><dd>{r.risk_treatment || '—'}</dd>
-                <dt>Revised risk score</dt>
-                <dd>
-                  <span className={SEVERITY_TAG[RATING_TO_SEVERITY[r.revised_rating]] || 'tag'}>
-                    {r.revised_score || '—'} {r.revised_rating ? `(${r.revised_rating})` : ''}
-                  </span>
-                </dd>
-                <dt>Updated</dt><dd>{r.updated_at || '—'}</dd>
-              </dl>
-
-              <div className="sec-title">Last reviewed</div>
-              {(!pv || pv.status === 'loading') && <p className="hint">Loading from Creator…</p>}
-              {pv?.status === 'error' && <div className="banner banner-err" role="status">{pv.error}</div>}
-              {pv?.status === 'ok' && (
-                <p className="hint">
-                  {pv.data.last_reviewed_on || 'Unknown'}
-                  {pv.data.last_reviewed_by ? ` — ${pv.data.last_reviewed_by}` : ''}
-                </p>
-              )}
-
-              <div className="sec-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                Guideline review
-                <span className={`status-icon status-icon-${gs.icon}`} title={gs.label}>{STATUS_ICONS[gs.icon]}</span>
-                <button
-                  type="button"
-                  className="icon-btn-sm"
-                  onClick={(e) => rerunGuideline(e, r.risk_id)}
-                  disabled={rerunning[r.risk_id]}
-                  title="Rerun guideline review for this risk"
-                  aria-label="Rerun guideline review for this risk"
-                >
-                  <span className={rerunning[r.risk_id] ? 'spin' : ''}>{RERUN_ICON}</span>
-                </button>
-              </div>
-              {r.checks.length > 0 ? (
-                <div className="risk-checks-detail">
-                  {r.checks.map(([code, result]) => (
-                    <div key={code} className={`risk-check-row ${result === 'pass' ? 'risk-check-pass' : 'risk-check-fail'}`}>
-                      <span className={`tag ${result === 'pass' ? 'tag-good' : 'tag-bad'}`}>
-                        {code} {result === 'pass' ? '✓' : '✕'}
-                      </span>
-                      {result !== 'pass' && (byRule[code] || []).map((f, i) => (
-                        <div key={i} className="risk-check-finding">
-                          <p className="risk-check-problem">{f.problem}</p>
-                          {f.suggestion && <p className="hint risk-check-suggestion">Suggestion: {f.suggestion}</p>}
-                        </div>
-                      ))}
-                    </div>
+        {!splitMode && (
+          <div className="col-filter-wrap">
+            <button
+              type="button"
+              className="btn btn-ghost btn-icon"
+              onClick={() => setColumnsMenuOpen((v) => !v)}
+              aria-label="Show or hide columns"
+              title="Columns"
+            >
+              {COLUMNS_ICON}
+            </button>
+            {columnsMenuOpen && (
+              <>
+                <div className="col-filter-pop-overlay" onClick={() => setColumnsMenuOpen(false)} />
+                <div className="col-filter-pop columns-menu">
+                  <div className="wsm-filter-label">Columns shown</div>
+                  {COLUMNS.map((c) => (
+                    <label key={c.key} className="columns-menu-row">
+                      <input
+                        type="checkbox"
+                        checked={!hiddenColumns.has(c.key)}
+                        disabled={!c.hideable}
+                        onChange={() => toggleColumn(c.key)}
+                      />
+                      <span>{c.label}</span>
+                    </label>
                   ))}
                 </div>
-              ) : (
-                <p className="hint">Not reviewed yet — use the rerun icon above.</p>
-              )}
-            </aside>
+              </>
+            )}
           </div>
-        );
-      })()}
+        )}
 
-      {settingsOpen && (
-        <div className="modal-backdrop" onClick={() => setSettingsOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head">
-              <h2>Risk Register settings</h2>
-              <button className="modal-close" onClick={() => setSettingsOpen(false)} aria-label="Close" title="Close">×</button>
-            </div>
+        <button className="btn" onClick={openGuidelines}>View guidelines</button>
+        <button className="btn" onClick={syncFromCreator} disabled={busy}>Sync from Creator</button>
+        <button className="btn btn-primary" onClick={reviewGuidelines} disabled={busy}>Review guidelines</button>
+      </div>
+    </>
+  );
 
-            <div className="sec-title">Teams synced</div>
-            <div className="ask-chips">
-              {teamFilters.length
-                ? teamFilters.map((t) => (
-                    <span key={t.team_name} className="tag tag-muted">
-                      {t.team_name}
-                      <button
-                        type="button"
-                        onClick={() => removeTeamFilter(t.team_name)}
-                        disabled={teamsBusy}
-                        aria-label={`Remove ${t.team_name}`}
-                        style={{ marginLeft: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))
-                : <span className="hint">No teams configured yet — add one below.</span>}
+  /* ── rows ────────────────────────────────────────────────────────────────────────────────── */
+
+  const statusCell = (r, gs) => (
+    <span className="wsm-status-cell">
+      <StatusMark
+        kind={recencyMark(r.updated_at)}
+        icon={r.updated_at ? CALENDAR_ICON : CLOCK_ICON}
+        title={r.updated_at ? `Updated ${r.updated_at}` : 'No update date recorded'}
+      />
+      <StatusMark
+        kind={gs.icon === 'fail' ? 'fail' : gs.icon === 'ok' ? 'pass' : 'idle'}
+        icon={gs.icon === 'unreviewed' ? CLOCK_ICON : CLIPBOARD_ICON}
+        title={gs.label}
+      />
+      <button
+        type="button"
+        className="btn btn-ghost btn-icon-sm"
+        onClick={(e) => rerunGuideline(e, r.risk_id)}
+        disabled={rerunning[r.risk_id]}
+        title="Rerun guideline review for this risk"
+        aria-label="Rerun guideline review for this risk"
+      >
+        <span className={rerunning[r.risk_id] ? 'spin' : ''}>{RERUN_ICON}</span>
+      </button>
+    </span>
+  );
+
+  const tableCols = activeColumns.map((c) => c.width).join(' ');
+
+  const tableView = (
+    <div className="pane wsm-table-pane">
+      <div className="wsm-table" style={{ minWidth: '900px' }}>
+        <div className="wsm-thead" style={{ gridTemplateColumns: tableCols }}>
+          {activeColumns.map((c) => (
+            <FilterMenu
+              key={c.key}
+              col={c}
+              extras={c.key === 'issue' ? EXTRA_FILTERS : null}
+              filters={columnFilters}
+              open={openFilterCol === c.key}
+              onOpen={setOpenFilterCol}
+              onClose={() => setOpenFilterCol(null)}
+              onSet={setColumnFilter}
+              onSetNumeric={setNumericFilter}
+              onClear={clearColumnFilter}
+              teamOptions={teamOptions}
+              registerOptions={registerOptions}
+            />
+          ))}
+        </div>
+
+        {visibleRisks.map((r, i) => {
+          const gs = guidelineStatus(r.checks);
+          const cell = {
+            status: <span key="status">{statusCell(r, gs)}</span>,
+            riskid: <span key="riskid" className="wsm-riskid" title={r.risk_id || ''}>{r.risk_id || '—'}</span>,
+            issue: (
+              <button key="issue" type="button" className="wsm-issue" onClick={() => openRisk(r.risk_id)}>
+                {r.issue || r.title || '—'}
+              </button>
+            ),
+            register: <span key="register" className="wsm-registry">{(r.register || '—').toUpperCase()}</span>,
+            score: (
+              <span key="score">
+                <ScoreBadge
+                  score={r.inherent_score}
+                  band={bandOf(r.severity)}
+                  label={r.severity}
+                  title={`Risk score · ${r.severity || 'unrated'}`}
+                />
+              </span>
+            ),
+            team: <span key="team" className="wsm-team">{r.team_name || '—'}</span>,
+          };
+          return (
+            <div
+              key={r.risk_id}
+              data-row="1"
+              className="wsm-trow"
+              style={{
+                gridTemplateColumns: tableCols,
+                animation: `wsm-row-a 300ms var(--ease) ${Math.min(i * 28, 340)}ms both`,
+              }}
+            >
+              {activeColumns.map((c) => cell[c.key])}
             </div>
-            <div className="ask-row" style={{ marginTop: 10 }}>
-              <input
-                type="text"
-                placeholder="Exact Zoho Creator Team_Name…"
-                value={newTeam}
-                onChange={(e) => setNewTeam(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addTeamFilter()}
+          );
+        })}
+      </div>
+
+      {state.status === 'ok' && visibleRisks.length === 0 && (
+        <p className="wsm-empty">No risks match this search or filter.</p>
+      )}
+      {state.status === 'loading' && <p className="wsm-empty">Loading…</p>}
+    </div>
+  );
+
+  /* ── split mode ──────────────────────────────────────────────────────────────────────────── */
+
+  const listView = (
+    <div className="pane wsm-list-pane">
+      {visibleRisks.map((r, i) => {
+        const gs = guidelineStatus(r.checks);
+        return (
+          <button
+            key={r.risk_id}
+            type="button"
+            data-row="1"
+            className={`wsm-lrow${openId === r.risk_id ? ' wsm-lrow-on' : ''}`}
+            onClick={() => openRisk(r.risk_id)}
+            style={{ animation: `wsm-row-a 300ms var(--ease) ${Math.min(i * 28, 340)}ms both` }}
+          >
+            <span className="wsm-lrow-title">{r.issue || r.title}</span>
+            <span className="wsm-lrow-sub"><span className="wsm-riskid">{r.risk_id || '—'}</span> · {r.team_name || '—'}</span>
+            <span className="wsm-lrow-chips">
+              <span className="tag">{(r.register || '—').toUpperCase()}</span>
+              <StatusMark
+                kind={gs.icon === 'fail' ? 'fail' : gs.icon === 'ok' ? 'pass' : 'idle'}
+                icon={gs.icon === 'unreviewed' ? CLOCK_ICON : CLIPBOARD_ICON}
+                title={gs.label}
               />
-              <button className="btn btn-ghost" onClick={addTeamFilter} disabled={teamsBusy || !newTeam.trim()}>Add team</button>
+              <ScoreBadge
+                score={r.inherent_score}
+                band={bandOf(r.severity)}
+                label={r.severity}
+                title={`Risk score · ${r.severity || 'unrated'}`}
+              />
+            </span>
+          </button>
+        );
+      })}
+      {visibleRisks.length === 0 && <p className="wsm-empty">No risks match this search or filter.</p>}
+    </div>
+  );
+
+  const detailView = (() => {
+    if (!active) return null;
+    const r = active;
+    const gs = guidelineStatus(r.checks);
+    const byRule = findingsByRule(r.guideline_findings);
+    const checks = sortChecks(r.checks);
+    const pv = preview[r.risk_id];
+    const inherent = Number(r.inherent_score);
+    const revised = Number(r.revised_score);
+    const hasDelta = !Number.isNaN(inherent) && !Number.isNaN(revised);
+    const delta = hasDelta && revised < inherent ? `↓ ${inherent - revised}` : '→ 0';
+    const revisedBand = bandOf(RATING_TO_SEVERITY[r.revised_rating]);
+
+    const lastReviewed = !pv || pv.status === 'loading'
+      ? 'Loading…'
+      : pv.status === 'error'
+        ? 'Unavailable'
+        : (pv.data?.last_reviewed_on || 'Unknown');
+
+    return (
+      <div className="wsm-detail">
+        <div className="wsm-detail-head">
+          <div className="wsm-eyebrow">
+            <span className="wsm-riskid">{r.risk_id || '—'}</span> · {(r.register || '').toUpperCase()} · {r.team_name || '—'}
+          </div>
+          <h2 className="wsm-headline">{r.title}</h2>
+        </div>
+
+        <div className="pane wsm-detail-body">
+          <div className="wsm-detail-main">
+          <div className="wsm-step">
+            <div className="wsm-step-gutter">
+              <span className="wsm-step-num">01</span>
+              <span className="wsm-step-rule" aria-hidden="true" />
             </div>
-            <p className="hint" style={{ marginTop: 8 }}>
-              Sync from Creator only pulls risks for the teams listed here. Add or remove a team,
-              then click Sync from Creator to pick it up — no redeploy needed.
-            </p>
+            <div className="wsm-step-body">
+              <div className="wsm-step-head">
+                <span className="wsm-section-h">Assessment</span>
+                <span className="wsm-step-caption">What the register records before treatment</span>
+              </div>
+
+              <div className="wsm-field-grid">
+                <Field name="issue" label="Issue" value={r.issue} expanded={expandedFields.issue} onToggle={toggleField} full />
+                <Field name="vulnerability" label="Vulnerability" value={r.vulnerability} expanded={expandedFields.vulnerability} onToggle={toggleField} />
+                <Field name="threat" label="Threat" value={r.threat} expanded={expandedFields.threat} onToggle={toggleField} />
+              </div>
+
+            </div>
+          </div>
+
+          <div className="wsm-step">
+            <div className="wsm-step-gutter">
+              <span className="wsm-step-num">02</span>
+            </div>
+            <div className="wsm-step-body">
+              <div className="wsm-step-head">
+                <span className="wsm-section-h">Control applied</span>
+                <span className="wsm-step-caption">{r.feature || 'No feature recorded'}</span>
+              </div>
+              <div className="wsm-field-grid">
+                <Field name="control" label="Control" value={r.control} expanded={expandedFields.control} onToggle={toggleField} full />
+              </div>
+            </div>
+          </div>
+          </div>
+
+          <div className="wsm-detail-side">
+          <div className="wsm-scorecard">
+            <div className="wsm-scorecard-head">
+              <span className="wsm-label">Risk score</span>
+              <span className="wsm-delta">{delta}</span>
+            </div>
+            <div className="wsm-scorecard-body">
+              <div className="wsm-scorecell" style={{ boxShadow: `inset 0 -2px 0 var(--band-${bandOf(r.severity)})` }}>
+                <div className="wsm-label">Inherent</div>
+                <div className="wsm-scorenum" style={{ color: `var(--band-${bandOf(r.severity)})` }}>
+                  {r.inherent_score || '—'}
+                </div>
+                {r.severity && <span className={`wsm-band wsm-band-${bandOf(r.severity)}`}>{r.severity}</span>}
+              </div>
+              <span className="wsm-scorearrow" aria-hidden="true">→</span>
+              <div className="wsm-scorecell" style={{ boxShadow: `inset 0 -2px 0 var(--band-${revisedBand})` }}>
+                <div className="wsm-label">After control</div>
+                <div className="wsm-scorenum" style={{ color: `var(--band-${revisedBand})` }}>
+                  {r.revised_score || '—'}
+                </div>
+                {r.revised_rating && <span className={`wsm-band wsm-band-${revisedBand}`}>{r.revised_rating}</span>}
+              </div>
+            </div>
+          </div>
+
+        <div className="pane wsm-guide-region">
+          <div className="wsm-guide-bar">
+            <span className="wsm-section-h">Guideline review</span>
+            <span className={`wsm-guide-summary${gs.failed ? ' wsm-guide-summary-fail' : ''}`}>
+              {gs.total === 0
+                ? 'Not reviewed yet'
+                : gs.failed
+                  ? `${gs.failed} guideline${gs.failed === 1 ? '' : 's'} failed`
+                  : `${gs.total} passed`}
+            </span>
+            <button
+              type="button"
+              className="btn wsm-rerun"
+              onClick={(e) => rerunGuideline(e, r.risk_id)}
+              disabled={rerunning[r.risk_id]}
+            >
+              {rerunning[r.risk_id] ? 'Running…' : 'Re-run review'}
+            </button>
+          </div>
+
+          {gs.total > 0 && (
+            <div className="wsm-guide-strip" aria-hidden="true">
+              {checks.map(([code, result]) => (
+                <span
+                  key={code}
+                  title={`${code} · ${result === 'pass' ? 'met' : 'failed'}`}
+                  className={result === 'pass' ? 'wsm-seg' : 'wsm-seg wsm-seg-fail'}
+                />
+              ))}
+            </div>
+          )}
+
+          {gs.total === 0 && <p className="wsm-empty">No review has run for this risk yet.</p>}
+
+          <div className="wsm-guide-list">
+          {checks.map(([code, result]) => {
+            const pass = result === 'pass';
+            const findings = byRule[code] || [];
+            const isOpen = openCheck === code;
+            return (
+              <div key={code} className={`wsm-guide-row${pass ? '' : ' wsm-guide-row-fail'}`}>
+                <button
+                  type="button"
+                  className="wsm-guide-head"
+                  onClick={() => setOpenCheck(isOpen ? null : code)}
+                  disabled={pass && findings.length === 0}
+                >
+                  <span
+                    className={`wsm-guide-glyph${pass ? '' : ' wsm-guide-glyph-fail'}`}
+                    title={pass ? 'Met' : 'Failed'}
+                  >
+                    {pass ? '✓' : '✕'}
+                  </span>
+                  <span className="wsm-guide-id">{code}</span>
+                  <span className="wsm-guide-title">
+                    {findings[0]?.problem || (pass ? 'Check passed' : 'Check failed')}
+                  </span>
+                  <span className={`wsm-guide-count${pass ? '' : ' wsm-guide-count-fail'}`}>
+                    {pass ? 'Pass' : `${findings.length || 1} issue${(findings.length || 1) === 1 ? '' : 's'}`}
+                  </span>
+                  <span
+                    className={`wsm-guide-chev${isOpen ? ' wsm-guide-chev-open' : ''}`}
+                    aria-hidden="true"
+                  >
+                    ›
+                  </span>
+                </button>
+                {isOpen && findings.length > 0 && (
+                  <div className="wsm-guide-findings">
+                    {findings.map((f, idx) => (
+                      <div key={idx} className="wsm-finding">
+                        {/* The collapsed row already shows the first problem — repeating it here
+                            would print the same sentence twice. Later findings under the same
+                            rule do need their own line. */}
+                        {idx > 0 && <p className="wsm-finding-problem">{f.problem}</p>}
+                        {f.suggestion && (
+                          <>
+                            <div className="wsm-finding-label">Suggestion</div>
+                            <p className="wsm-finding-sug">{f.suggestion}</p>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
           </div>
         </div>
-      )}
+          </div>
+        </div>
+
+        <div className="wsm-detail-foot">
+          <div className="wsm-foot-cell">
+            <div className="wsm-label">Treatment</div>
+            <div className="wsm-foot-value">{r.risk_treatment || '—'}</div>
+          </div>
+          <div className="wsm-foot-cell">
+            <div className="wsm-label">Registry</div>
+            <div className="wsm-foot-value">{(r.register || '—').toUpperCase()}</div>
+          </div>
+          <div className="wsm-foot-cell">
+            <div className="wsm-label">Last reviewed</div>
+            <div className="wsm-foot-value">{lastReviewed}</div>
+            {pv?.status === 'ok' && pv.data?.last_reviewed_by && (
+              <div className="wsm-foot-sub">{pv.data.last_reviewed_by}</div>
+            )}
+            {pv?.status === 'error' && <div className="wsm-foot-sub">{pv.error}</div>}
+          </div>
+        </div>
+      </div>
+    );
+  })();
+
+  /* ── render ──────────────────────────────────────────────────────────────────────────────── */
+
+  if (state.status === 'error') {
+    return (
+      <div className="wsm-register">
+        <div className="wsm-register-error">
+          <div className="banner banner-err" role="status">{state.error}</div>
+          <button className="btn" onClick={load}>Try again</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {slot && createPortal(topBar, slot)}
+
+      <div className={`wsm-register${splitMode ? ' wsm-register-split' : ''}`}>
+        {splitMode ? (
+          <>
+            {listView}
+            {detailView}
+          </>
+        ) : tableView}
+      </div>
 
       {guidelinesOpen && (
         <div className="modal-backdrop" onClick={() => setGuidelinesOpen(false)}>

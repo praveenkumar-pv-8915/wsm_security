@@ -1,7 +1,7 @@
 {
   "name": "wsm-security",
   "private": true,
-  "description": "WSM Security team workspace on Zoho Catalyst — root task scripts (deploy / serve). Functions and frontend have their own package.json.",
+  "description": "WSM Security team workspace on Zoho Catalyst \u2014 root task scripts (deploy / serve). Functions and frontend have their own package.json.",
   "scripts": {
     "deploy": ".claude/skills/deploy/deploy.sh",
     "deploy:dry": ".claude/skills/deploy/deploy.sh --dry-run",
@@ -10,6 +10,11 @@
     "deploy:client": ".claude/skills/deploy/deploy.sh --only client",
     "serve": "catalyst serve --only functions:welcome,functions:task_manager,client --no-open",
     "serve:debug": "catalyst serve --only functions:welcome,functions:task_manager,client --no-open --debug advancedio:welcome:9229",
-    "mcp:smoke": "npm --prefix mcp/catalyst-cli run smoke"
+    "mcp:smoke": "npm --prefix mcp/catalyst-cli run smoke",
+    "sync:job": "node scripts/sync-job-modules.js",
+    "check:job": "node scripts/sync-job-modules.js --check",
+    "predeploy": "node scripts/sync-job-modules.js --check",
+    "deploy:vm-job": ".claude/skills/deploy/deploy.sh --only functions:vm_notifier_job",
+    "predeploy:vm-job": "node scripts/sync-job-modules.js --check"
   }
 }

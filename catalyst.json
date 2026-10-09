@@ -4,6 +4,10 @@
   },
   "functions": {
     "source": "functions",
-    "targets": ["welcome", "task_manager"]
+    "targets": [
+      "welcome",
+      "task_manager",
+      "vm_notifier_job"
+    ]
   }
 }

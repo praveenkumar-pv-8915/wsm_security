@@ -1,23 +1,30 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ALLOWED_DOMAIN,
-  fetchCurrentUser,
-  isSignedIn,
+  APP_PATH,
+  SESSION,
   normaliseUser,
+  readCurrentUser,
   signOut,
-  waitForCatalyst,
+  startHostedSignIn,
 } from '../lib/catalyst';
 import { AUTH_LOST_EVENT } from '../lib/api';
 
 /**
  * Gate in front of the whole app. Nothing renders until Catalyst says there is a session.
  *
+ * This project uses Catalyst **hosted** auth, so signing in is a redirect to Catalyst's own login
+ * page — there is no embedded widget and no iframe div to mount. (The embedded flow is what used to
+ * render an empty white box here: embedded auth is off for this project and the iframe was asked
+ * for providers-only chrome with no providers enabled.)
+ *
  * States:
- *   loading   — SDK still initialising, or the session check is in flight
- *   sign-in   — no session; the Catalyst sign-in widget is mounted here
- *   denied    — signed in, but not an ALLOWED_DOMAIN account; auto signs out
- *   sdk-error — the SDK never loaded, or the user record couldn't be read
- *   ok        — renders children(user)
+ *   loading        — the session check is in flight
+ *   sign-in        — no session; offers the hosted login redirect
+ *   denied         — signed in, but not an ALLOWED_DOMAIN account; auto signs out
+ *   not-authorized — a valid Zoho session that isn't a user of this Catalyst project
+ *   sdk-error      — the session check itself failed
+ *   ok             — renders children(user)
  *
  * The domain check here is UX, not security. It stops someone with a personal Zoho account from
  * reaching a UI that would only 403 anyway. functions/welcome/auth.js runs the same check
@@ -31,39 +38,39 @@ export default function AuthGate({ children }) {
   const [state, setState] = useState('loading');
   const [user, setUser] = useState(null);
   const [error, setError] = useState('');
-  const signInMounted = useRef(false);
 
   const check = useCallback(async () => {
-    try {
-      const catalyst = await waitForCatalyst();
+    setState('loading');
 
-      if (!(await isSignedIn(catalyst))) {
-        signInMounted.current = false;
-        setState('sign-in');
-        return;
-      }
+    const { status, record, error: readError } = await readCurrentUser();
 
-      const record = await fetchCurrentUser(catalyst);
-      if (!record) {
-        setError('Signed in, but Catalyst would not return your user record.');
-        setState('sdk-error');
-        return;
-      }
-
-      const nextUser = normaliseUser(record);
-      if (!nextUser.email.endsWith(ALLOWED_DOMAIN)) {
-        setError(`Access is restricted to ${ALLOWED_DOMAIN} accounts.`);
-        setState('denied');
-        setTimeout(() => signOut(window.location.href), 1800);
-        return;
-      }
-
-      setUser(nextUser);
-      setState('ok');
-    } catch (err) {
-      setError(err?.message || 'Unknown error');
-      setState('sdk-error');
+    if (status === SESSION.ANONYMOUS) {
+      setState('sign-in');
+      return;
     }
+
+    if (status === SESSION.NOT_AUTHORIZED) {
+      setError('Your Zoho account is signed in but has not been added to this Catalyst project.');
+      setState('not-authorized');
+      return;
+    }
+
+    if (status !== SESSION.OK) {
+      setError(readError || 'The session check failed.');
+      setState('sdk-error');
+      return;
+    }
+
+    const nextUser = normaliseUser(record);
+    if (!nextUser.email.endsWith(ALLOWED_DOMAIN)) {
+      setError(`Access is restricted to ${ALLOWED_DOMAIN} accounts.`);
+      setState('denied');
+      setTimeout(() => signOut(APP_PATH), 1800);
+      return;
+    }
+
+    setUser(nextUser);
+    setState('ok');
   }, []);
 
   useEffect(() => {
@@ -74,30 +81,13 @@ export default function AuthGate({ children }) {
   // leaving a dead UI showing stale data behind an expired session.
   useEffect(() => {
     const onAuthLost = () => {
-      signInMounted.current = false;
       setUser(null);
+      setError('');
       setState('sign-in');
     };
     window.addEventListener(AUTH_LOST_EVENT, onAuthLost);
     return () => window.removeEventListener(AUTH_LOST_EVENT, onAuthLost);
   }, []);
-
-  // Mount the Catalyst widget only once we're actually showing the sign-in screen — the target div
-  // has to exist in the DOM before signIn() is called.
-  useEffect(() => {
-    if (state !== 'sign-in' || signInMounted.current) return;
-    if (!window.catalyst?.auth) return;
-    try {
-      window.catalyst.auth.signIn('catalyst-signin-div', {
-        signin_providers_only: true,
-        service_url: window.location.href,
-      });
-      signInMounted.current = true;
-    } catch (err) {
-      setError(err?.message || 'The sign-in widget failed to render.');
-      setState('sdk-error');
-    }
-  }, [state]);
 
   if (state === 'ok') return children(user);
 
@@ -122,7 +112,11 @@ export default function AuthGate({ children }) {
         {state === 'sign-in' && (
           <>
             <p className="gate-msg">Internal tool — {ALLOWED_DOMAIN} accounts only.</p>
-            <div id="catalyst-signin-div" className="gate-signin" />
+            <div className="gate-signin">
+              <button className="btn btn-primary" type="button" onClick={() => startHostedSignIn()}>
+                Sign in with Zoho
+              </button>
+            </div>
           </>
         )}
 
@@ -133,13 +127,28 @@ export default function AuthGate({ children }) {
           </>
         )}
 
+        {state === 'not-authorized' && (
+          <>
+            <h2 className="gate-title">Not authorised</h2>
+            <p className="gate-msg gate-msg-err">{error}</p>
+            <p className="gate-msg">Ask a WSM Security admin to add you in Catalyst Console → Users.</p>
+            <div className="gate-signin">
+              <button className="btn btn-ghost" type="button" onClick={() => signOut(APP_PATH)}>
+                Sign out
+              </button>
+            </div>
+          </>
+        )}
+
         {state === 'sdk-error' && (
           <>
             <h2 className="gate-title">Sign-in unavailable</h2>
             <p className="gate-msg gate-msg-err">{error}</p>
-            <button className="btn btn-ghost" type="button" onClick={() => window.location.reload()}>
-              Retry
-            </button>
+            <div className="gate-signin">
+              <button className="btn btn-ghost" type="button" onClick={check}>
+                Retry
+              </button>
+            </div>
           </>
         )}
       </div>

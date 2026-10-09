@@ -1,13 +1,13 @@
 # Connections
 
-The 12 service connections from `agent-knowledge-kit/src/connections`, moved into the Catalyst app.
+The 13 service connections from `agent-knowledge-kit/src/connections`, moved into the Catalyst app.
 
 In the kit, each connection's token lived in the developer's **macOS Keychain** plus a local
 **SQLite** file — per-person, per-machine, invisible to the team. Here the catalogue is shared and
 each credential is either **team-shared** or **personal**, so the app itself can call these services
 rather than only a laptop with the right Keychain entries.
 
-## The 11 connections
+## The 13 connections
 
 | Key | Auth | Scopes | Default DC | API host |
 |---|---|---|---|---|
@@ -19,12 +19,13 @@ rather than only a laptop with the right Keychain entries.
 | `zoho-sheet` | OAuth | 1 | `in` | `sheet.zoho.{dc}` |
 | `zoho-creator` | OAuth | 5 | `in` | `www.zohoapis.{dc}` |
 | `zoho-workdrive` | OAuth | 17 | `in` | `workdrive.zoho.{dc}` |
+| `zoho-connect` | OAuth | 3 | `in` | `connect.zoho.{dc}` |
 | `zoho-hacksaw` | OAuth | 6 | `zcc` | `hacksaw.zohocorpcloud.in` |
 | `zoho-platformai` | OAuth + `portal_id` config | 1 | `in` | `platformai.zoho.{dc}` |
 | `zoho-cmtools` | `PRIVATE-TOKEN` header | — | `csez` | `build.zohocorp.com` |
 | `zoho-repository` | PAT, `Authorization: Zoho-zapikey` | — | `in` | `api.repository.zoho.in` |
 
-49 OAuth scopes total across 10 services, plus 2 static-token services.
+52 OAuth scopes total across 11 services, plus 2 static-token services.
 
 > **Note on the kit's own docs:** `SCOPES-INVENTORY.md` claims 51 scopes, but `config.json` — the
 > file the scripts actually read — contains 48. This registry matches `config.json`. The inventory
