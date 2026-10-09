@@ -37,15 +37,18 @@
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 </helmet>
-<div style="--ac: {{ t.ac }}; --ac-text: {{ t.acText }}; --ac-hov: {{ t.acHov }}; --ac-hi: {{ t.acHi }}; --ac-soft: {{ t.acSoft }}; --ac-soft2: {{ t.acSoft2 }}; --ac-tint: {{ t.acTint }}; --ac-tint2: {{ t.acTint2 }}; --ac-tint3: {{ t.acTint3 }}; --ac-ground: {{ t.acGround }}; --ac-mid: {{ t.acMid }}; --bg: {{ t.bg }}; --chrome: {{ t.chrome }}; --surf: {{ t.surf }}; --surf2: {{ t.surf2 }}; --line0: {{ t.line0 }}; --line1: {{ t.line1 }}; --line2: {{ t.line2 }}; --line3: {{ t.line3 }}; --line4: {{ t.line4 }}; --ink: {{ t.ink }}; --ink2: {{ t.ink2 }}; --ink3: {{ t.ink3 }}; --muted: {{ t.muted }}; --muted2: {{ t.muted2 }}; --muted3: {{ t.muted3 }}; --on-ac: {{ t.onAc }}; --ac2: {{ t.ac2 }}; --ac2-text: {{ t.ac2Text }}; --ac2-tint: {{ t.ac2Tint }}; --ac2-soft: {{ t.ac2Soft }}; height: 100vh; box-sizing: border-box; display: grid; grid-template-columns: 236px minmax(0, 1fr); padding: {{ z.shellPad }}; gap: {{ z.shellGap }}; background: {{ z.shellBg }}; color: var(--ink, #eef0f2); font-family: Archivo, system-ui, sans-serif; overflow: hidden;">
+<div style="--ac: {{ t.ac }}; --ac-text: {{ t.acText }}; --ac-hov: {{ t.acHov }}; --ac-hi: {{ t.acHi }}; --ac-soft: {{ t.acSoft }}; --ac-soft2: {{ t.acSoft2 }}; --ac-tint: {{ t.acTint }}; --ac-tint2: {{ t.acTint2 }}; --ac-tint3: {{ t.acTint3 }}; --ac-ground: {{ t.acGround }}; --ac-mid: {{ t.acMid }}; --bg: {{ t.bg }}; --chrome: {{ t.chrome }}; --surf: {{ t.surf }}; --surf2: {{ t.surf2 }}; --line0: {{ t.line0 }}; --line1: {{ t.line1 }}; --line2: {{ t.line2 }}; --line3: {{ t.line3 }}; --line4: {{ t.line4 }}; --ink: {{ t.ink }}; --ink2: {{ t.ink2 }}; --ink3: {{ t.ink3 }}; --muted: {{ t.muted }}; --muted2: {{ t.muted2 }}; --muted3: {{ t.muted3 }}; --on-ac: {{ t.onAc }}; --ac2: {{ t.ac2 }}; --ac2-text: {{ t.ac2Text }}; --ac2-tint: {{ t.ac2Tint }}; --ac2-soft: {{ t.ac2Soft }}; --fail: {{ t.fail }}; --fail-tint: {{ t.failTint }}; height: 100vh; box-sizing: border-box; display: grid; grid-template-columns: {{ railW }} minmax(0, 1fr); transition: grid-template-columns 180ms ease; padding: {{ z.shellPad }}; gap: {{ z.shellGap }}; background: {{ z.shellBg }}; color: var(--ink, #eef0f2); font-family: Archivo, system-ui, sans-serif; overflow: hidden;">
 
   <aside class="pane" style="background: {{ z.railBg }}; border-right: {{ z.railEdge }}; box-shadow: {{ z.railShadow }}; display: flex; flex-direction: column; overflow: auto;">
+    <sc-if value="{{ railOpen }}" hint-placeholder-val="{{ true }}">
     <div style="display: flex; align-items: stretch; border-bottom: 1px solid var(--line1, #26292e);">
       <div style="width: 46px; flex: none; background: var(--ac, #ff5a41); color: var(--on-ac, #0c0d0f); display: grid; place-items: center; font-weight: 800; font-size: 15px;">WS</div>
-      <div style="padding: 10px 14px; min-width: 0;">
-        <div style="font-weight: 800; font-size: 14px; line-height: 1.1; letter-spacing: -0.01em;">WSM SECURITY</div>
-        <div style="font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; margin-top: 3px; color: var(--muted, #9aa0a8);">Team workspace</div>
+      <sc-if value="{{ railOpen }}" hint-placeholder-val="{{ true }}">
+      <div style="padding: 10px 14px; min-width: 0; flex: 1 1 auto;">
+        <div style="font-weight: 800; font-size: 14px; line-height: 1.1; letter-spacing: -0.01em; white-space: nowrap;">WSM SECURITY</div>
+        <div style="font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; margin-top: 3px; white-space: nowrap; color: var(--muted, #9aa0a8);">Team workspace</div>
       </div>
+      </sc-if>
     </div>
 
     <nav style="display: flex; flex-direction: column; padding: 6px 0 10px;">
@@ -74,6 +77,8 @@
         <button onClick="{{ signOut }}" style="appearance: none; cursor: pointer; padding: 6px 9px; font-weight: 700; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; text-align: left; border: 1px solid var(--line1, #26292e); background: transparent; color: var(--muted, #9aa0a8);" style-hover="color: var(--ink, #eef0f2); border-color: var(--line3, #33373d);">Sign out</button>
       </div>
     </div>
+    </sc-if>
+    <button onClick="{{ toggleRail }}" title="{{ railTitle }}" aria-label="{{ railTitle }}" style="appearance: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 0 14px; border: 0; background: transparent; font-family: inherit; color: var(--muted, #9aa0a8); margin-top: {{ railBtnMt }}; flex: none; height: 40px; justify-content: {{ railBtnJustify }}; border-top: {{ railBtnEdge }};" style-hover="color: var(--ink, #eef0f2); background: var(--surf, #16181b);"><sc-if value="{{ railOpen }}" hint-placeholder-val="{{ true }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="1"></rect><path d="M9 4.5v15"></path><path d="M15.5 10l-2 2 2 2"></path></svg><span style="font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700;">Hide sidebar</span></sc-if><sc-if value="{{ railClosed }}" hint-placeholder-val="{{ false }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="1"></rect><path d="M9 4.5v15"></path><path d="M13.5 10l2 2-2 2"></path></svg></sc-if></button>
   </aside>
 
   <main style="min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; background: {{ z.mainBg }}; box-shadow: {{ z.mainShadow }};">
@@ -597,18 +602,24 @@
 
         <div class="pane" style="overflow: auto; min-height: 0;">
           <div style="min-width: 1040px;">
-            <div style="position: sticky; top: 0; z-index: 3; display: grid; grid-template-columns: minmax(0, 1.6fr) 140px minmax(0, 1fr) 150px minmax(0, 1.5fr) 132px; align-items: center; background: var(--chrome, #000000); border-bottom: 1px solid var(--line3, #33373d); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">
-              <div style="padding: 11px 14px 11px 18px;">Document name</div>
+            <div style="position: sticky; top: 0; z-index: 3; display: grid; grid-template-columns: {{ dmsCols }}; align-items: center; background: var(--chrome, #000000); border-bottom: 1px solid var(--line3, #33373d); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">
+              <div style="padding: 11px 14px 11px 18px;">Status</div>
+              <div style="padding: 11px 14px 11px 0;">Document name</div>
               <div style="padding: 11px 14px 11px 0;">Document ID</div>
               <div style="padding: 11px 14px 11px 0;">Team</div>
               <div style="padding: 11px 14px 11px 0;">Module</div>
               <div style="padding: 11px 14px 11px 0;">Template</div>
-              <div style="padding: 11px 18px 11px 0;">Reviewed ≤ 1 yr</div>
             </div>
 
             <sc-for list="{{ docs }}" as="d" hint-placeholder-count="12">
-              <div data-row="1" style="display: grid; grid-template-columns: minmax(0, 1.6fr) 140px minmax(0, 1fr) 150px minmax(0, 1.5fr) 132px; align-items: center; border-bottom: 1px solid var(--line0, #1c1f23); animation: {{ d.rowAnim }};" style-hover="background: var(--surf, #16181b);">
-                <div style="padding: 14px 14px 14px 18px; min-width: 0;">
+              <div data-row="1" style="display: grid; grid-template-columns: {{ dmsCols }}; align-items: center; border-bottom: 1px solid var(--line0, #1c1f23); animation: {{ d.rowAnim }};" style-hover="background: var(--surf, #16181b);">
+                <div style="padding: 14px 14px 14px 18px; display: flex; align-items: center; gap: 8px; min-width: 0;">
+                  <span title="{{ d.recentTitle }}" style="width: {{ d.mk.size }}; height: {{ d.mk.size }}; flex: none; display: grid; place-items: center; font-size: {{ d.mk.font }}; font-weight: 800; border: {{ d.mk.bw }} solid {{ d.mk.fg }}; border-radius: {{ d.mk.radius }}; background: {{ d.mk.bg }}; color: {{ d.mk.fg }}; cursor: default;"><sc-if value="{{ d.mk.isPass }}" hint-placeholder-val="{{ true }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="1"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path><path d="M9 15.5l2 2 4-4"></path></svg></sc-if><sc-if value="{{ d.mk.isFail }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="1"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path><path d="M10 13.5l4 4M14 13.5l-4 4"></path></svg></sc-if></span>
+                  <sc-if value="{{ tableDetail }}" hint-placeholder-val="{{ false }}">
+                    <span style="font-size: 11px; white-space: nowrap; color: var(--muted2, #8b9198);">{{ d.reviewed }}</span>
+                  </sc-if>
+                </div>
+                <div style="padding: 14px 14px 14px 0; min-width: 0;">
                   <a href="#" title="Open in Zoho {{ d.app }}" style="display: inline-flex; align-items: baseline; gap: 8px; font-weight: 700; font-size: 14px; line-height: 1.35; color: var(--ink, #eef0f2);" style-hover="color: var(--ac-text, #ff5a41);">{{ d.name }}<span style="flex: none; white-space: nowrap; font-size: 11px; color: var(--muted, #9aa0a8);">↗</span></a>
                 </div>
                 <div style="padding: 14px 14px 14px 0; font-size: 12px; font-family: ui-monospace, monospace; color: var(--muted, #9aa0a8);">{{ d.did }}</div>
@@ -617,14 +628,391 @@
                   <span style="display: inline-block; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; padding: 3px 8px; border: 1px solid var(--line2, #2f333a); color: var(--ink3, #c9ced4);">{{ d.module }}</span>
                 </div>
                 <div style="padding: 14px 14px 14px 0; font-size: 13px; line-height: 1.4; color: var(--muted, #9aa0a8); min-width: 0;">{{ d.template }}</div>
-                <div style="padding: 14px 18px 14px 0; display: flex; align-items: center; gap: 9px;">
-                  <span title="{{ d.recentTitle }}" style="width: 20px; height: 20px; flex: none; display: grid; place-items: center; font-size: 12px; font-weight: 800; border: 1px solid {{ d.recentBorder }}; color: {{ d.recentFg }};">{{ d.recentIcon }}</span>
-                  <span style="font-size: 11px; color: var(--muted, #9aa0a8);">{{ d.reviewed }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ onHsList }}" hint-placeholder-val="{{ false }}">
+      <div style="display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0;">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 18px; background: {{ z.contentBg }};">
+          <input value="{{ hsQuery }}" onChange="{{ onHsQuery }}" placeholder="Search project, repo, reviewer" style="flex: 0 1 280px; min-width: 160px; background: var(--surf, #16181b); border: 1px solid var(--line1, #26292e); color: var(--ink, #eef0f2); font-family: inherit; font-size: 13px; padding: 7px 10px;">
+          <div style="display: flex; border: 1px solid var(--line1, #26292e);">
+            <sc-for list="{{ hsStatusTabs }}" as="t" hint-placeholder-count="4">
+              <button onClick="{{ t.pick }}" style="appearance: none; cursor: pointer; padding: 6px 11px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; border: 0; background: {{ t.bg }}; color: {{ t.fg }};">{{ t.label }}</button>
+            </sc-for>
+          </div>
+          <span style="margin-left: auto; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted, #9aa0a8);">{{ hsShown }}</span>
+        </div>
+        <div class="pane" style="overflow: auto; min-height: 0;">
+          <div style="min-width: 1280px;">
+            <div style="position: sticky; top: 0; z-index: 3; display: grid; grid-template-columns: {{ hsCols }}; align-items: center; background: var(--chrome, #000000); border-bottom: 1px solid var(--line3, #33373d); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">
+              <div style="padding: 11px 14px 11px 18px;">Status</div>
+              <div style="padding: 11px 14px 11px 0;">Project</div>
+              <div style="padding: 11px 14px 11px 0;">Reviewer</div>
+              <div style="padding: 11px 14px 11px 0;">Repos</div>
+              <div style="padding: 11px 12px; text-align: center; border-left: 1px solid var(--line1, #26292e);">Code violations</div>
+              <div style="padding: 11px 12px; text-align: center; border-left: 1px solid var(--line1, #26292e);">Misconfigurations</div>
+              <div style="padding: 11px 12px; text-align: center; border-left: 1px solid var(--line1, #26292e);">Hardcoded secrets</div>
+              <div style="padding: 11px 12px; text-align: center; border-left: 1px solid var(--line1, #26292e);">IAST</div>
+              <div style="padding: 11px 12px; border-left: 1px solid var(--line1, #26292e);">Components</div>
+              <div style="padding: 11px 18px 11px 12px; border-left: 1px solid var(--line1, #26292e);">Submitted</div>
+            </div>
+            <sc-for list="{{ hsRows }}" as="r" hint-placeholder-count="7">
+              <div onClick="{{ r.open }}" role="button" tabindex="0" style="cursor: pointer; display: grid; grid-template-columns: {{ hsCols }}; align-items: start; border-bottom: 1px solid var(--line0, #1c1f23);" style-hover="background: var(--surf, #16181b);">
+                <div style="padding: 14px 14px 14px 18px; display: flex; align-items: center; gap: 8px; min-width: 0;">
+                  <span onMouseEnter="{{ r.tipOn }}" onMouseLeave="{{ r.tipOff }}" style="position: relative; flex: none; display: grid;"><span aria-label="{{ r.st.label }}" style="width: {{ r.mk.size }}; height: {{ r.mk.size }}; display: grid; place-items: center; font-size: {{ r.mk.font }}; border: {{ r.mk.bw }} solid {{ r.mk.fg }}; border-radius: {{ r.mk.radius }}; background: {{ r.mk.bg }}; color: {{ r.mk.fg }}; cursor: default;"><sc-if value="{{ r.mk.isPass }}" hint-placeholder-val="{{ true }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8l2.3 1.7 2.8-.3 1.1 2.6 2.6 1.1-.3 2.8 1.7 2.3-1.7 2.3.3 2.8-2.6 1.1-1.1 2.6-2.8-.3L12 21.2l-2.3-1.7-2.8.3-1.1-2.6-2.6-1.1.3-2.8L1.8 12l1.7-2.3-.3-2.8 2.6-1.1 1.1-2.6 2.8.3z"></path><path d="M8.5 12.2l2.4 2.4 4.6-4.8"></path></svg></sc-if><sc-if value="{{ r.mk.isFail }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"></path><path d="M13.5 6.5l4 4"></path></svg></sc-if><sc-if value="{{ r.mk.isWait }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h10M7 21h10"></path><path d="M8 3c0 4.5 8 4.5 8 9s-8 4.5-8 9"></path><path d="M16 3c0 4.5-8 4.5-8 9s8 4.5 8 9"></path></svg></sc-if></span>
+                    <sc-if value="{{ r.tip }}" hint-placeholder-val="{{ false }}">
+                      <span role="tooltip" style="position: absolute; z-index: 30; left: -4px; top: calc(100% + 8px); width: 220px; padding: 9px 11px; background: var(--chrome, #000000); border: 1px solid var(--line3, #33373d); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35); pointer-events: none;">
+                        <span style="display: flex; align-items: center; gap: 6px; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 800; color: {{ r.st.fg }};"><span style="width: 6px; height: 6px; background: {{ r.st.fg }};"></span>{{ r.st.label }}</span>
+                        <span style="display: block; margin-top: 5px; font-size: 12px; line-height: 1.45; color: var(--ink2, #dfe2e6); white-space: normal;">{{ r.tipText }}</span>
+                      </span>
+                    </sc-if>
+                  </span>
+                  <sc-if value="{{ tableDetail }}" hint-placeholder-val="{{ false }}">
+                    <span style="font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: {{ r.st.fg }};">{{ r.st.label }}</span>
+                  </sc-if>
+                </div>
+                <div style="padding: 14px 14px 14px 0; min-width: 0;">
+                  <div style="font-size: 14px; font-weight: 700; line-height: 1.35; color: var(--ink, #eef0f2);">{{ r.project }}</div>
+                </div>
+                <div onClick="{{ r.stop }}" style="padding: 11px 14px 11px 0; position: relative; cursor: default;">
+                  <sc-if value="{{ r.hasReviewer }}" hint-placeholder-val="{{ true }}">
+                    <button onClick="{{ r.toggleAssign }}" title="Change reviewer" style="appearance: none; cursor: pointer; display: flex; align-items: center; gap: 8px; max-width: 100%; padding: 3px 6px 3px 3px; font-family: inherit; border: 1px solid transparent; background: transparent; color: var(--ink2, #dfe2e6);" style-hover="border-color: var(--line3, #33373d);">
+                      <span style="width: 22px; height: 22px; flex: none; display: grid; place-items: center; font-size: 9px; font-weight: 800; letter-spacing: 0.04em; background: var(--surf2, #23262b); color: var(--ink, #eef0f2);">{{ r.initials }}</span>
+                      <span style="font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.reviewer }}</span>
+                      <span style="font-size: 9px; color: var(--muted3, #5c626b);">▾</span>
+                    </button>
+                  </sc-if>
+                  <sc-if value="{{ r.noReviewer }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ r.toggleAssign }}" style="appearance: none; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 5px 10px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; border: 1px dashed var(--ac, #ff5a41); background: transparent; color: var(--ac-text, #ff5a41);" style-hover="background: var(--ac-tint, rgba(255,90,65,0.1));">+ Assign</button>
+                  </sc-if>
+                  <sc-if value="{{ r.assignOpen }}" hint-placeholder-val="{{ false }}">
+                    <div style="position: absolute; z-index: 20; top: calc(100% - 6px); left: 0; width: 210px; background: var(--surf, #16181b); border: 1px solid var(--line3, #33373d); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35); padding: 4px 0;">
+                      <div style="padding: 6px 12px 4px; font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Assign reviewer</div>
+                      <sc-for list="{{ r.options }}" as="o" hint-placeholder-count="5">
+                        <button onClick="{{ o.pick }}" style="appearance: none; cursor: pointer; width: 100%; display: flex; align-items: center; gap: 9px; padding: 7px 12px; font-family: inherit; font-size: 13px; text-align: left; border: 0; background: {{ o.bg }}; color: var(--ink, #eef0f2);" style-hover="background: var(--surf2, #23262b);">
+                          <span style="width: 20px; height: 20px; flex: none; display: grid; place-items: center; font-size: 9px; font-weight: 800; background: var(--surf2, #23262b);">{{ o.initials }}</span>
+                          <span style="flex: 1; min-width: 0;">{{ o.name }}</span>
+                          <span style="font-size: 11px; color: var(--ac-text, #ff5a41);">{{ o.check }}</span>
+                        </button>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+                <div style="padding: 12px 14px 12px 0; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px;">
+                  <sc-for list="{{ r.repos }}" as="p" hint-placeholder-count="2">
+                    <span style="max-width: 100%; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 7px; font-size: 11px; font-family: ui-monospace, monospace; border: 1px solid var(--line2, #2f333a); background: var(--surf, #16181b); color: var(--ink3, #c9ced4);">{{ p.name }}</span>
+                  </sc-for>
+                </div>
+                <div style="padding: 14px 12px; align-self: stretch; text-align: center; border-left: 1px solid var(--line1, #26292e); font-size: 14px; font-variant-numeric: tabular-nums; font-weight: {{ r.c.viol.w }}; color: {{ r.c.viol.fg }};">{{ r.c.viol.n }}</div>
+                <div style="padding: 14px 12px; align-self: stretch; text-align: center; border-left: 1px solid var(--line1, #26292e); font-size: 14px; font-variant-numeric: tabular-nums; font-weight: {{ r.c.mis.w }}; color: {{ r.c.mis.fg }};">{{ r.c.mis.n }}</div>
+                <div style="padding: 14px 12px; align-self: stretch; text-align: center; border-left: 1px solid var(--line1, #26292e); font-size: 14px; font-variant-numeric: tabular-nums; font-weight: {{ r.c.sec.w }}; color: {{ r.c.sec.fg }};">{{ r.c.sec.n }}</div>
+                <div style="padding: 14px 12px; align-self: stretch; text-align: center; border-left: 1px solid var(--line1, #26292e); font-size: 14px; font-variant-numeric: tabular-nums; font-weight: {{ r.c.iast.w }}; color: {{ r.c.iast.fg }};">{{ r.c.iast.n }}</div>
+                <div style="padding: 14px 12px; align-self: stretch; border-left: 1px solid var(--line1, #26292e); display: flex; gap: 10px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;">
+                  <sc-if value="{{ r.sum.hasAdd }}" hint-placeholder-val="{{ true }}"><span title="Added" style="color: var(--ac2-text, #ff5a41);">+{{ r.sum.add }}</span></sc-if>
+                  <sc-if value="{{ r.sum.hasUpd }}" hint-placeholder-val="{{ true }}"><span title="Updated" style="color: var(--ac-text, #ff5a41);">~{{ r.sum.upd }}</span></sc-if>
+                  <sc-if value="{{ r.sum.hasRem }}" hint-placeholder-val="{{ true }}"><span title="Removed" style="color: var(--muted, #9aa0a8);">−{{ r.sum.rem }}</span></sc-if>
+                  <sc-if value="{{ r.sum.none }}" hint-placeholder-val="{{ false }}"><span style="font-weight: 500; color: var(--muted3, #5c626b);">—</span></sc-if>
+                </div>
+                <div style="padding: 14px 18px 14px 12px; align-self: stretch; border-left: 1px solid var(--line1, #26292e);">
+                  <div style="font-size: 13px; color: var(--ink2, #dfe2e6);">{{ r.by }}</div>
+                  <div style="font-size: 11px; margin-top: 3px; color: var(--muted, #9aa0a8);">{{ r.at }}</div>
                 </div>
               </div>
             </sc-for>
           </div>
         </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ onHsDash }}" hint-placeholder-val="{{ false }}">
+      <div class="pane" style="overflow: auto; min-height: 0; background: {{ z.contentBg }};">
+        <div style="padding: 18px 24px 0; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px 20px;">
+          <div style="flex: 1 1 360px; min-width: 0;">
+            <button onClick="{{ hsBack }}" style="appearance: none; cursor: pointer; padding: 6px 11px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; border: 1px solid var(--line3, #33373d); background: transparent; color: var(--ink, #eef0f2);" style-hover="border-color: var(--ac-text, #ff5a41); color: var(--ac-text, #ff5a41);">← All reviews</button>
+            <h2 style="margin: 14px 0 0; font-size: 26px; line-height: 1.15; letter-spacing: -0.03em; color: var(--ink, #eef0f2);">{{ hs.project }}</h2>
+            <div style="font-size: 12px; margin-top: 6px; color: var(--muted, #9aa0a8);">Submitted by {{ hs.by }} · {{ hs.at }} · {{ hs.repoCount }}</div>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 10px; padding-top: 38px;">
+            <div style="display: flex; gap: 8px;">
+            <button onClick="{{ hsReject }}" style="appearance: none; cursor: pointer; padding: 6px 11px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; border: 1px solid var(--line3, #33373d); background: transparent; color: var(--ink, #eef0f2);" style-hover="border-color: var(--fail, #ff6a52); color: var(--fail, #ff6a52);">Request changes</button>
+            <button onClick="{{ hsApprove }}" style="appearance: none; cursor: pointer; padding: 6px 14px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; border: 1px solid var(--ac, #ff5a41); background: var(--ac, #ff5a41); color: var(--on-ac, #ffffff);" style-hover="background: var(--ac-hov, #ff5a41);">Approve</button>
+            </div>
+            <span style="display: flex; align-items: center; gap: 6px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; padding: 3px 8px; border: 1px solid {{ hs.st.edge }}; color: {{ hs.st.fg }};">{{ hs.st.icon }} {{ hs.st.label }}</span>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0; margin: 18px 24px 0; border-bottom: 1px solid var(--line1, #26292e);">
+          <sc-for list="{{ hsRepoTabs }}" as="t" hint-placeholder-count="3">
+            <button onClick="{{ t.pick }}" style="appearance: none; cursor: pointer; padding: 9px 14px; font-family: inherit; font-size: 12px; font-weight: {{ t.w }}; border: 0; background: transparent; color: {{ t.fg }}; box-shadow: inset 0 -2px 0 {{ t.edge }};">{{ t.label }}</button>
+          </sc-for>
+        </div>
+
+
+        <div style="display: flex; align-items: flex-start; min-width: 0;">
+        <sc-if value="{{ hsSingle }}" hint-placeholder-val="{{ false }}">
+          <nav style="position: sticky; top: 0; flex: 0 0 214px; margin: 16px 0 0 24px; display: flex; flex-direction: column; border: 1px solid var(--line1, #26292e); background: var(--surf, #16181b);">
+            <div style="padding: 10px 14px 6px; font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Findings · new in WIP</div>
+            <sc-for list="{{ hsCats }}" as="c" hint-placeholder-count="6">
+              <button onClick="{{ c.pick }}" style="appearance: none; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 9px 14px; font-family: inherit; font-size: 13px; font-weight: {{ c.w }}; text-align: left; border: 0; border-top: 1px solid var(--line0, #1c1f23); background: {{ c.bg }}; color: {{ c.fg }}; box-shadow: inset 2px 0 0 {{ c.mark }};" style-hover="background: var(--surf2, #23262b);">
+                <span style="flex: 1; min-width: 0;">{{ c.label }}</span>
+                <span style="font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; color: {{ c.countFg }};">{{ c.count }}</span>
+              </button>
+            </sc-for>
+          </nav>
+        </sc-if>
+        <div style="flex: 1 1 auto; min-width: 0;">
+        <sc-if value="{{ hsShowOverview }}" hint-placeholder-val="{{ true }}">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr)); gap: 1px; margin: 16px 24px 0; background: var(--line1, #26292e); border: 1px solid var(--line1, #26292e);">
+          <sc-for list="{{ hsTiles }}" as="k" hint-placeholder-count="4">
+            <div style="padding: 14px 16px; background: {{ k.bg }}; box-shadow: inset 0 3px 0 {{ k.edge }};">
+              <div style="font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">{{ k.label }}</div>
+              <div style="display: flex; align-items: baseline; gap: 10px; margin-top: 6px;">
+                <span style="font-size: 30px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: {{ k.fg }};">{{ k.value }}</span>
+                <span style="font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; color: {{ k.deltaFg }};">{{ k.delta }}</span>
+              </div>
+              <div style="font-size: 11px; margin-top: 6px; color: var(--muted, #9aa0a8);">{{ k.sub }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="margin: 22px 24px 0;">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding-bottom: 10px;">
+            <span style="font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink, #eef0f2);">Component changes</span>
+            <span style="font-size: 11px; color: var(--muted, #9aa0a8);">Jars in WIP compared with base</span>
+            <div style="display: flex; margin-left: auto; border: 1px solid var(--line1, #26292e);">
+              <sc-for list="{{ hsJarTabs }}" as="t" hint-placeholder-count="4">
+                <button onClick="{{ t.pick }}" style="appearance: none; cursor: pointer; display: flex; gap: 6px; padding: 5px 10px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; border: 0; background: {{ t.bg }}; color: {{ t.fg }};">{{ t.label }}<span style="font-variant-numeric: tabular-nums; color: {{ t.countFg }};">{{ t.count }}</span></button>
+              </sc-for>
+            </div>
+          </div>
+          <div style="border: 1px solid var(--line1, #26292e);">
+            <div style="display: grid; grid-template-columns: 92px minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 1fr); background: var(--chrome, #000000); border-bottom: 1px solid var(--line3, #33373d); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">
+              <div style="padding: 9px 12px 9px 14px;">Change</div>
+              <div style="padding: 9px 12px 9px 0;">Component</div>
+              <div style="padding: 9px 12px 9px 0;">Version · base → WIP</div>
+              <div style="padding: 9px 12px 9px 0;">Repo</div>
+              <div style="padding: 9px 14px 9px 0;">Known vulnerability</div>
+            </div>
+            <sc-for list="{{ hsJars }}" as="j" hint-placeholder-count="6">
+              <div style="display: grid; grid-template-columns: 92px minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 1fr); align-items: center; border-bottom: 1px solid var(--line0, #1c1f23); box-shadow: inset 2px 0 0 {{ j.edge }};">
+                <div style="padding: 9px 12px 9px 14px; display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; color: {{ j.fg }};"><span style="width: 12px; text-align: center; font-size: 13px;">{{ j.mark }}</span>{{ j.label }}</div>
+                <div style="padding: 9px 12px 9px 0; font-size: 12px; font-family: ui-monospace, monospace; color: var(--ink, #eef0f2); text-decoration: {{ j.deco }}; overflow-wrap: anywhere;">{{ j.n }}</div>
+                <div style="padding: 9px 12px 9px 0; font-size: 12px; font-family: ui-monospace, monospace; color: var(--ink2, #dfe2e6);">{{ j.ver }}</div>
+                <div style="padding: 9px 12px 9px 0; font-size: 12px; color: var(--muted, #9aa0a8); overflow-wrap: anywhere;">{{ j.repo }}</div>
+                <div style="padding: 9px 14px 9px 0;">
+                  <sc-if value="{{ j.cve }}" hint-placeholder-val="{{ false }}">
+                    <span style="display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 7px; background: var(--fail-tint, rgba(255, 106, 82, 0.09)); color: var(--fail, #ff6a52);">{{ j.cve }}</span>
+                  </sc-if>
+                  <sc-if value="{{ j.clean }}" hint-placeholder-val="{{ true }}">
+                    <span style="font-size: 11px; color: var(--muted3, #5c626b);">—</span>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-for>
+            <sc-if value="{{ hsJarsEmpty }}" hint-placeholder-val="{{ false }}">
+              <div style="padding: 16px 14px; font-size: 12px; color: var(--muted, #9aa0a8);">No changes of this type.</div>
+            </sc-if>
+          </div>
+        </div>
+
+        </sc-if>
+        <sc-if value="{{ hsAll }}" hint-placeholder-val="{{ true }}">
+          <div style="margin: 22px 24px 28px;">
+            <div style="font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink, #eef0f2); padding-bottom: 10px;">By repo</div>
+            <div style="border: 1px solid var(--line1, #26292e); overflow-x: auto;">
+              <div style="min-width: 820px;">
+                <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) 110px 72px 72px 80px 66px; background: var(--chrome, #000000); border-bottom: 1px solid var(--line3, #33373d); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #9aa0a8);">
+                  <div style="padding: 9px 12px 9px 14px;">Repo</div>
+                  <div style="padding: 9px 12px 9px 0;">Base → WIP report</div>
+                  <div style="padding: 9px 12px 9px 0;">Jars</div>
+                  <div style="padding: 9px 12px 9px 0; text-align: right;">Vuln</div>
+                  <div style="padding: 9px 12px 9px 0; text-align: right;">Violations</div>
+                  <div style="padding: 9px 12px 9px 0; text-align: right;">Misconfig</div>
+                  <div style="padding: 9px 14px 9px 0; text-align: right;">Secrets</div>
+                </div>
+                <sc-for list="{{ hsRepoRows }}" as="p" hint-placeholder-count="3">
+                  <div onClick="{{ p.pick }}" role="button" tabindex="0" style="cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) 110px 72px 72px 80px 66px; align-items: center; border-bottom: 1px solid var(--line0, #1c1f23); font-variant-numeric: tabular-nums;" style-hover="background: var(--surf2, #23262b);">
+                    <div style="padding: 10px 12px 10px 14px; font-size: 12px; font-family: ui-monospace, monospace; color: var(--ink, #eef0f2);">{{ p.name }}</div>
+                    <div style="padding: 10px 12px 10px 0; font-size: 11px; font-family: ui-monospace, monospace; color: var(--muted, #9aa0a8);">{{ p.base }} → <span style="color: var(--ink2, #dfe2e6);">{{ p.wip }}</span></div>
+                    <div style="padding: 10px 12px 10px 0; display: flex; gap: 8px; font-size: 12px; font-weight: 700;">
+                      <sc-if value="{{ p.sum.hasAdd }}" hint-placeholder-val="{{ true }}"><span title="Added" style="color: var(--ac2-text, #ff5a41);">+{{ p.sum.add }}</span></sc-if>
+                  <sc-if value="{{ p.sum.hasUpd }}" hint-placeholder-val="{{ true }}"><span title="Updated" style="color: var(--ac-text, #ff5a41);">~{{ p.sum.upd }}</span></sc-if>
+                  <sc-if value="{{ p.sum.hasRem }}" hint-placeholder-val="{{ true }}"><span title="Removed" style="color: var(--muted, #9aa0a8);">−{{ p.sum.rem }}</span></sc-if>
+                  <sc-if value="{{ p.sum.none }}" hint-placeholder-val="{{ false }}"><span style="font-weight: 500; color: var(--muted3, #5c626b);">—</span></sc-if>
+                    </div>
+                    <div style="padding: 10px 12px 10px 0; text-align: right; font-size: 13px; font-weight: {{ p.c.vuln.w }}; color: {{ p.c.vuln.fg }};">{{ p.c.vuln.n }}</div>
+                    <div style="padding: 10px 12px 10px 0; text-align: right; font-size: 13px; font-weight: {{ p.c.viol.w }}; color: {{ p.c.viol.fg }};">{{ p.c.viol.n }}</div>
+                    <div style="padding: 10px 12px 10px 0; text-align: right; font-size: 13px; font-weight: {{ p.c.mis.w }}; color: {{ p.c.mis.fg }};">{{ p.c.mis.n }}</div>
+                    <div style="padding: 10px 14px 10px 0; text-align: right; font-size: 13px; font-weight: {{ p.c.sec.w }}; color: {{ p.c.sec.fg }};">{{ p.c.sec.n }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ hsShowFindings }}" hint-placeholder-val="{{ false }}">
+          <div style="margin: 16px 24px 0; min-width: 0;">
+            <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px;">
+              <h3 style="margin: 0; font-size: 20px; letter-spacing: -0.02em; color: var(--ink, #eef0f2);">{{ hsCat.label }}</h3>
+              <span style="font-size: 11px; color: var(--muted, #9aa0a8);">{{ hsCat.sub }}</span>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 12px;">
+              <input value="{{ hsFq }}" onChange="{{ onHsFq }}" placeholder="Search file, rule, endpoint" style="flex: 0 1 220px; min-width: 150px; background: var(--surf, #16181b); border: 1px solid var(--line1, #26292e); color: var(--ink, #eef0f2); font-family: inherit; font-size: 12px; padding: 6px 9px;">
+              <sc-for list="{{ hsFFilters }}" as="x" hint-placeholder-count="5">
+                <label style="display: flex; align-items: center; gap: 6px;">
+                  <span style="font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted, #9aa0a8);">{{ x.label }}</span>
+                  <select value="{{ x.value }}" onChange="{{ x.pick }}" style="appearance: none; cursor: pointer; font-family: inherit; font-size: 12px; padding: 5px 22px 5px 8px; border: 1px solid {{ x.border }}; background: {{ x.bg }}; color: {{ x.fg }};">
+                    <sc-for list="{{ x.options }}" as="o" hint-placeholder-count="3">
+                      <option value="{{ o }}">{{ o }}</option>
+                    </sc-for>
+                  </select>
+                </label>
+              </sc-for>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; color: var(--ink2, #dfe2e6);"><input type="checkbox" checked="{{ hsFBlk }}" onChange="{{ toggleHsFBlk }}" style="accent-color: var(--ac, #ff5a41); margin: 0;">Blocking only</label>
+              <sc-if value="{{ hsFOn }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ clearHsF }}" style="appearance: none; cursor: pointer; padding: 5px 10px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; border: 1px solid var(--line3, #33373d); background: transparent; color: var(--ink, #eef0f2);" style-hover="border-color: var(--ac-text, #ff5a41); color: var(--ac-text, #ff5a41);">Clear filters</button>
+              </sc-if>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin-top: 10px; padding: 8px 12px; border: 1px solid var(--line1, #26292e); border-bottom: 0; background: var(--chrome, #000000);">
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; color: var(--ink2, #dfe2e6);"><input type="checkbox" checked="{{ hsAllPicked }}" onChange="{{ hsPickAll }}" style="accent-color: var(--ac, #ff5a41); margin: 0;">Select all</label>
+              <sc-for list="{{ hsBulk }}" as="b" hint-placeholder-count="4">
+                <button onClick="{{ b.run }}" style="appearance: none; cursor: {{ b.cursor }}; padding: 2px 0; font-family: inherit; font-size: 12px; border: 0; background: transparent; color: {{ b.fg }};" style-hover="color: {{ b.hov }};">{{ b.label }}</button>
+              </sc-for>
+              <span style="margin-left: auto; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--muted, #9aa0a8);">{{ hsPickLabel }}</span>
+              <div title="Record layout" style="display: flex; border: 1px solid var(--line2, #2f333a);">
+                <sc-for list="{{ hsRecTabs }}" as="t" hint-placeholder-count="2">
+                  <button onClick="{{ t.pick }}" style="appearance: none; cursor: pointer; padding: 3px 9px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; border: 0; background: {{ t.bg }}; color: {{ t.fg }};">{{ t.label }}</button>
+                </sc-for>
+              </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: {{ hsRec.gap }}; border-top: 1px solid var(--line1, #26292e); padding-top: {{ hsRec.padTop }};">
+              <sc-for list="{{ hsFindings }}" as="f" hint-placeholder-count="3">
+                <div style="border: {{ hsRec.itemBorder }}; border-bottom: {{ hsRec.itemDivider }}; background: {{ f.recBg }}; padding: {{ hsRec.itemPad }}; min-width: 0;">
+                  <div style="display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: flex-start;">
+                    <input type="checkbox" checked="{{ f.picked }}" onChange="{{ f.togglePick }}" style="accent-color: var(--ac, #ff5a41); margin: 3px 0 0;">
+                    <div style="flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+                      <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                        <span title="{{ f.sev }} severity" aria-label="{{ f.sev }} severity" style="width: 8px; height: 8px; flex: none; background: {{ f.sevFg }};"></span>
+                        <span style="min-width: 0; font-size: 13px; font-weight: 700; letter-spacing: 0.01em; color: var(--ink, #eef0f2); overflow-wrap: anywhere;">{{ f.ruleTitle }}</span>
+                        <sc-if value="{{ f.isBlocking }}" hint-placeholder-val="{{ false }}"><span title="Blocking — blocks the release until resolved" aria-label="Blocking" style="flex: none; display: grid; place-items: center; color: var(--fail, #ff6a52);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M5.6 5.6l12.8 12.8"></path></svg></span></sc-if>
+                        <sc-if value="{{ f.accepted }}" hint-placeholder-val="{{ false }}"><span title="Accepted by {{ f.rev }}" aria-label="Accepted" style="flex: none; display: grid; place-items: center; color: {{ f.okFg }};"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></sc-if>
+                      </div>
+                      <div style="display: flex; align-items: baseline; gap: 8px; min-width: 0; padding-left: 16px;">
+                        <sc-if value="{{ f.isIast }}" hint-placeholder-val="{{ false }}"><span style="flex: none; font-size: 10px; font-weight: 800; letter-spacing: 0.06em; color: var(--ink2, #dfe2e6);">{{ f.method }}</span></sc-if>
+                        <a href="#" title="{{ f.title }}" style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-family: ui-monospace, monospace; color: var(--muted, #9aa0a8);" style-hover="color: var(--ac-text, #ff5a41);">{{ f.title }}</a>
+                      </div>
+                    </div>
+                    <div style="flex: none; margin-left: auto; display: flex; align-items: center; gap: 12px;">
+                      <sc-if value="{{ f.notComp }}" hint-placeholder-val="{{ true }}"><span title="Assignee {{ f.assignee }}" style="display: flex; align-items: center; gap: 6px; font-size: 11px;"><span style="width: 20px; height: 20px; display: grid; place-items: center; border-radius: 999px; font-size: 8px; font-weight: 800; background: var(--surf2, #23262b); color: var(--ink, #eef0f2);">{{ f.assigneeInitials }}</span><span style="color: var(--ink2, #dfe2e6); white-space: nowrap;">{{ f.assignee }}</span></span></sc-if>
+                      <button onClick="{{ f.sync }}" style="appearance: none; cursor: pointer; display: flex; align-items: center; gap: 5px; padding: 4px 9px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; border: 1px solid var(--ac, #ff5a41); background: var(--ac, #ff5a41); color: var(--on-ac, #ffffff);" style-hover="background: var(--ac-hov, #ff5a41);"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"></path><path d="M21 3v6h-6"></path></svg>Sync</button>
+                      <button onClick="{{ f.toggleExpand }}" title="{{ f.expandTitle }}" aria-label="{{ f.expandTitle }}" style="appearance: none; cursor: pointer; width: 24px; height: 24px; display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: var(--muted, #9aa0a8);" style-hover="color: var(--ink, #eef0f2); background: var(--surf2, #23262b);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform: {{ f.chev }}; transition: transform 160ms ease;"><path d="M6 9l6 6 6-6"></path></svg></button>
+                    </div>
+                  </div>
+                  <div style="margin-left: 26px; min-width: 0;">
+                    <sc-if value="{{ f.isCode }}" hint-placeholder-val="{{ true }}">
+                      <div style="margin-top: 8px; display: grid; grid-template-columns: 44px minmax(0, 1fr); background: var(--chrome, #000000); box-shadow: inset 2px 0 0 {{ f.sevFg }};">
+                        <div style="padding: 7px 10px 7px 0; text-align: right; font-size: 11px; font-family: ui-monospace, monospace; color: var(--muted3, #5c626b);">{{ f.line }}</div>
+                        <div style="padding: 7px 12px 7px 4px; font-size: 12px; line-height: 1.55; font-family: ui-monospace, monospace; color: var(--ink2, #dfe2e6); white-space: pre-wrap; overflow-wrap: anywhere;">{{ f.pre }}<span style="background: var(--fail, #ff6a52); color: var(--on-ac, #ffffff);">{{ f.hl }}</span>{{ f.post }}</div>
+                      </div>
+                    </sc-if>
+                  <sc-if value="{{ f.isComp }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-top: 8px; background: var(--chrome, #000000);">
+                      <div style="padding: 10px 14px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; font-size: 12px; ">
+                        <span style="color: var(--muted, #9aa0a8);">Location</span><span title="{{ f.location }}" style="font-family: ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink2, #dfe2e6);">{{ f.location }}</span>
+                        <span style="color: var(--muted, #9aa0a8);">Ownership</span><span style="color: var(--ac-hi, #ff8570);">{{ f.ownership }}</span>
+                      </div>
+                      <div style="padding: 10px 14px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; font-size: 12px; ">
+                        <span style="color: var(--muted, #9aa0a8);">Detected version</span><span style="font-family: ui-monospace, monospace; color: var(--ink, #eef0f2);">{{ f.version }} <span style="color: var(--muted, #9aa0a8);">→ fix {{ f.fix }}</span></span>
+                        <span style="color: var(--muted, #9aa0a8);">Origin</span><span style="color: var(--ink2, #dfe2e6);">{{ f.origin }}</span>
+                      </div>
+                      <div style="padding: 10px 14px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; font-size: 12px; ">
+                        <span style="color: var(--muted, #9aa0a8);">Released</span><span style="color: var(--ink2, #dfe2e6);">{{ f.released }}</span>
+                        <span style="color: var(--muted, #9aa0a8);">Blocking date</span><span style="color: var(--ink2, #dfe2e6);">{{ f.blocking }}</span>
+                      </div>
+                      <div style="padding: 10px 14px; display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 26px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: var(--fail, #ff6a52);">{{ f.vulns }}</span>
+                        <span style="font-size: 12px; line-height: 1.3; color: var(--ink2, #dfe2e6);">{{ f.vulnLabel }}<span style="display: block; font-size: 11px; font-family: ui-monospace, monospace; color: var(--muted, #9aa0a8);">{{ f.cve }}</span></span>
+                      </div>
+                    </div>
+                  </sc-if>
+                    <sc-if value="{{ f.expanded }}" hint-placeholder-val="{{ false }}">
+                      <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px;">
+                        <sc-if value="{{ f.isIast }}" hint-placeholder-val="{{ false }}">
+                          <div style="display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 12px;">
+                            <span><span style="color: var(--muted, #9aa0a8);">Tainted parameter </span><span style="font-family: ui-monospace, monospace; color: var(--ink, #eef0f2);">{{ f.param }}</span></span>
+                            <span><span style="color: var(--muted, #9aa0a8);">Sink </span><span style="font-family: ui-monospace, monospace; color: var(--ink2, #dfe2e6);">{{ f.sink }}</span></span>
+                          </div>
+                        </sc-if>
+                        <sc-if value="{{ f.notComp }}" hint-placeholder-val="{{ true }}">
+                          <div style="display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; align-items: baseline;">
+                            <span style="display: flex; align-items: center; gap: 5px; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted, #9aa0a8);"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"></path></svg>AI verdict</span>
+                            <div style="min-width: 0;">
+                              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;">
+                                <span style="font-size: 13px; font-weight: 800; color: {{ f.aiFg }};">{{ f.aiVerdict }}</span>
+                                <span title="Model confidence" style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--muted, #9aa0a8);"><span style="width: 56px; height: 3px; background: var(--line2, #2f333a); position: relative;"><span style="position: absolute; inset: 0 auto 0 0; width: {{ f.aiConfPct }}; background: {{ f.aiFg }};"></span></span>{{ f.aiConf }}</span>
+                              </div>
+                              <div style="font-size: 12px; line-height: 1.45; margin-top: 3px; color: var(--ink2, #dfe2e6); text-wrap: pretty;">{{ f.aiWhy }}</div>
+                            </div>
+                          </div>
+                        </sc-if>
+                        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px;">
+                          <sc-if value="{{ f.notComp }}" hint-placeholder-val="{{ true }}"><span style="display: flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap;"><span style="font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Hacksaw</span><span style="width: 6px; height: 6px; background: {{ f.statusFg }};"></span><span style="font-weight: 700; color: {{ f.statusFg }};">{{ f.status }}</span></span></sc-if>
+                          <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap;"><span style="font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Developer</span><span style="width: 6px; height: 6px; background: {{ f.devStatusFg }};"></span><span style="font-weight: 700; color: {{ f.devStatusFg }};">{{ f.devStatus }}</span></span>
+                          <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap;"><span style="font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted, #9aa0a8);">Reviewer</span><span style="width: 6px; height: 6px; background: {{ f.revStatusFg }};"></span><span style="font-weight: 700; color: {{ f.revStatusFg }};">{{ f.revStatus }}</span></span>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                          <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted, #9aa0a8);">{{ f.threadLabel }}</span>
+                            <sc-if value="{{ f.replyClosed }}" hint-placeholder-val="{{ true }}">
+                              <button onClick="{{ f.openReply }}" style="appearance: none; cursor: pointer; margin-left: auto; display: flex; align-items: center; gap: 6px; padding: 4px 9px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; border: 1px solid var(--ac, #ff5a41); background: transparent; color: var(--ac-text, #ff5a41);" style-hover="background: var(--ac, #ff5a41); color: var(--on-ac, #ffffff);"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"></path><path d="M4 9h10a6 6 0 0 1 6 6v5"></path></svg>Reply</button>
+                            </sc-if>
+                          </div>
+                          <sc-if value="{{ f.noThread }}" hint-placeholder-val="{{ false }}">
+                            <div style="font-size: 12px; color: var(--muted, #9aa0a8);">No developer comment yet</div>
+                          </sc-if>
+                    <div style="display: flex; flex-direction: column;">
+                    <sc-for list="{{ f.thread }}" as="m" hint-placeholder-count="2">
+                      <div style="display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 12px;">
+                        <div style="display: flex; flex-direction: column; align-items: center;">
+                          <span style="width: 24px; height: 24px; flex: none; display: grid; place-items: center; font-size: 9px; font-weight: 800; border-radius: 999px; border: 1px solid {{ m.avBorder }}; background: {{ m.avBg }}; color: {{ m.avFg }};">{{ m.initials }}</span>
+                          <span style="flex: 1 1 auto; width: 1px; min-height: 8px; margin: 4px 0; background: {{ m.connector }};"></span>
+                        </div>
+                        <div style="min-width: 0; padding-bottom: {{ m.gapBelow }};">
+                          <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 11px;"><span style="font-weight: 700; color: var(--ink, #eef0f2);">{{ m.name }}</span><span style="font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: {{ m.roleFg }};">{{ m.role }}</span><span style="color: var(--muted3, #5c626b);">{{ m.at }}</span></div>
+                          <div style="font-size: 13px; line-height: 1.45; margin-top: 3px; color: var(--ink2, #dfe2e6); text-wrap: pretty;">{{ m.text }}</div>
+                        </div>
+                      </div>
+                    </sc-for>
+                    </div>
+                    <sc-if value="{{ f.replyOpen }}" hint-placeholder-val="{{ false }}">
+                      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        <input value="{{ f.draft }}" onChange="{{ f.onDraft }}" placeholder="Reply as reviewer…" style="flex: 1 1 100%; min-width: 0; box-sizing: border-box; background: var(--chrome, #000000); border: 1px solid var(--line2, #2f333a); color: var(--ink, #eef0f2); font-family: inherit; font-size: 12px; padding: 6px 9px;">
+                        <div style="display: flex; gap: 8px; flex: none; margin-left: auto;">
+                          <button onClick="{{ f.cancelReply }}" style="appearance: none; cursor: pointer; padding: 6px 10px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; border: 1px solid var(--line3, #33373d); background: transparent; color: var(--muted, #9aa0a8);" style-hover="color: var(--ink, #eef0f2);">Cancel</button>
+                          <button onClick="{{ f.send }}" style="appearance: none; cursor: pointer; padding: 6px 12px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; border: 1px solid var(--ac, #ff5a41); background: var(--ac, #ff5a41); color: var(--on-ac, #ffffff);" style-hover="background: var(--ac-hov, #ff5a41);">Send</button>
+                        </div>
+                      </div>
+                    </sc-if>
+                        </div>
+                      </div>
+                    </sc-if>
+                  </div>
+                </div>
+              </sc-for>
+              <sc-if value="{{ hsFindingsEmpty }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; align-items: center; gap: 10px; padding: 18px 16px; font-size: 13px; border: 1px solid var(--line1, #26292e); background: var(--surf, #16181b); color: var(--ink2, #dfe2e6);"><span style="font-weight: 800; color: {{ hsOkFg }};">✓</span>{{ hsEmptyText }}</div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
+        </div>
+        </div>
+        <div style="height: 28px;"></div>
       </div>
     </sc-if>
 
@@ -709,7 +1097,7 @@
   </main>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1560,&quot;height&quot;:900},&quot;colorTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cobalt&quot;,&quot;crimson&quot;,&quot;lagoon&quot;,&quot;royal&quot;,&quot;citrus&quot;,&quot;mint&quot;,&quot;blush&quot;,&quot;sky&quot;,&quot;carbon&quot;,&quot;midnight&quot;,&quot;graphite&quot;,&quot;ink&quot;,&quot;slate&quot;,&quot;forest&quot;,&quot;plum&quot;,&quot;oxide&quot;,&quot;nordic&quot;,&quot;obsidian&quot;,&quot;dune&quot;,&quot;paper&quot;,&quot;porcelain&quot;,&quot;sage&quot;],&quot;default&quot;:&quot;nordic&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Color theme&quot;},&quot;accentColor&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;electric&quot;,&quot;hot&quot;,&quot;acid&quot;,&quot;gold&quot;,&quot;jade&quot;,&quot;grape&quot;,&quot;signal&quot;,&quot;amber&quot;,&quot;cyan&quot;,&quot;violet&quot;,&quot;emerald&quot;,&quot;magenta&quot;,&quot;ice&quot;,&quot;lime&quot;,&quot;tangerine&quot;,&quot;steel&quot;],&quot;default&quot;:&quot;gold&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Color theme&quot;},&quot;secondAccent&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;electric&quot;,&quot;hot&quot;,&quot;acid&quot;,&quot;gold&quot;,&quot;jade&quot;,&quot;grape&quot;,&quot;signal&quot;,&quot;amber&quot;,&quot;cyan&quot;,&quot;violet&quot;,&quot;emerald&quot;,&quot;magenta&quot;,&quot;ice&quot;,&quot;lime&quot;,&quot;tangerine&quot;,&quot;steel&quot;],&quot;default&quot;:&quot;electric&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Color theme&quot;},&quot;paneStyle&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;flat&quot;,&quot;inset&quot;,&quot;framed&quot;,&quot;floating&quot;],&quot;default&quot;:&quot;inset&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;subPanel&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;overlay&quot;,&quot;sheet&quot;,&quot;stacked&quot;,&quot;push&quot;],&quot;default&quot;:&quot;overlay&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;statusIcons&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;box&quot;,&quot;bare&quot;,&quot;solid&quot;,&quot;dot&quot;],&quot;default&quot;:&quot;box&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1560,&quot;height&quot;:900},&quot;colorTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cobalt&quot;,&quot;crimson&quot;,&quot;lagoon&quot;,&quot;royal&quot;,&quot;citrus&quot;,&quot;mint&quot;,&quot;blush&quot;,&quot;sky&quot;,&quot;carbon&quot;,&quot;midnight&quot;,&quot;graphite&quot;,&quot;ink&quot;,&quot;slate&quot;,&quot;forest&quot;,&quot;plum&quot;,&quot;oxide&quot;,&quot;nordic&quot;,&quot;obsidian&quot;,&quot;dune&quot;,&quot;paper&quot;,&quot;porcelain&quot;,&quot;sage&quot;],&quot;default&quot;:&quot;nordic&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Color theme&quot;},&quot;accentColor&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;electric&quot;,&quot;hot&quot;,&quot;acid&quot;,&quot;gold&quot;,&quot;jade&quot;,&quot;grape&quot;,&quot;signal&quot;,&quot;amber&quot;,&quot;cyan&quot;,&quot;violet&quot;,&quot;emerald&quot;,&quot;magenta&quot;,&quot;ice&quot;,&quot;lime&quot;,&quot;tangerine&quot;,&quot;steel&quot;],&quot;default&quot;:&quot;gold&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Color theme&quot;},&quot;secondAccent&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;electric&quot;,&quot;hot&quot;,&quot;acid&quot;,&quot;gold&quot;,&quot;jade&quot;,&quot;grape&quot;,&quot;signal&quot;,&quot;amber&quot;,&quot;cyan&quot;,&quot;violet&quot;,&quot;emerald&quot;,&quot;magenta&quot;,&quot;ice&quot;,&quot;lime&quot;,&quot;tangerine&quot;,&quot;steel&quot;],&quot;default&quot;:&quot;electric&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Color theme&quot;},&quot;paneStyle&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;flat&quot;,&quot;inset&quot;,&quot;framed&quot;,&quot;floating&quot;],&quot;default&quot;:&quot;inset&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;subPanel&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;overlay&quot;,&quot;sheet&quot;,&quot;stacked&quot;,&quot;push&quot;],&quot;default&quot;:&quot;overlay&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;statusIcons&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;box&quot;,&quot;bare&quot;,&quot;solid&quot;,&quot;dot&quot;],&quot;default&quot;:&quot;bare&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;recordStyle&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;rows&quot;,&quot;cards&quot;],&quot;default&quot;:&quot;cards&quot;,&quot;tsType&quot;:&quot;\&quot;rows\&quot; | \&quot;cards\&quot;&quot;,&quot;section&quot;:&quot;Hacksaw&quot;}}">
 const OK = [
   { id: "G8", title: "Risk statement traceable to an asset" },
   { id: "G9", title: "Control documented and owned" },
@@ -919,6 +1307,96 @@ const CONNECTIONS = [
   { name: "Zoho Repository", slug: "zoho-repository", auth: "Personal access token", scopes: "—", on: false }
 ];
 
+
+const pj = str => { const [main, cve] = str.split("#"); const a = { "+": "add", "~": "upd", "-": "rem" }[main[0]]; const [n, v] = main.slice(1).split("@"); const [from, to] = a === "upd" ? v.split(">") : a === "add" ? [null, v] : [v, null]; return { a, n, from, to, cve: cve || null }; };
+const HS_IAST = { "log360_cloud": 2, "log360_ember": 1, "log360cloud_helpdoc": 1, "log360cloud_migration": 3, "cp_cloud": 1, "Log360": 2, "log360_cloud": 1, "log360cloudcommon": 4, "adsf": 1 };
+const hsRepo = (name, base, wip, jars, vb, vw, viol, mis, sec) => ({ name, base, wip, jars: jars.map(pj), vuln: { base: vb, wip: vw }, viol, mis, sec, iast: HS_IAST[name] || 0 });
+
+const HS_POOL = {
+  viol: [
+    { file: "com/zoho/log360/server/util/CommonUtils.java", line: 247, code: 'return (Log360CGCacheApi) BeanUtil.lookup("Log360CGCacheApi", zaaid);', rule: "Second-order insecure direct object reference", ref: "A01:2025", sev: "Medium" },
+    { file: "com/zoho/log360/server/persistence/DataSpaceAPI.java", line: 20, code: "private static final InheritableThreadLocal<String> DATA_SPACE = new InheritableThreadLocal<String>();", rule: "Usage of static variables", ref: "A06:2025", sev: "High" },
+    { file: "com/zoho/log360/server/extension/L3CExtensionManager.java", line: 205, code: "HttpResponse response = httpClient.execute(getMethod);", rule: "Server-side request forgery", ref: "CWE-918", sev: "Low" },
+    { file: "com/zoho/log360/server/alerts/AlertQueryBuilder.java", line: 88, code: 'String q = "SELECT * FROM alert_profile WHERE id=" + request.getParameter("id");', rule: "SQL injection", ref: "CWE-89", sev: "High" },
+    { file: "com/zoho/log360/server/util/CommonUtils.java", line: 255, code: 'return (SpaceApi) BeanUtil.lookup("SpaceApi", zaaid);', rule: "Second-order insecure direct object reference", ref: "A01:2025", sev: "Medium" },
+    { file: "com/zoho/log360/server/report/ExportServlet.java", line: 131, code: "File out = new File(baseDir, request.getParameter(\"name\"));", rule: "Path traversal", ref: "CWE-22", sev: "High" }
+  ],
+  mis: [
+    { file: "Log360CloudCommon/AdventNet/Sas/tomcat/conf/logging.properties", line: 6, code: ".handlers = 1catalina.org.apache.juli.FileHandler", rule: "CENTRAL_LOGGING_HANDLER_NOT_CONFIGURED", sev: "Medium" },
+    { file: "Log360CloudCommon/AdventNet/Sas/tomcat/conf/logging.properties", line: 12, code: "org.apache.tomcat.util.http.parser.Cookie.level = WARNING", rule: "PROJECT_NAME_NOT_CONFIGURED", sev: "Low" },
+    { file: "Log360CloudCommon/AdventNet/Sas/tomcat/conf/server.xml", line: 74, code: '<Connector port="8443" sslEnabledProtocols="TLSv1,TLSv1.1,TLSv1.2" />', rule: "WEAK_TLS_PROTOCOL_ENABLED", sev: "High" },
+    { file: "Log360CloudCommon/AdventNet/Sas/tomcat/webapps/ROOT/WEB-INF/web.xml", line: 212, code: "<cookie-config><secure>false</secure></cookie-config>", rule: "SESSION_COOKIE_NOT_SECURE", sev: "Medium" }
+  ],
+  sec: [
+    { file: "BUILD/Log360CloudCommon/AdventNet/Sas/tomcat/webapps/ROOT/WEB-INF/resources/adsf/ApplicationResources.properties", line: 5745, pre: "ads.incident.", hl: "ticket_department=Department", post: "", rule: "Generic API key", ref: "CWE-798", sev: "Low" },
+    { file: "BUILD/Log360CloudCommon/AdventNet/Sas/conf/database_params.conf", line: 18, pre: "password=", hl: "Zx9#kL2!pq77", post: "", rule: "Database password", ref: "CWE-259", sev: "High" },
+    { file: "BUILD/Log360CloudCommon/AdventNet/Sas/conf/integrations/aws.properties", line: 4, pre: "aws.access.key.id=", hl: "AKIA4N7Q2EXAMPLEKEY", post: "", rule: "AWS access key", ref: "CWE-798", sev: "High" }
+  ],
+  iast: [
+    { method: "POST", url: "/api/v2/incidents/search", param: "filter.query", sink: "IncidentDAO.java:142", file: "IncidentDAO.java", line: 142, code: 'stmt.executeQuery("SELECT * FROM incident WHERE " + filter.getQuery());', rule: "SQL injection", ref: "CWE-89", sev: "High" },
+    { method: "GET", url: "/reports/export?name=", param: "name", sink: "ExportServlet.java:131", file: "ExportServlet.java", line: 131, code: "new FileInputStream(new File(baseDir, name));", rule: "Path traversal", ref: "CWE-22", sev: "High" },
+    { method: "GET", url: "/alerts/view?title=", param: "title", sink: "AlertView.jsp:56", file: "AlertView.jsp", line: 56, code: "<h3><%= request.getParameter(\"title\") %></h3>", rule: "Reflected XSS", ref: "CWE-79", sev: "Medium" },
+    { method: "POST", url: "/integrations/webhook/test", param: "url", sink: "WebhookClient.java:77", file: "WebhookClient.java", line: 77, code: "HttpResponse r = client.execute(new HttpGet(url));", rule: "Server-side request forgery", ref: "CWE-918", sev: "Medium" }
+  ],
+  vuln: [
+    { jar: "kafka-clients", version: "4.1.2", fix: "4.1.3", cve: "CVE-2025-27817", vulns: 1, location: "Log360CloudCommon/AdventNet/Sas/lib/kafka-clients-4.1.2.jar", origin: "Maven Central", released: "12 Mar 2025", sev: "High" },
+    { jar: "commons-beanutils", version: "1.9.4", fix: "1.11.0", cve: "CVE-2025-48734", vulns: 1, location: "Log360CloudCommon/AdventNet/Sas/lib/commons-beanutils-1.9.4.jar", origin: "Maven Central", released: "06 Aug 2019", sev: "High" },
+    { jar: "jetty-http", version: "9.4.51", fix: "9.4.57", cve: "CVE-2024-6763", vulns: 2, location: "Log360CloudCommon/AdventNet/Sas/lib/jetty-http-9.4.51.jar", origin: "Unknown source", released: "05 Apr 2023", sev: "Medium" }
+  ]
+};
+const HS_ASSIGNEES = ["arun.k@zohocorp.com", "meera.s@zohocorp.com", "vignesh.r@zohocorp.com", "nisha.a@zohocorp.com"];
+const HS_TAGS = [[], ["JAVA_SAST_M7_0"], ["JAVA_SAST_M7_3", "Hacksaw engine enhancements"]];
+const HS_DEV_NOTES = {
+  "Open": ["Fix is in progress; will land in the next WIP build.", "Input is validated upstream in the gateway filter, but adding a check here too.", "Needs a design change — raising a ticket for the next sprint."],
+  "False positive": ["Value is a resource-bundle label, not a credential. Marking as false positive.", "zaaid comes from the authenticated session, not user input.", "Only reachable from an internal admin job; no user-controlled data flows here."],
+  "Permanently excluded": ["Legacy module scheduled for removal in 4.14; excluding until then.", "Third-party config shipped as-is by the vendor; overridden at deploy time."]
+};
+const HS_DEV_FOLLOW = ["Attached the filter config in the ticket — see WSM-4821.", "Fix pushed in build #2311; please re-run the scan.", "Discussed with the module owner; the exclusion stays until 4.14."];
+const HS_REV_FOLLOW = ["Thanks — verified in the latest scan. Closing from my side.", "Still flagged in build #2311. Can you check the second call site?"];
+const HS_REPLIES = ["Agreed. Please attach the gateway filter reference before closing.", "Accepted for this release. Re-check once the module is removed.", "Not convinced — the value is reachable via the import API. Please fix.", ""];
+const HS_DEV_ST = ["Fixed", "Not an issue", "In progress", "Won't fix"];
+const HS_REV_ST = { accept: "Accepted", reject: "Rejected", pend: "Pending" };
+const HS_AI_WHY = {
+  tp: { viol: "Request-controlled value reaches the sink without validation on any traced path.", mis: "Setting is active in the deployed profile and not overridden at runtime.", sec: "High-entropy value matches a live credential pattern and is loaded at startup.", iast: "Tainted input reached the sink during the runtime scan with a working payload.", vuln: "Vulnerable class is on the classpath and reachable from an exposed endpoint." },
+  fp: { viol: "Value is derived from the authenticated session; no external input reaches this call.", mis: "Property is overridden by the deployment template, so the shipped default never applies.", sec: "String is a resource-bundle label, not a credential; entropy is low.", iast: "Payload was blocked by the input filter before the sink; flagged path is unreachable.", vuln: "Affected method is not invoked by this module; jar is a transitive build-only dependency." },
+  rv: { viol: "Data flow crosses a reflection boundary the analyzer can't resolve; confirm manually.", mis: "Effective value depends on environment variables not present in the scan.", sec: "Pattern matches, but the value may be a placeholder; check the vault mapping.", iast: "Sink was hit once with partial taint; reproduce with a full payload.", vuln: "Fix version exists but call-graph reachability is inconclusive." }
+};
+const HS_STATUSES = ["Open", "Open", "False positive", "Permanently excluded"];
+const HS_REVIEWERS = ["Lakshmi P", "Vignesh R", "Nisha A", "Ganesh K", "Farah I"];
+const initialsOf = n => n.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+const HS_REVIEWS = [
+  { id: "HSR-1048", project: "Zoho Vault", reviewer: "Lakshmi P", by: "Arun Kumar", at: "07 Oct 2026, 16:20", status: "pending", repos: [
+    hsRepo("log360_cloud", "v4.12.0 · #2281", "release/4.13 · #2307", ["+jackson-dataformat-yaml@2.17.1", "~log4j-core@2.17.1>2.23.1", "~commons-text@1.9>1.10.0", "~snakeyaml@1.33>1.33.1#CVE-2022-1471", "-commons-collections@3.2.1"], 4, 2, 3, 1, 0),
+    hsRepo("log360_ember", "v4.12.0 · #1190", "release/4.13 · #1214", ["~spring-web@5.3.27>5.3.39", "+owasp-java-html-sanitizer@20240325.1"], 1, 0, 2, 0, 1),
+    hsRepo("log360cloudcommon", "v2.4.1 · #318", "feature/sso-v2 · #331", ["+nimbus-jose-jwt@9.37.3", "~netty-codec-http@4.1.94.Final>4.1.100.Final#CVE-2023-44487"], 1, 1, 0, 2, 0)
+  ] },
+  { id: "HSR-1047", project: "Zoho Desk", by: "Meera S", at: "07 Oct 2026, 11:05", status: "pending", repos: [
+    hsRepo("log360cloud_dso", "v9.8.2 · #5521", "release/9.9 · #5560", ["~jackson-databind@2.15.2>2.17.1", "~guava@31.1-jre>33.2.1-jre", "-json-simple@1.1.1", "+caffeine@3.1.8"], 2, 0, 5, 0, 0),
+    hsRepo("log360cloud_helpdoc", "v3.1.0 · #902", "release/3.2 · #940", ["+okhttp@4.12.0", "~xstream@1.4.19>1.4.20#CVE-2022-41966"], 0, 1, 1, 1, 2)
+  ] },
+  { id: "HSR-1046", project: "Zoho Books", reviewer: "Vignesh R", by: "Rahul V", at: "06 Oct 2026, 18:42", status: "changes", repos: [
+    hsRepo("log360cloud_migration", "v7.2.0 · #3310", "feature/gst-2026 · #3348", ["~poi-ooxml@5.2.3>5.2.5", "+pdfbox@3.0.2", "~commons-compress@1.21>1.24.0"], 3, 1, 7, 2, 1),
+    hsRepo("cp_cloud", "v7.2.0 · #2104", "feature/gst-2026 · #2131", ["~jersey-server@2.39>2.41"], 0, 0, 2, 0, 0),
+    hsRepo("adsf", "v7.1.4 · #880", "feature/gst-2026 · #896", ["-itext@2.1.7#CVE-2017-9096", "+openpdf@1.3.43"], 1, 0, 0, 0, 0),
+    hsRepo("itsf", "v1.9.0 · #402", "feature/gst-2026 · #410", [], 0, 0, 1, 0, 0)
+  ] },
+  { id: "HSR-1045", project: "Zoho People", reviewer: "Nisha A", by: "Divya R", at: "05 Oct 2026, 09:30", status: "approved", repos: [
+    hsRepo("ADSF-DD-DML", "v6.4.0 · #4012", "release/6.5 · #4047", ["~hibernate-core@5.6.15.Final>6.4.4.Final", "~postgresql@42.6.0>42.7.3"], 1, 0, 0, 0, 0),
+    hsRepo("extension-management", "v2.2.0 · #611", "release/6.5 · #630", ["+quartz@2.3.2"], 0, 0, 0, 1, 0)
+  ] },
+  { id: "HSR-1044", project: "Zoho Creator", by: "Karthik N", at: "04 Oct 2026, 14:12", status: "pending", repos: [
+    hsRepo("Log360", "v12.0.3 · #8820", "feature/deluge-ai · #8871", ["+onnxruntime@1.17.1", "+djl-api@0.27.0", "~protobuf-java@3.21.12>3.25.3", "~grpc-netty@1.56.1>1.63.0"], 2, 2, 4, 3, 0),
+    hsRepo("log360_cloud", "v12.0.3 · #3150", "feature/deluge-ai · #3177", ["~commons-fileupload@1.4>1.5#CVE-2023-24998"], 1, 1, 1, 0, 0)
+  ] },
+  { id: "HSR-1043", project: "Zoho Sign", reviewer: "Lakshmi P", by: "Priya M", at: "02 Oct 2026, 17:55", status: "approved", repos: [
+    hsRepo("cp_cloud", "v5.0.1 · #1402", "release/5.1 · #1420", ["~bouncycastle-bcprov@1.70>1.78.1", "-bcprov-jdk15on@1.70"], 2, 0, 0, 0, 0)
+  ] },
+  { id: "HSR-1042", project: "Zoho Analytics", reviewer: "Ganesh K", by: "Sanjay T", at: "30 Sep 2026, 12:08", status: "changes", repos: [
+    hsRepo("log360cloudcommon", "v8.3.0 · #6610", "release/8.4 · #6655", ["~spark-core_2.12@3.4.1>3.5.1", "+arrow-vector@15.0.2", "~avro@1.11.1>1.11.3"], 3, 1, 6, 4, 3),
+    hsRepo("adsf", "v4.0.0 · #1205", "release/8.4 · #1233", ["+snowflake-jdbc@3.16.0", "~mysql-connector-j@8.0.33>8.4.0"], 1, 0, 2, 1, 1),
+    hsRepo("itsf", "v8.3.0 · #2290", "release/8.4 · #2318", [], 0, 0, 0, 0, 0)
+  ] }
+];
 const ACCENT = "var(--ac, #ff5a41)";
 const ACCENT_TEXT = "var(--ac-text, #ff5a41)";
 const lum = h => {
@@ -1338,6 +1816,7 @@ class Component extends DCLogic {
         { key: "api", label: "API Review", count: "7" }
       ] },
       { label: "Hacksaw", items: [
+        { key: "hreview", label: "Hacksaw Reviewer", count: String(HS_REVIEWS.filter(r => ((s.hsStatus || {})[r.id] || r.status) === "pending").length) },
         { key: "vuln", label: "Vulnerability Components", count: "32" },
         { key: "deps", label: "Dependency Manager", count: "" },
         { key: "violations", label: "Code Violation Review", count: "9" }
@@ -1354,7 +1833,7 @@ class Component extends DCLogic {
           fg: on ? "var(--ink, #eef0f2)" : "var(--muted, #9aa0a8)",
           mark: on ? ACCENT : "transparent",
           countFg: on ? ACCENT_TEXT : "var(--muted, #9aa0a8)",
-          pick: () => this.setState({ screen: n.key, stub: n.label, mode: "table" })
+          pick: () => this.setState({ screen: n.key, stub: n.label, mode: "table", hsOpen: null })
         };
       })
     }));
@@ -1387,6 +1866,7 @@ class Component extends DCLogic {
       .filter(d => dRecent === "All" || (dRecent === "Yes" ? d.recent : !d.recent))
       .map((d, i) => ({
         ...d,
+        mk: mark(d.recent ? "pass" : "fail"),
         recentIcon: d.recent ? "✓" : "✕",
         recentFg: d.recent ? "var(--ink, #eef0f2)" : sem.fail,
         recentBorder: d.recent ? "var(--line4, #4a4f56)" : sem.fail,
@@ -1401,6 +1881,199 @@ class Component extends DCLogic {
       mkFilter("dRecent", "Reviewed ≤ 1 yr", dRecent, ["All", "Yes", "No"])
     ];
 
+
+    const hsSt = k => k === "approved" ? { icon: "✓", label: "Approved", fg: sem.band.Low, edge: sem.band.Low }
+      : k === "changes" ? { icon: "✕", label: "Changes requested", fg: sem.fail, edge: sem.fail }
+      : { icon: "•", label: "Pending review", fg: ACCENT_TEXT, edge: ACCENT };
+    const hsSumOf = rs => { const m = hsSumRaw(rs); return { ...m, hasAdd: m.add > 0, hasUpd: m.upd > 0, hasRem: m.rem > 0, none: !(m.add + m.upd + m.rem) }; };
+    const hsSumRaw = rs => rs.reduce((a, r) => ({ add: a.add + r.jars.filter(j => j.a === "add").length, upd: a.upd + r.jars.filter(j => j.a === "upd").length, rem: a.rem + r.jars.filter(j => j.a === "rem").length, vb: a.vb + r.vuln.base, vw: a.vw + r.vuln.wip, viol: a.viol + r.viol, mis: a.mis + r.mis, sec: a.sec + r.sec, iast: a.iast + r.iast }), { add: 0, upd: 0, rem: 0, vb: 0, vw: 0, viol: 0, mis: 0, sec: 0, iast: 0 });
+    const hsN = n => ({ n, fg: n ? sem.fail : "var(--muted3, #5c626b)", w: n ? 800 : 500 });
+    const hsC = sm => ({ vuln: hsN(sm.vw), viol: hsN(sm.viol), mis: hsN(sm.mis), sec: hsN(sm.sec), iast: hsN(sm.iast) });
+    const hsStatusOf = r => (s.hsStatus || {})[r.id] || r.status;
+    const hq = (s.hsQuery || "").trim().toLowerCase();
+    const hsF = s.hsFilter || "all";
+    const hsRows = HS_REVIEWS
+      .filter(r => !hq || (r.project + r.id + r.by + r.repos.map(p => p.name).join(" ")).toLowerCase().includes(hq))
+      .filter(r => hsF === "all" || hsStatusOf(r) === hsF)
+      .map(r => { const sm = hsSumOf(r.repos); const sk = hsStatusOf(r); const mk0 = mark(sk === "approved" ? "pass" : sk === "changes" ? "fail" : "run"); const mk = { ...mk0, anim: "none", icon: "", isWait: mk0.isRun }; const rv = (s.hsAssign || {})[r.id] !== undefined ? s.hsAssign[r.id] : (r.reviewer || ""); const ao = s.hsAssignOpen === r.id; return { ...r, mk, st: hsSt(hsStatusOf(r)), sum: sm, c: hsC(sm),
+        reviewer: rv, hasReviewer: !!rv, noReviewer: !rv, initials: rv ? initialsOf(rv) : "", assignOpen: ao,
+        stop: e => e.stopPropagation(),
+        tip: s.hsTip === r.id,
+        tipOn: () => this.setState({ hsTip: r.id }), tipOff: () => this.setState({ hsTip: null }),
+        tipText: (sk === "approved" ? "Approved by " + (rv || "reviewer") + ". Ready to merge." : sk === "changes" ? (rv || "Reviewer") + " asked for changes before approval." : rv ? "Waiting on " + rv + " to review." : "No reviewer assigned yet.") + " " + r.repos.length + (r.repos.length === 1 ? " repo" : " repos") + " · submitted " + r.at.split(",")[0] + ".",
+        toggleAssign: e => { e.stopPropagation(); this.setState({ hsAssignOpen: ao ? null : r.id }); },
+        options: HS_REVIEWERS.map(n => ({ name: n, initials: initialsOf(n), check: n === rv ? "✓" : "", bg: n === rv ? "var(--surf2, #23262b)" : "transparent",
+          pick: e => { e.stopPropagation(); this.setState(st => ({ hsAssignOpen: null, hsAssign: { ...(st.hsAssign || {}), [r.id]: n } })); } })),
+        repos: r.repos.map(p => ({ name: p.name, baseV: p.base.split(" · ")[0], wipV: p.wip.split(" · ")[0] })),
+        open: () => this.setState({ hsOpen: r.id, hsRepo: r.repos[0].name, hsJar: "all" }) }; });
+    const hsStatusTabs = [["all", "All"], ["pending", "Pending"], ["changes", "Changes requested"], ["approved", "Approved"]].map(([v, l]) => ({ label: l,
+      bg: hsF === v ? "var(--surf2, #23262b)" : "transparent", fg: hsF === v ? "var(--ink, #eef0f2)" : "var(--muted, #9aa0a8)",
+      pick: () => this.setState({ hsFilter: v }) }));
+    const hsSrc = HS_REVIEWS.find(r => r.id === s.hsOpen) || null;
+    const hsSel0 = s.hsRepo || "all";
+    const hsSel = hsSrc && (hsSel0 === "all" || !hsSrc.repos.some(p => p.name === hsSel0)) ? hsSrc.repos[0].name : hsSel0;
+    const hsScope = hsSrc ? (hsSel === "all" ? hsSrc.repos : hsSrc.repos.filter(p => p.name === hsSel)) : [];
+    const hsScopeSum = hsSumOf(hsScope);
+    const hsRepoSrc = hsSrc && hsSel !== "all" ? hsSrc.repos.find(p => p.name === hsSel) : null;
+    const tile = (label, value, delta, deltaFg, sub) => ({ label, value, delta, deltaFg, sub,
+      fg: value ? sem.fail : sem.band.Low, edge: value ? sem.fail : sem.band.Low, bg: "var(--surf, #16181b)" });
+    const vd = hsScopeSum.vw - hsScopeSum.vb;
+    const hsTiles = [
+      tile("New code violations", hsScopeSum.viol, "", "", "Not present in base report"),
+      tile("New misconfigurations", hsScopeSum.mis, "", "", "Not present in base report"),
+      tile("New hardcoded secrets", hsScopeSum.sec, "", "", hsScopeSum.sec ? "Rotate before approving" : "None found"),
+      tile("New IAST findings", hsScopeSum.iast, "", "", "Runtime findings not in base"),
+      tile("Vulnerable components", hsScopeSum.vw, (vd > 0 ? "+" : vd < 0 ? "−" : "±") + Math.abs(vd) + " vs base", vd > 0 ? sem.fail : vd < 0 ? sem.band.Low : "var(--muted, #9aa0a8)", "Base " + hsScopeSum.vb + " → WIP " + hsScopeSum.vw)
+    ];
+    const jf = s.hsJar || "all";
+    const allJars = hsScope.flatMap(p => p.jars.map(j => ({ ...j, repo: p.name })));
+    const JM = { add: { mark: "+", label: "Added", fg: AC2_TEXT, edge: AC2 }, upd: { mark: "~", label: "Updated", fg: ACCENT_TEXT, edge: ACCENT }, rem: { mark: "−", label: "Removed", fg: "var(--muted, #9aa0a8)", edge: "var(--line3, #33373d)" } };
+    const hsJars = allJars.filter(j => jf === "all" || j.a === jf).sort((a, b) => ["add", "upd", "rem"].indexOf(a.a) - ["add", "upd", "rem"].indexOf(b.a)).map(j => ({ ...JM[j.a], n: j.n, repo: j.repo, cve: j.cve, clean: !j.cve,
+      deco: j.a === "rem" ? "line-through" : "none",
+      ver: j.a === "upd" ? j.from + " → " + j.to : j.a === "add" ? "— → " + j.to : j.from + " → —" }));
+    const hsJarTabs = [["all", "All", allJars.length], ["add", "Added", hsScopeSum.add], ["upd", "Updated", hsScopeSum.upd], ["rem", "Removed", hsScopeSum.rem]].map(([v, l, c]) => ({ label: l, count: c,
+      bg: jf === v ? "var(--surf2, #23262b)" : "transparent", fg: jf === v ? "var(--ink, #eef0f2)" : "var(--muted, #9aa0a8)", countFg: "var(--muted2, #8b9198)",
+      pick: () => this.setState({ hsJar: v }) }));
+    const hsRepoTabs = hsSrc ? hsSrc.repos.map(p => ({ name: p.name, label: p.name })).map(t => ({ label: t.label,
+      w: hsSel === t.name ? 700 : 500, fg: hsSel === t.name ? "var(--ink, #eef0f2)" : "var(--muted, #9aa0a8)", edge: hsSel === t.name ? ACCENT : "transparent",
+      pick: () => this.setState({ hsRepo: t.name, hsJar: "all" }) })) : [];
+    const hsRepoRows = hsSrc ? hsSrc.repos.map(p => { const sm = hsSumOf([p]); return { name: p.name, base: p.base, wip: p.wip, sum: sm, c: hsC(sm), pick: () => this.setState({ hsRepo: p.name, hsJar: "all" }) }; }) : [];
+
+    const hsCatKey = s.hsCat || "viol";
+    const hsRecKey = s.hsRec || this.props.recordStyle || "rows";
+    const CATS = [
+      { k: "overview", label: "Overview" },
+      { k: "viol", label: "Code violations", n: p => p.viol, sub: "SAST · new in WIP vs base" },
+      { k: "mis", label: "Misconfigurations", n: p => p.mis, sub: "Config files · new in WIP vs base" },
+      { k: "sec", label: "Hardcoded secrets", n: p => p.sec, sub: "Rotate before approving" },
+      { k: "vuln", label: "Vulnerable components", n: p => p.vuln.wip, sub: "Third-party jars with known CVEs in WIP" },
+      { k: "iast", label: "IAST", n: p => p.iast, sub: "Runtime findings · new in WIP vs base" }
+    ];
+    const hsCats = hsRepoSrc ? CATS.map(c => { const on = hsCatKey === c.k, n = c.n ? c.n(hsRepoSrc) : null; return { label: c.label, count: n === null ? "" : n,
+      countFg: n ? sem.fail : "var(--muted3, #5c626b)", w: on ? 700 : 500, bg: on ? "var(--surf2, #23262b)" : "transparent",
+      fg: on ? "var(--ink, #eef0f2)" : "var(--muted, #9aa0a8)", mark: on ? ACCENT : "transparent", pick: () => this.setState({ hsCat: c.k }) }; }) : [];
+    const hsCatDef = CATS.find(c => c.k === hsCatKey) || CATS[1];
+    const showFind = !!hsRepoSrc && hsCatKey !== "overview";
+    const seedOf = str => str.split("").reduce((a, ch) => a + ch.charCodeAt(0), 0);
+    let hsFindings = [];
+    if (showFind) {
+      const p = hsRepoSrc, n = hsCatDef.n(p), seed = seedOf(p.name);
+      const sevFg = v => sem.band[v] || sem.band.Low;
+      const base = (it, i) => ({ id: p.name + hsCatKey + i, sev: it.sev, sevFg: sevFg(it.sev), rule: it.rule || "", ref: it.ref || "",
+        ...(() => { const st = HS_STATUSES[(i + seed) % 4], notes = HS_DEV_NOTES[st], dev = hsSrc.by, rv = (s.hsAssign || {})[hsSrc.id] || hsSrc.reviewer || "Lakshmi P", reply = HS_REPLIES[(i + seed) % HS_REPLIES.length];
+          const hasDev = (i + seed) % 3 !== 2;
+          return { hasDev, noDev: !hasDev, dev, devInitials: initialsOf(dev), devAt: (i + 1) + "d ago", devComment: notes[(i + seed) % notes.length], rev: rv, revInitials: initialsOf(rv), revAt: (i % 2 ? "3h" : "1d") + " ago", seedReply: hasDev ? reply : "",
+            seedThread: !hasDev ? [] : [{ r: "dev", t: notes[(i + seed) % notes.length], at: (i + 3) + "d ago" }]
+              .concat(reply ? [{ r: "rev", t: reply, at: (i + 2) + "d ago" }] : [])
+              .concat(reply && (i + seed) % 2 === 0 ? [{ r: "dev", t: HS_DEV_FOLLOW[(i + seed) % 3], at: (i + 1) + "d ago" }] : [])
+              .concat(reply && (i + seed) % 4 === 0 ? [{ r: "rev", t: HS_REV_FOLLOW[(i + seed) % 2], at: "3h ago" }] : []) }; })(),
+        status: HS_STATUSES[(i + seed) % 4], rte: "R.T.E " + (((i + seed) % 3) + 1) + "/3", tags: HS_TAGS[(i + seed) % 3], assignee: HS_ASSIGNEES[(i + seed) % 4],
+        isCode: false, isComp: false, isIast: false, titleFont: "ui-monospace, monospace" });
+      let items;
+      if (hsCatKey === "vuln") {
+        const fromJars = p.jars.filter(j => j.cve && j.a !== "rem").map(j => ({ isNew: j.a === "add", jar: j.n, version: j.to || j.from, fix: "latest", cve: j.cve, vulns: 1, location: p.name + "/lib/" + j.n + "-" + (j.to || j.from) + ".jar", origin: "Maven Central", released: "—", sev: "High" }));
+        const pool = fromJars.concat(HS_POOL.vuln.slice(seed % 3).concat(HS_POOL.vuln));
+        items = pool.slice(0, n).map((it, i) => ({ ...base(it, i), isComp: true, compNew: it.isNew !== undefined ? it.isNew : i % 2 === 1, title: it.jar + "-" + it.version + ".jar", rule: "", ref: "",
+          location: it.location, ownership: "third-party", version: it.version, fix: it.fix, origin: it.origin, released: it.released, blocking: i === 0 ? "In 14 days" : "Not applicable",
+          vulns: it.vulns, vulnLabel: it.vulns === 1 ? "Vulnerability" : "Vulnerabilities", cve: it.cve }));
+      } else {
+        const pool = HS_POOL[hsCatKey];
+        items = Array.from({ length: n }, (_, i) => pool[(i + seed) % pool.length]).map((it, i) => ({ ...base(it, i), isCode: true,
+          isIast: hsCatKey === "iast", method: it.method || "", param: it.param || "", sink: it.sink || "",
+          title: hsCatKey === "iast" ? it.url : it.file, titleFont: hsCatKey === "iast" ? "ui-monospace, monospace" : "inherit",
+          blocking: it.sev === "High", line: it.line, pre: it.pre !== undefined ? it.pre : it.code, hl: it.hl || "", post: it.post || "" }));
+      }
+      const picks = s.hsPick || {};
+      const replies = s.hsReplies || {}, drafts = s.hsDraft || {};
+      hsFindings = items.map(f => { const added = (s.hsThreadAdd || {})[f.id] || []; const raw = f.seedThread.concat(added);
+        const lastRev = raw.filter(m => m.r === "rev").slice(-1)[0];
+        const reply = lastRev ? lastRev.t : "";
+        const thread = raw.map((m, mi) => { const dev = m.r === "dev"; const last = mi === raw.length - 1; const nm = dev ? f.dev : f.rev; return { name: nm, initials: initialsOf(nm), role: dev ? "Developer" : "Reviewer", at: m.at, text: m.t,
+          roleFg: dev ? "var(--muted, #9aa0a8)" : ACCENT_TEXT, connector: last ? "transparent" : "var(--line2, #2f333a)", gapBelow: last ? "0" : "12px",
+          avBorder: dev ? "var(--line3, #33373d)" : ACCENT, avBg: dev ? "var(--surf2, #23262b)" : "var(--ac-tint, rgba(255,90,65,0.12))", avFg: dev ? "var(--ink2, #dfe2e6)" : ACCENT_TEXT }; });
+        return { ...f, reply, hasReply: !!reply, noReply: !reply, thread, noThread: thread.length === 0,
+        threadLabel: thread.length ? "Discussion · " + thread.length : "Discussion",
+        assigneeInitials: f.assignee.slice(0, 2).toUpperCase(),
+        draft: drafts[f.id] || "",
+        replyOpen: !!(s.hsReplyOpen || {})[f.id], replyClosed: !(s.hsReplyOpen || {})[f.id], replyIndent: reply ? "34px" : "0",
+        openReply: () => this.setState(st => ({ hsReplyOpen: { ...(st.hsReplyOpen || {}), [f.id]: true } })),
+        cancelReply: () => this.setState(st => ({ hsReplyOpen: { ...(st.hsReplyOpen || {}), [f.id]: false } })),
+        onDraft: e => { const v = e.target.value; this.setState(st => ({ hsDraft: { ...(st.hsDraft || {}), [f.id]: v } })); },
+        send: () => { const v = (drafts[f.id] || "").trim(); if (v) this.setState(st => ({ hsThreadAdd: { ...(st.hsThreadAdd || {}), [f.id]: ((st.hsThreadAdd || {})[f.id] || []).concat([{ r: "rev", t: v, at: "just now" }]) }, hsDraft: { ...(st.hsDraft || {}), [f.id]: "" }, hsReplyOpen: { ...(st.hsReplyOpen || {}), [f.id]: false } })); },
+        picked: !!picks[f.id],
+        ruleTitle: f.isComp ? f.title : (f.rule ? f.rule.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "") : ""),
+        accepted: reply && !/not convinced|please fix|still flagged/i.test(reply),
+        cardBorder: reply && !/not convinced|please fix|still flagged/i.test(reply) ? sem.band.Low : "var(--line2, #2f333a)",
+        cardBg: reply && !/not convinced|please fix|still flagged/i.test(reply) ? "color-mix(in srgb, " + sem.band.Low + " 5%, var(--surf, #16181b))" : "var(--surf, #16181b)",
+        cardShadow: reply && !/not convinced|please fix|still flagged/i.test(reply) ? "none" : "0 1px 0 var(--line0, #1c1f23), 0 6px 18px rgba(0, 0, 0, 0.16)",
+        cardDim: reply && !/not convinced|please fix|still flagged/i.test(reply) ? 0.86 : 1,
+        okTint: sem.bandTint.Low, okFg: sem.band.Low,
+        ...(() => { const kind = f.status === "False positive" || f.status === "Permanently excluded" ? "fp" : (f.sev === "High" || f.isBlocking) ? "tp" : ((f.line || 0) % 3 === 0 ? "rv" : "tp");
+          const conf = kind === "rv" ? 52 + ((f.line || 7) % 15) : 78 + ((f.line || 3) % 20);
+          const fg = kind === "tp" ? sem.fail : kind === "fp" ? sem.band.Low : sem.band.Medium;
+          return { aiKind: kind, aiVerdict: kind === "tp" ? "True positive" : kind === "fp" ? "Likely false positive" : "Needs human review",
+            aiConf: conf + "%", aiConfPct: conf + "%", aiFg: fg, aiBorder: "var(--line1, #26292e)", aiBg: kind === "tp" ? sem.failTint : kind === "fp" ? sem.bandTint.Low : sem.bandTint.Medium,
+            aiWhy: HS_AI_WHY[kind][hsCatKey] || HS_AI_WHY[kind].viol }; })(),
+        ...(() => { const acc = !!reply && !/not convinced|please fix|still flagged/i.test(reply); const ex = !!(s.hsExpand || {})[f.id];
+          return { expanded: ex, chev: ex ? "rotate(180deg)" : "none", expandTitle: ex ? "Hide details" : "Show AI verdict, statuses and discussion",
+            recBg: acc ? "color-mix(in srgb, " + sem.band.Low + " 6%, " + (hsRecKey === "cards" ? "var(--surf, #16181b)" : "transparent") + ")" : (hsRecKey === "cards" ? "var(--surf, #16181b)" : "transparent"),
+            toggleExpand: () => this.setState(st => ({ hsExpand: { ...(st.hsExpand || {}), [f.id]: !(st.hsExpand || {})[f.id] } })) }; })(),
+        notComp: !f.isComp, stripCols: f.isComp ? "minmax(0, 1fr) 16px minmax(0, 1fr)" : "minmax(0, 1fr) 16px minmax(0, 1fr) 16px minmax(0, 1fr)",
+        isBlocking: f.isComp ? f.blocking !== "Not applicable" : !!f.blocking,
+        title: f.isComp ? f.location : f.title,
+        rule: f.rule ? f.rule.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "") : "",
+        statusBg: f.status === "Open" ? sem.failTint : "transparent",
+        ...(() => { const d = f.noDev ? "Pending" : f.status === "Open" ? (f.line % 2 ? "In progress" : "Fixed") : f.status === "False positive" ? "Not an issue" : "Won't fix";
+          const rejected = !!reply && /not convinced|please fix|still flagged/i.test(reply);
+          const r = f.isComp ? (!reply ? "—" : rejected ? "Change requested" : "Accepted") : (!reply ? "Pending" : rejected ? "Rejected" : "Accepted");
+
+          const sy = ["Synced", "Synced", "Sync pending", "Out of sync"][((f.line || 0) + f.id.length) % 4];
+          const syncing = !!(s.hsSyncing || {})[f.id], done = !!(s.hsSynced || {})[f.id];
+          const sv = syncing ? "Syncing" : done ? "Synced" : sy;
+          const dot = sv === "Synced" ? sem.band.Low : sv === "Out of sync" ? sem.fail : sv === "Syncing" ? ACCENT : sem.band.Medium;
+          if (f.isComp) { const dv = f.compNew ? "New" : "Existing";
+            return { syncStatus: sv, syncFg: syncing ? ACCENT_TEXT : dot, syncBorder: "transparent", syncBg: "transparent",
+              syOk: sv === "Synced", syPend: sv === "Sync pending", syOff: sv === "Out of sync", syRun: syncing, needsSync: !syncing && sv !== "Synced",
+              syncTitle: (syncing ? "Syncing with Hacksaw…" : "Sync status: " + sv + " · click to sync now"),
+              sync: () => { if (syncing) return; this.setState(st => ({ hsSyncing: { ...(st.hsSyncing || {}), [f.id]: true } }));
+                setTimeout(() => this.setState(st => ({ hsSyncing: { ...(st.hsSyncing || {}), [f.id]: false }, hsSynced: { ...(st.hsSynced || {}), [f.id]: true } })), 1200); },
+              devStatus: dv, devStatusFg: f.compNew ? sem.band.Medium : "var(--ink2, #dfe2e6)", devStatusBg: "transparent",
+              revStatus: r, revStatusFg: r === "Accepted" ? sem.band.Low : r === "Change requested" ? sem.fail : "var(--muted, #9aa0a8)", revStatusBg: "transparent" }; }
+          return { syncStatus: sv, syncFg: syncing ? ACCENT_TEXT : dot, syncBorder: "transparent", syncBg: "transparent",
+            syOk: sv === "Synced", syPend: sv === "Sync pending", syOff: sv === "Out of sync", syRun: syncing, needsSync: !syncing && sv !== "Synced",
+            syncTitle: (syncing ? "Syncing with Hacksaw…" : "Sync status: " + sv + " · click to sync now"),
+            sync: () => { if (syncing) return; this.setState(st => ({ hsSyncing: { ...(st.hsSyncing || {}), [f.id]: true } }));
+              setTimeout(() => this.setState(st => ({ hsSyncing: { ...(st.hsSyncing || {}), [f.id]: false }, hsSynced: { ...(st.hsSynced || {}), [f.id]: true } })), 1200); },
+            devStatus: d, devStatusFg: d === "Fixed" ? sem.band.Low : d === "In progress" ? ACCENT_TEXT : d === "Pending" ? "var(--muted, #9aa0a8)" : "var(--ink2, #dfe2e6)", devStatusBg: "transparent",
+            revStatus: r, revStatusFg: r === "Accepted" ? sem.band.Low : r === "Rejected" ? sem.fail : "var(--muted, #9aa0a8)", revStatusBg: r === "Accepted" ? sem.bandTint.Low : r === "Rejected" ? sem.failTint : "transparent" }; })(), statusFg: f.status === "Open" ? sem.fail : "var(--ink2, #dfe2e6)",
+        togglePick: () => this.setState(st => ({ hsPick: { ...(st.hsPick || {}), [f.id]: !(st.hsPick || {})[f.id] } })) }; });
+    }
+    const ff = s.hsFf || {};
+    const hsAllCount = hsFindings.length;
+    const fq = (ff.q || "").trim().toLowerCase();
+    const FDEF = [
+      { k: "sev", label: "Severity", opts: ["High", "Medium", "Low"], get: f => f.sev },
+      { k: "hst", label: "Hacksaw", opts: ["Open", "False positive", "Permanently excluded"], get: f => f.status },
+      { k: "dev", label: "Developer", opts: hsCatKey === "vuln" ? ["New", "Existing"] : ["Pending", "In progress", "Fixed", "Not an issue", "Won't fix"], get: f => f.devStatus },
+      { k: "rev", label: "Reviewer", opts: hsCatKey === "vuln" ? ["Accepted", "Change requested"] : ["Pending", "Accepted", "Rejected"], get: f => f.revStatus },
+      { k: "syn", label: "Sync", opts: ["Synced", "Sync pending", "Out of sync"], get: f => f.syncStatus },
+      { k: "ai", label: "AI verdict", opts: ["True positive", "Likely false positive", "Needs human review"], get: f => f.aiVerdict }
+    ].filter(d => hsCatKey !== "vuln" || (d.k !== "hst" && d.k !== "ai"));
+    hsFindings = hsFindings.filter(f => (!fq || (f.title + " " + f.ruleTitle).toLowerCase().includes(fq))
+      && FDEF.every(d => !ff[d.k] || ff[d.k] === "All" || d.get(f) === ff[d.k]) && (!ff.blk || f.isBlocking));
+    const hsFFilters = FDEF.map(d => { const v = ff[d.k] || "All", on = v !== "All"; return { label: d.label, value: v, options: ["All"].concat(d.opts),
+      border: on ? ACCENT : "var(--line1, #26292e)", bg: on ? "var(--ac-tint, rgba(255,90,65,0.1))" : "var(--surf, #16181b)", fg: on ? "var(--ink, #eef0f2)" : "var(--ink2, #dfe2e6)",
+      pick: e => { const val = e.target.value; this.setState(st => ({ hsFf: { ...(st.hsFf || {}), [d.k]: val } })); } }; });
+    const hsFOn = !!fq || !!ff.blk || FDEF.some(d => ff[d.k] && ff[d.k] !== "All");
+    const pickedN = hsFindings.filter(f => f.picked).length;
+    const allPicked = hsFindings.length > 0 && pickedN === hsFindings.length;
+    const bulkOn = pickedN > 0;
+    const hsBulk = ["Change status", "Assign", "Sync"].map(l => ({ label: l, cursor: bulkOn ? "pointer" : "default",
+      fg: bulkOn ? "var(--ink2, #dfe2e6)" : "var(--muted3, #5c626b)", hov: bulkOn ? ACCENT_TEXT : "var(--muted3, #5c626b)",
+      run: l === "Sync" ? () => { const ids = hsFindings.filter(f => f.picked).map(f => f.id); if (!ids.length) return;
+        this.setState(st => { const m = { ...(st.hsSyncing || {}) }; ids.forEach(id => { m[id] = true; }); return { hsSyncing: m }; });
+        setTimeout(() => this.setState(st => { const a = { ...(st.hsSyncing || {}) }, b = { ...(st.hsSynced || {}) }; ids.forEach(id => { a[id] = false; b[id] = true; }); return { hsSyncing: a, hsSynced: b }; }), 1200); } : () => {} }));
+    const hsSetStatus = v => hsSrc && this.setState(st => ({ hsStatus: { ...(st.hsStatus || {}), [hsSrc.id]: v } }));
     const settingsOn = s.screen === "settings";
     const connFilter = s.connFilter || "All connections";
     const selectedCount = Object.values(s.selected).filter(Boolean).length;
@@ -1439,7 +2112,9 @@ class Component extends DCLogic {
     const onRegister = s.screen === "register";
 
     return {
-      t: { ...ground, ...accent, ...ac2, onAc },
+      t: { ...ground, ...accent, ...ac2, onAc, fail: sem.fail, failTint: sem.failTint },
+      railW: s.railHidden ? "46px" : "236px", railTitle: s.railHidden ? "Show sidebar" : "Hide sidebar", railBtnJustify: s.railHidden ? "center" : "flex-start", railBtnMt: s.railHidden ? "auto" : "0", railBtnEdge: s.railHidden ? "0" : "1px solid var(--line1, #26292e)", railOpen: !s.railHidden, railClosed: !!s.railHidden,
+      toggleRail: () => this.setState(st => ({ railHidden: !st.railHidden })),
       z,
       tableDetail: detailOn,
       hStatus, hIssue, hType, hTeam,
@@ -1460,7 +2135,7 @@ class Component extends DCLogic {
       sub,
       closeGuide: () => this.setState({ openGuide: null }),
       navGroups,
-      crumb: settingsOn ? "Settings" : onRegister ? "Compliance Manager · Risk Register" : s.screen === "dms" ? "Compliance Manager · DMS Manager" : s.stub,
+      crumb: settingsOn ? "Settings" : onRegister ? "Compliance Manager · Risk Register" : s.screen === "dms" ? "Compliance Manager · DMS Manager" : s.screen === "hreview" ? "Hacksaw · Hacksaw Reviewer" + (hsSrc ? " · " + hsSrc.project : "") : s.stub,
       query: s.query,
       onQuery: e => this.setState({ query: e.target.value }),
       shownLabel: filtered.length + " of " + RISKS.length + " shown",
@@ -1516,6 +2191,37 @@ class Component extends DCLogic {
       settingsBorder: settingsOn ? "var(--line4, #4a4f56)" : "var(--line1, #26292e)",
       onSettings: settingsOn,
       onDms: s.screen === "dms",
+      onHsList: s.screen === "hreview" && !hsSrc,
+      hsCols: (detailOn ? "200px" : "96px") + " minmax(0, 1.4fr) 170px minmax(150px, 1.2fr) 112px 132px 132px 64px 120px 140px",
+      dmsCols: (detailOn ? "200px" : "96px") + " minmax(0, 1.6fr) 140px minmax(0, 1fr) 150px minmax(0, 1.5fr)",
+      onHsDash: s.screen === "hreview" && !!hsSrc,
+      hsQuery: s.hsQuery || "",
+      onHsQuery: e => this.setState({ hsQuery: e.target.value }),
+      hsStatusTabs, hsRows,
+      hsShown: hsRows.length + " of " + HS_REVIEWS.length + " reviews",
+      hs: hsSrc ? { ...hsSrc, st: hsSt(hsStatusOf(hsSrc)), repoCount: hsSrc.repos.length + (hsSrc.repos.length === 1 ? " repo" : " repos") } : { st: {} },
+      hsBack: () => this.setState({ hsOpen: null }),
+      hsApprove: () => hsSetStatus("approved"),
+      hsReject: () => hsSetStatus("changes"),
+      hsRepoTabs, hsTiles, hsJarTabs, hsJars, hsRepoRows,
+      hsJarsEmpty: hsJars.length === 0,
+      hsSingle: !!hsRepoSrc, hsAll: !hsRepoSrc,
+      hsRepo: hsRepoSrc || {},
+      hsCats, hsShowOverview: !hsRepoSrc || hsCatKey === "overview", hsShowFindings: showFind,
+      hsCat: { label: hsCatDef.label, sub: hsCatDef.sub || "" },
+      hsRec: hsRecKey === "cards" ? { gap: "10px", padTop: "12px", itemBorder: "1px solid var(--line2, #2f333a)", itemDivider: "1px solid var(--line2, #2f333a)", itemPad: "14px 14px 14px 12px" }
+        : { gap: "0", padTop: "0", itemBorder: "0", itemDivider: "1px solid var(--line1, #26292e)", itemPad: "14px 6px 14px 4px" },
+      hsRecTabs: [["rows", "Rows"], ["cards", "Cards"]].map(([v, l]) => ({ label: l, bg: hsRecKey === v ? "var(--surf2, #23262b)" : "transparent", fg: hsRecKey === v ? "var(--ink, #eef0f2)" : "var(--muted, #9aa0a8)", pick: () => this.setState({ hsRec: v }) })),
+      hsFindings, hsFindingsEmpty: showFind && hsFindings.length === 0,
+      hsFiltEmpty: showFind && hsFindings.length === 0 && hsAllCount > 0, hsOkFg: sem.band.Low,
+      hsEmptyText: hsAllCount > 0 ? "No findings match these filters." : "No new " + hsCatDef.label.toLowerCase() + " in this repo's WIP report.",
+      hsAllPicked: allPicked, hsBulk,
+      hsPickLabel: pickedN ? pickedN + " selected of " + hsFindings.length : (hsFOn ? hsFindings.length + " of " + hsAllCount + " findings" : hsAllCount + " findings"),
+      hsFq: ff.q || "", onHsFq: e => { const v = e.target.value; this.setState(st => ({ hsFf: { ...(st.hsFf || {}), q: v } })); },
+      hsFFilters, hsFOn, hsFBlk: !!ff.blk,
+      toggleHsFBlk: () => this.setState(st => ({ hsFf: { ...(st.hsFf || {}), blk: !(st.hsFf || {}).blk } })),
+      clearHsF: () => this.setState({ hsFf: {} }),
+      hsPickAll: () => this.setState(st => { const m = { ...(st.hsPick || {}) }; hsFindings.forEach(f => { m[f.id] = !allPicked; }); return { hsPick: m }; }),
       docs,
       docFilters,
       docFiltersOn: [dTeam, dModule, dTemplate, dRecent].some(v => v !== "All"),
@@ -1523,7 +2229,7 @@ class Component extends DCLogic {
       docQuery: s.docQuery || "",
       onDocQuery: e => this.setState({ docQuery: e.target.value }),
       docShown: docs.length + " of " + DOCS.length + " documents",
-      onStub: stubKeys.includes(s.screen) && s.screen !== "dms",
+      onStub: stubKeys.includes(s.screen) && s.screen !== "dms" && s.screen !== "hreview",
       stubTitle: s.stub,
       settingsTabs: [{ l: "Connections", v: "connections" }, { l: "Compliance", v: "compliance" }].map(t => {
         const on = s.tab === t.v;
