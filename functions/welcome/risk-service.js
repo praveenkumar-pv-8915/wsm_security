@@ -196,6 +196,20 @@ const IMPACT_FIELD = {
   qms: 'QMS_Impact_Score',
   bcms: 'BCMS_Impact_Score',
 };
+// Same concept after treatment (normalize.py's _REVISED_IMPACT_FIELD) — read live by previewRisk.
+const REVISED_IMPACT_FIELD = {
+  isms: 'Total_Revised_Impact_Score_Max_of_C_I_A',
+  pims: 'Privacy_Revised_Impact_Score',
+  qms: 'QMS_Revised_Impact_Score',
+  bcms: 'BCMS_Revised_Impact_Score',
+};
+// The standard each register is kept against — the detail pane's "Standards & regulation".
+const REGISTER_STANDARD = {
+  isms: 'ISO 27001 - ISMS',
+  pims: 'ISO 27701 - PIMS',
+  qms: 'ISO 9001 - QMS',
+  bcms: 'ISO 22301 - BCMS',
+};
 const MONTHS = { Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
                  Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12' };
 
@@ -488,9 +502,10 @@ function lastReviewEntry(raw) {
  * GET /api/risks/:riskId/preview — a fresh, single-record, LIVE Creator call for the row-expand
  * "Last reviewed" detail. As of 2026-09-01, Issue/Threat/Vulnerability/Control/Risk Treatment/
  * scores are real compliance_risks columns (populated by syncFromCreator, see mapRegisterRecord)
- * and render directly as table columns — no live call needed for those anymore. This endpoint now
- * exists for exactly one field: the reviewer's email in "last reviewed by", which IS real PII and
- * still deliberately never touches DataStore — see datastore-conventions.md's No-PII decision.
+ * and render directly as table columns — no live call needed for those anymore. This endpoint
+ * carries what the detail pane shows beyond those columns (see liveDetailFromRecord below) plus
+ * the reviewer/approver/owner emails, which ARE real PII and deliberately never touch DataStore —
+ * see datastore-conventions.md's No-PII decision.
  */
 async function previewRisk(req, riskId) {
   const { zcql } = ds(req);
@@ -540,6 +555,7 @@ async function previewRisk(req, riskId) {
   }
 
   const lastReview = lastReviewEntry(record.Risk_Review_Stats);
+  const lastApproval = lastReviewEntry(record.Risk_Approved_Stats);
 
   return {
     success: true,
@@ -547,7 +563,71 @@ async function previewRisk(req, riskId) {
       risk_id: riskId,
       last_reviewed_on: lastReview.on,
       last_reviewed_by: lastReview.by,
+      ...liveDetailFromRecord(record, register),
+      approved_on: lastApproval.on,
+      approved_by: lastApproval.by,
     },
+  };
+}
+
+/**
+ * The rest of the "WSM Security v5" detail pane, read live from the same Creator record previewRisk
+ * already fetches (2026-10-09). None of this is persisted: the owner/reviewer/approver emails are
+ * PII the No-PII decision keeps out of DataStore, and the remainder (scores, controls, context)
+ * rides along on the one call that is being made anyway rather than widening compliance_risks.
+ *
+ * Field names are the Creator link-names seen in the four register reports (see compliancemanager's
+ * risk_manager/normalize.py). Per-register differences: only ISMS carries the C/I/A split; only
+ * QMS/PIMS/BCMS carry the asset and interested-party lookups; only BCMS carries Need/Expectation.
+ */
+function liveDetailFromRecord(record, register) {
+  const str = v => String(v ?? '').trim();
+  const int = v => {
+    const n = parseInt(str(v), 10);
+    return Number.isNaN(n) ? null : n;
+  };
+  const list = v => (Array.isArray(v) ? v.map(str).filter(Boolean) : (str(v) ? [str(v)] : []));
+  // Lookup fields come back as [{ ID, zc_display_value, <field>… }] — the display value is the
+  // human label Creator itself shows ("IA_CI1 - Customer Information").
+  const lookups = (v, ...keys) => (Array.isArray(v) ? v : []).map(item => {
+    if (!item || typeof item !== 'object') return str(item);
+    if (item.zc_display_value) return str(item.zc_display_value);
+    return keys.map(k => str(item[k])).filter(Boolean).join(' - ');
+  }).filter(Boolean);
+  // "A.8.8 Management of technical vulnerabilities" -> { id: 'A.8.8', title: 'Management of…' }
+  const splitControl = text => {
+    const m = /^(\S+)\s+(.*)$/.exec(text);
+    return m ? { id: m[1], title: m[2] } : { id: text, title: '' };
+  };
+
+  const cia = ['Confidentiality', 'Integrity', 'Availability'];
+  const ciaScores = cia.map(n => int(record[`Score_for_impact_on_${n}`]));
+  const revisedCiaScores = cia.map(n => int(record[`Revised_Impact_Score_on_${n}`]));
+  const ownerList = Array.isArray(record.Risk_Owners)
+    ? record.Risk_Owners.map(o => str(o && (o.Employee_Email || o.zc_display_value))).filter(Boolean)
+    : [];
+  const owner = str(record.Risk_Owner) || ownerList.join(', ');
+
+  return {
+    source: str(record.Source_of_Identification_of_Risk),
+    issue_type: str(record.External_Internal_Issue),
+    standards: REGISTER_STANDARD[register] || '',
+    owner,
+    likelihood: int(record.Likelihood),
+    revised_likelihood: int(record.Likelihood1),
+    impact: int(record[IMPACT_FIELD[register] || '']),
+    revised_impact: int(record[REVISED_IMPACT_FIELD[register] || '']),
+    cia: ciaScores.every(v => v === null) ? null : ciaScores,
+    revised_cia: revisedCiaScores.every(v => v === null) ? null : revisedCiaScores,
+    iso_controls: list(record.ISO_Control).map(splitControl),
+    ccm_controls: (Array.isArray(record.CCM_Controls) ? record.CCM_Controls : [])
+      .map(c => ({ id: str(c && c.CCM_Control_ID), title: str(c && c.CCM_Control_Title) }))
+      .filter(c => c.id),
+    asset: lookups(record.Asset_Identification_Number, 'AssetID', 'Information_security_Asset'),
+    parties: lookups(record.Associated_Interested_parties, 'ID1', 'Interested_Parties'),
+    need: list(record.Need),
+    expectation: list(record.Expectation),
+    remarks: str(record.Remarks),
   };
 }
 
@@ -752,6 +832,13 @@ const DPIA_TEMPLATE_CONTAINS = 'data protection impact assessment';
  *  compliance_risks's "last reviewed by" (live-fetch-only on a single row expand), there is no
  *  per-row detail call here to fetch it live either — the whole point of this table is a bulk
  *  persisted snapshot, so Submitted_By is dropped at the source instead of cached or re-fetched. */
+/** Which Zoho app a Creator Document_Link opens in, from its host (writer.zoho.in, sheet.zoho.in…). */
+function zohoAppFromUrl(url) {
+  const m = /^https?:\/\/([a-z0-9-]+)\./i.exec(String(url || ''));
+  const host = m ? m[1].toLowerCase() : '';
+  return { writer: 'Writer', sheet: 'Sheet', show: 'Show', workdrive: 'WorkDrive', docs: 'Docs' }[host] || 'Zoho';
+}
+
 function mapDocRecord(record) {
   const link = record.Document_Link;
   const url = String((link && typeof link === 'object' ? link.url : link) || '').trim();
@@ -761,6 +848,12 @@ function mapDocRecord(record) {
     template: String(record.Choose_Template || '').trim(),
     team: String(record.Team_Name || '').trim(),
     writer_doc_id: url ? url.replace(/\/+$/, '').split('/').pop() : '',
+    // Live-only fields (2026-10-09, "WSM Security v5" DMS Manager): the open-in link, the app it
+    // opens in and the day the record was added. Served straight from Creator by listDocuments —
+    // never persisted to dms_documents, which keeps that table's schema untouched.
+    url,
+    app: url ? zohoAppFromUrl(url) : '',
+    added_on: parseModifiedDate(record.Record_Added_Date),
   };
 }
 
@@ -1435,22 +1528,36 @@ async function ensureDmsSynced(req) {
 }
 
 /**
- * GET /api/dms/documents — DMS Manager: mirrors compliancemanager's `dms list_docs`, reading the
- * persisted `dms_documents` table (auto-synced once when empty; POST /api/dms/documents/sync
- * refreshes it after that) — same persisted-snapshot pattern as listRisks/compliance_risks, not a
- * live Creator call on every page load. Shares the same team_names config as Risk Register
- * (CONFIG_TOOL_KEY = 'Compliance_manager' above) — one team filter for the whole app.
+ * GET /api/dms/documents — DMS Manager: mirrors compliancemanager's `dms list_docs`.
+ *
+ * Live from Zoho Creator on every load (2026-10-09, "WSM Security v5" DMS Manager). The screen
+ * needs each document's open-in link and added date, neither of which the persisted dms_documents
+ * snapshot carries, and the decision was to read them from Creator rather than widen that table.
+ * Same team_names config as Risk Register (CONFIG_TOOL_KEY = 'Compliance_manager' above) — one
+ * team filter for the whole app.
+ *
+ * dms_documents itself is still kept (auto-synced once when empty, POST /api/dms/documents/sync
+ * after that) because getDocumentWorkflow below resolves WRITER_DOC_ID from it.
  */
 async function listDocuments(req) {
-  await ensureDmsSynced(req);
-  const { zcql } = dmsDs(req);
-  let rows;
-  try {
-    rows = unwrapDms(await zcql.executeZCQLQuery(`SELECT * FROM ${DMS_TABLE}`));
-  } catch (e) {
-    throw friendlyDmsTableError(e);
+  const teamNames = await getTeamNames(req);
+  if (!teamNames.length) {
+    const err = new Error('No teams are configured — add at least one under Settings › Compliance.');
+    err.status = 400;
+    throw err;
   }
-  return { success: true, documents: rows.map(dmsToPublic) };
+  // Best effort: the snapshot only backs the per-document workflow lookup, so a DataStore problem
+  // there must not take the live list down with it.
+  try { await ensureDmsSynced(req); } catch (e) { /* surfaced by the workflow endpoint instead */ }
+  const docs = await fetchDmsDocuments(req, teamNames);
+  const seen = new Set();
+  const documents = [];
+  for (const doc of docs) {
+    if (!doc.document_id || seen.has(doc.document_id)) continue;
+    seen.add(doc.document_id);
+    documents.push(doc);
+  }
+  return { success: true, documents };
 }
 
 /* ------------------------------------------------------------------ DMS Manager: workflow status */

@@ -273,8 +273,8 @@ app.post('/api/risks/:riskId/review', wrap(async (req, res) => {
 
 /* ------------------------------------------------------------------ compliance: DMS manager */
 
-/** GET /api/dms/documents — list DMS documents (persisted dms_documents table, auto-synced once
- *  when empty), same team filter as Risk Register. */
+/** GET /api/dms/documents — list DMS documents live from Zoho Creator (link, app and added date
+ *  included), same team filter as Risk Register. See risk-service.js's listDocuments. */
 app.get('/api/dms/documents', wrap(async (req, res) => {
   send(res, await risks.listDocuments(req));
 }));
