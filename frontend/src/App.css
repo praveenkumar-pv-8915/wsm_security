@@ -1,6 +1,6 @@
 /* ──────────────────────────────────────────────────────────────────────────
    WSM Security — design tokens
-   Ported verbatim from the "WSM Security v3" mockup (claude/wsm-security-v3-mockup.html).
+   Ported from the "WSM Security v3" mockup, upgraded to v5 on 2026-10-09 (design/WSM Security v5.dc.html (see README › Design)).
    Ground = nordic · accent = gold · second accent = electric. Fixed, not switchable:
    the mockup's theme/accent pickers were an exploration tool, not a product feature.
 
@@ -1165,8 +1165,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   WSM Security v3 — shell, base layer and component overrides
-   Everything below is ported from claude/wsm-security-v3-mockup.html. It is the
+   WSM Security v5 — shell, base layer and component overrides
+   Everything below is ported from design/WSM Security v5.dc.html (see README › Design). It is the
    last section in this file on purpose: these rules intentionally win over the
    older component styles above, so the views retone without being rewritten.
    ══════════════════════════════════════════════════════════════════════════ */
@@ -1258,6 +1258,7 @@ button, select, input, textarea, [data-row] {
   box-sizing: border-box;
   display: grid;
   grid-template-columns: var(--rail-w) minmax(0, 1fr);
+  transition: grid-template-columns 180ms ease;
   padding: var(--shell-pad);
   gap: var(--shell-gap);
   background: var(--chrome);
@@ -1265,6 +1266,7 @@ button, select, input, textarea, [data-row] {
   font-family: var(--font);
   overflow: hidden;
 }
+.wsm-shell-rail-hidden { grid-template-columns: 46px minmax(0, 1fr); }
 
 /* ── rail ───────────────────────────────────────────────────────────────── */
 
@@ -1431,15 +1433,60 @@ button, select, input, textarea, [data-row] {
   color: var(--ink);
 }
 
+/* Hide/Show sidebar — the mockup's rail toggle. Open: a labelled row under the footer. Closed:
+   the only thing left in the 46px strip, pushed to the bottom. */
+.wsm-rail-toggle {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-top: 1px solid var(--line1);
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  cursor: pointer;
+}
+.wsm-rail-toggle:hover { color: var(--ink); background: var(--surf); }
+.wsm-rail-toggle-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.wsm-rail-toggle-closed {
+  margin-top: auto;
+  justify-content: center;
+  padding: 0;
+  border-top: 0;
+}
+
 /* ── main column ────────────────────────────────────────────────────────── */
 
 .wsm-main {
+  position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
   overflow: hidden;
   background: var(--chrome);
   box-shadow: var(--shadow-recess);
+}
+
+/* Notices float over the content (top right, under the top bar) instead of taking a grid row. */
+.wsm-toast {
+  position: absolute;
+  top: 56px;
+  right: 18px;
+  z-index: 20;
+  margin: 0;
+  max-width: min(480px, calc(100% - 36px));
+  box-shadow: var(--shadow-pop);
+  animation: wsm-in-a 220ms var(--ease) both;
 }
 
 .wsm-top {
@@ -1768,9 +1815,23 @@ select { font-size: 12px; padding: 7px 9px; }
   .wsm-content { padding: 14px 16px 32px; }
 }
 
-/* ── settings tabs (top bar) ─────────────────────────────────────────────── */
+/* ── settings: tabbed pane ───────────────────────────────────────────────── */
 
-.wsm-tabs { display: flex; align-items: stretch; gap: 0; margin: -10px 0 -10px 6px; }
+.wsm-settings {
+  min-height: 0;
+  overflow: auto;
+  background: var(--chrome);
+}
+.wsm-settings-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  border-bottom: 1px solid var(--line1);
+}
+/* The padded body for settings screens the mockup leaves undesigned (Compliance). */
+.wsm-settings-body { padding: 26px 20px; max-width: 760px; }
+.wsm-settings-body h3 { margin: 0 0 8px; font-size: 22px; letter-spacing: -0.02em; }
+.wsm-settings-body .wsm-lede { font-size: 14px; line-height: 1.55; max-width: 60ch; color: var(--muted); }
 
 .wsm-tab {
   padding: 13px 20px;
@@ -1791,7 +1852,7 @@ select { font-size: 12px; padding: 7px 9px; }
 /* ══════════════════════════════════════════════════════════════════════════
    Risk Register — the mockup's table and split (list + detail) modes
    See views/RiskRegister.jsx. Column widths, row metrics, the inset-bar state
-   idiom and the score card all come from claude/wsm-security-v3-mockup.html.
+   idiom and the score card all come from design/WSM Security v5.dc.html (see README › Design).
    ══════════════════════════════════════════════════════════════════════════ */
 
 /* ── top bar slot ───────────────────────────────────────────────────────── */

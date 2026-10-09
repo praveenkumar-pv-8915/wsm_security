@@ -63,16 +63,14 @@ export default function ComplianceConfig({ onNotice }) {
     else if (e.key === 'Backspace' && !draft && teams.length) removeTeam(teams[teams.length - 1].team_name);
   };
 
+  // Rendered inside the shell's Settings pane (App.jsx) under the Connections | Compliance tabs.
+  // The "WSM Security v5" mockup leaves this tab undesigned, so it takes the pane's padded body.
   return (
-    <>
-      <div className="view-head">
-        <div>
-          <h2 className="view-title">Compliance</h2>
-          <p className="view-sub">
-            Teams synced · Risk Register and DMS Manager only pull records for the teams listed here
-          </p>
-        </div>
-      </div>
+    <div className="wsm-settings-body">
+      <h3>Compliance</h3>
+      <p className="wsm-lede">
+        Teams synced · Risk Register and DMS Manager only pull records for the teams listed here.
+      </p>
 
       <section className="card">
         <div className="sec-title">Teams synced</div>
@@ -114,6 +112,6 @@ export default function ComplianceConfig({ onNotice }) {
           here — add or remove one, then click Sync from Creator to pick it up, no redeploy needed.
         </p>
       </section>
-    </>
+    </div>
   );
 }

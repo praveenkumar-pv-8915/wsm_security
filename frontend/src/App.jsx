@@ -18,13 +18,16 @@ import DependencyNotifier from './views/DependencyNotifier';
  * App shell — rail, top bar and the route switch. Everything below AuthGate can assume a
  * verified @zohocorp.com session; the server re-verifies it on every request regardless.
  *
- * Layout follows the "WSM Security v3" mockup (claude/wsm-security-v3-mockup.html): a fixed
- * 236px rail holding the brand block, the grouped nav and the user footer, beside a main
- * column of top bar + scroll pane. The previous two-tier layout (module tab row above a
- * sidebar of that module's sections) is gone — every group is visible in the rail at once,
- * so switching module and section is one click instead of two.
+ * Layout follows the "WSM Security v5" mockup (design/WSM Security v5.dc.html — see the Design
+ * section of README.md): a collapsible rail (236px open, 46px closed) holding the brand block,
+ * the grouped nav and the user footer, beside a main column of top bar + content. The rail's
+ * Hide/Show sidebar toggle sits at its foot; the closed state keeps only that toggle.
  *
- * Routing is untouched: still the same flat hash paths in lib/router.js.
+ * Settings is one screen with two tabs (Connections, Compliance) rendered at the top of the
+ * content pane, as in the mockup — not a tab row in the top bar.
+ *
+ * Routing is untouched: still the same flat hash paths in lib/router.js. The rail only lists the
+ * sections this app actually has; the mockup's Repository and Hacksaw groups are not built yet.
  */
 
 /** Rail groups. Settings routes live in the footer, not here — see SETTINGS_TABS. */
@@ -56,8 +59,12 @@ const SETTINGS_TABS = [
 
 const SETTINGS_PATHS = SETTINGS_TABS.map((t) => t.path);
 
-/** Routes that lay out their own panes and so take the content area unpadded and unscrolled. */
-const FLUSH_ROUTES = ['/risk-register'];
+/**
+ * Routes that lay out their own panes (full-bleed tables, their own scroll) and so take the
+ * content area unpadded and unscrolled. The mockup draws Risk Register, DMS Manager and Settings
+ * edge to edge; the remaining views keep the padded, scrolling content pane.
+ */
+const FLUSH_ROUTES = ['/risk-register', '/dms-documents', ...SETTINGS_PATHS];
 
 /** Breadcrumbs, in the mockup's `Module · Section` form. */
 const CRUMBS = {
@@ -67,9 +74,27 @@ const CRUMBS = {
   '/compare-dpias': 'Compliance Manager · Compare vs. DPIA',
   '/ask': 'Compliance Manager · Ask',
   '/dependency-upgrade-notifier': 'VM Manager · Dependency Upgrade notifier',
-  '/connections': 'Settings · Connections',
-  '/compliance-config': 'Settings · Compliance',
+  '/connections': 'Settings',
+  '/compliance-config': 'Settings',
 };
+
+const RAIL_STORAGE_KEY = 'wsm-security-rail';
+
+function loadRailHidden() {
+  try {
+    return window.localStorage.getItem(RAIL_STORAGE_KEY) === 'hidden';
+  } catch {
+    return false;
+  }
+}
+
+function saveRailHidden(hidden) {
+  try {
+    window.localStorage.setItem(RAIL_STORAGE_KEY, hidden ? 'hidden' : 'open');
+  } catch {
+    /* best-effort persistence only */
+  }
+}
 
 /**
  * Scrollbars stay invisible until a pane is actually being scrolled.
@@ -113,16 +138,49 @@ function useSectionCounts() {
   return counts;
 }
 
+/** "Services 8/12" in the top bar while on Settings — announced by the Connections view. */
+function useServicesCount() {
+  const [services, setServices] = useState(null);
+  useEffect(() => {
+    const onCount = (event) => {
+      const { on, total } = event.detail || {};
+      if (typeof on !== 'number' || typeof total !== 'number') return;
+      setServices({ on, total });
+    };
+    window.addEventListener('wsm:services-count', onCount);
+    return () => window.removeEventListener('wsm:services-count', onCount);
+  }, []);
+  return services;
+}
+
+const SIDEBAR_HIDE_ICON = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="3.5" y="4.5" width="17" height="15" rx="1" />
+    <path d="M9 4.5v15" />
+    <path d="M15.5 10l-2 2 2 2" />
+  </svg>
+);
+const SIDEBAR_SHOW_ICON = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="3.5" y="4.5" width="17" height="15" rx="1" />
+    <path d="M9 4.5v15" />
+    <path d="M13.5 10l2 2-2 2" />
+  </svg>
+);
+
 function Shell({ user: sessionUser }) {
   const { path } = useRoute();
   const counts = useSectionCounts();
+  const services = useServicesCount();
   const [notice, setNotice] = useState(null);
   const [serverRole, setServerRole] = useState(null);
   const [theme, setThemeState] = useState(getTheme);
+  const [railHidden, setRailHidden] = useState(loadRailHidden);
 
   useScrollPanes();
 
   useEffect(() => { setTheme(theme); }, [theme]);
+  useEffect(() => { saveRailHidden(railHidden); }, [railHidden]);
 
   const onNotice = useCallback((message) => setNotice(message), []);
 
@@ -148,6 +206,7 @@ function Shell({ user: sessionUser }) {
   const user = serverRole ? { ...sessionUser, role: serverRole } : sessionUser;
 
   const inSettings = SETTINGS_PATHS.includes(path);
+  const flush = FLUSH_ROUTES.includes(path);
 
   useEffect(() => {
     if (!notice) return undefined;
@@ -155,89 +214,90 @@ function Shell({ user: sessionUser }) {
     return () => clearTimeout(id);
   }, [notice]);
 
+  const railTitle = railHidden ? 'Show sidebar' : 'Hide sidebar';
+
   return (
-    <div className="wsm-shell">
+    <div className={`wsm-shell${railHidden ? ' wsm-shell-rail-hidden' : ''}`}>
       <aside className="wsm-rail pane" aria-label="Sections">
-        <button
-          type="button"
-          className="wsm-brand"
-          onClick={() => navigate('/risk-register')}
-          title="Risk Register"
-        >
-          <span className="wsm-monogram" aria-hidden="true">WS</span>
-          <span className="wsm-brand-text">
-            <h1 className="wsm-wordmark">WSM Security</h1>
-            <p className="wsm-brand-sub">Team workspace</p>
-          </span>
-        </button>
-
-        <nav className="wsm-nav">
-          {GROUPS.map((group) => (
-            <div className="wsm-group" key={group.key}>
-              <div className="wsm-group-label">{group.label}</div>
-              {group.items.map((item) => {
-                const on = path === item.path;
-                return (
-                  <button
-                    key={item.path}
-                    type="button"
-                    className={`wsm-nav-item${on ? ' wsm-nav-item-on' : ''}`}
-                    aria-current={on ? 'page' : undefined}
-                    onClick={() => navigate(item.path)}
-                  >
-                    <span className="wsm-nav-mark" aria-hidden="true" />
-                    <span className="wsm-nav-label">{item.label}</span>
-                    {typeof counts[item.path] === 'number' && (
-                      <span className="wsm-nav-count">{counts[item.path]}</span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </nav>
-
-        <div className="wsm-rail-foot">
-          <span className="wsm-who" title={user.email}>
-            <span className="wsm-avatar" aria-hidden="true">{user.initials}</span>
-            <span className="wsm-who-name">{user.name}</span>
-          </span>
-          <div className="wsm-rail-actions">
+        {!railHidden && (
+          <>
             <button
               type="button"
-              className={`wsm-rail-btn${inSettings ? ' wsm-rail-btn-on' : ''}`}
-              onClick={() => navigate('/connections')}
-              aria-current={inSettings ? 'page' : undefined}
+              className="wsm-brand"
+              onClick={() => navigate('/risk-register')}
+              title="Risk Register"
             >
-              Settings
+              <span className="wsm-monogram" aria-hidden="true">WS</span>
+              <span className="wsm-brand-text">
+                <h1 className="wsm-wordmark">WSM Security</h1>
+                <p className="wsm-brand-sub">Team workspace</p>
+              </span>
             </button>
-            <button type="button" className="wsm-rail-btn" onClick={() => signOut()}>
-              Sign out
-            </button>
-          </div>
-        </div>
+
+            <nav className="wsm-nav">
+              {GROUPS.map((group) => (
+                <div className="wsm-group" key={group.key}>
+                  <div className="wsm-group-label">{group.label}</div>
+                  {group.items.map((item) => {
+                    const on = path === item.path;
+                    return (
+                      <button
+                        key={item.path}
+                        type="button"
+                        className={`wsm-nav-item${on ? ' wsm-nav-item-on' : ''}`}
+                        aria-current={on ? 'page' : undefined}
+                        onClick={() => navigate(item.path)}
+                      >
+                        <span className="wsm-nav-mark" aria-hidden="true" />
+                        <span className="wsm-nav-label">{item.label}</span>
+                        {typeof counts[item.path] === 'number' && (
+                          <span className="wsm-nav-count">{counts[item.path]}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </nav>
+
+            <div className="wsm-rail-foot">
+              <span className="wsm-who" title={user.email}>
+                <span className="wsm-avatar" aria-hidden="true">{user.initials}</span>
+                <span className="wsm-who-name">{user.name}</span>
+              </span>
+              <div className="wsm-rail-actions">
+                <button
+                  type="button"
+                  className={`wsm-rail-btn${inSettings ? ' wsm-rail-btn-on' : ''}`}
+                  onClick={() => navigate('/connections')}
+                  aria-current={inSettings ? 'page' : undefined}
+                >
+                  Settings
+                </button>
+                <button type="button" className="wsm-rail-btn" onClick={() => signOut()}>
+                  Sign out
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        <button
+          type="button"
+          className={`wsm-rail-toggle${railHidden ? ' wsm-rail-toggle-closed' : ''}`}
+          onClick={() => setRailHidden((h) => !h)}
+          title={railTitle}
+          aria-label={railTitle}
+          aria-expanded={!railHidden}
+        >
+          {railHidden ? SIDEBAR_SHOW_ICON : SIDEBAR_HIDE_ICON}
+          {!railHidden && <span className="wsm-rail-toggle-label">Hide sidebar</span>}
+        </button>
       </aside>
 
       <main className="wsm-main">
         <div className="wsm-top">
           <span className="wsm-crumb">{CRUMBS[path] || 'WSM Security'}</span>
-
-          {inSettings && (
-            <div className="wsm-tabs" role="tablist" aria-label="Settings sections">
-              {SETTINGS_TABS.map((tab) => (
-                <button
-                  key={tab.path}
-                  type="button"
-                  role="tab"
-                  aria-selected={path === tab.path}
-                  className={`wsm-tab${path === tab.path ? ' wsm-tab-on' : ''}`}
-                  onClick={() => navigate(tab.path)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          )}
 
           {/* Views fill this slot with their own search, counter and actions, so the mockup's
               single top bar stays one row instead of each view growing a toolbar of its own.
@@ -245,6 +305,9 @@ function Shell({ user: sessionUser }) {
           <div id="wsm-top-slot" className="wsm-top-slot" />
 
           <div className="wsm-top-actions">
+            {inSettings && services && (
+              <span className="wsm-count">Services {services.on}/{services.total}</span>
+            )}
             <button
               className="btn btn-ghost btn-icon"
               type="button"
@@ -266,19 +329,39 @@ function Shell({ user: sessionUser }) {
           </div>
         </div>
 
-        {/* Risk Register manages its own full-height panes (list + detail), so it opts out of
-            the content pane's padding and scrolling. */}
-        <div className={`wsm-content${FLUSH_ROUTES.includes(path) ? ' wsm-content-flush' : ' pane'}`}>
-          {notice && <div className="banner banner-ok" role="status">{notice}</div>}
+        {/* Notices float over the content so a full-bleed view's grid never has to make room. */}
+        {notice && <div className="wsm-toast banner banner-ok" role="status">{notice}</div>}
 
-          {path === '/connections' && <Connections user={user} onNotice={onNotice} />}
-          {path === '/compliance-config' && <ComplianceConfig onNotice={onNotice} />}
-          {path === '/risk-register' && <RiskRegister onNotice={onNotice} />}
-          {path === '/dms-documents' && <DmsDocuments />}
-          {path === '/draft-risk' && <DraftRisk />}
-          {path === '/compare-dpias' && <CompareDpias />}
-          {path === '/ask' && <Ask />}
-          {path === '/dependency-upgrade-notifier' && <DependencyNotifier onNotice={onNotice} />}
+        <div className={`wsm-content${flush ? ' wsm-content-flush' : ' pane'}`}>
+          {inSettings ? (
+            <div className="pane wsm-settings">
+              <div className="wsm-settings-tabs" role="tablist" aria-label="Settings sections">
+                {SETTINGS_TABS.map((tab) => (
+                  <button
+                    key={tab.path}
+                    type="button"
+                    role="tab"
+                    aria-selected={path === tab.path}
+                    className={`wsm-tab${path === tab.path ? ' wsm-tab-on' : ''}`}
+                    onClick={() => navigate(tab.path)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              {path === '/connections' && <Connections user={user} onNotice={onNotice} />}
+              {path === '/compliance-config' && <ComplianceConfig onNotice={onNotice} />}
+            </div>
+          ) : (
+            <>
+              {path === '/risk-register' && <RiskRegister onNotice={onNotice} />}
+              {path === '/dms-documents' && <DmsDocuments />}
+              {path === '/draft-risk' && <DraftRisk />}
+              {path === '/compare-dpias' && <CompareDpias />}
+              {path === '/ask' && <Ask />}
+              {path === '/dependency-upgrade-notifier' && <DependencyNotifier onNotice={onNotice} />}
+            </>
+          )}
         </div>
       </main>
     </div>
