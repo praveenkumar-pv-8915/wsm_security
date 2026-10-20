@@ -51,12 +51,33 @@ if [ "$(git remote get-url origin)" != "$SSH_REMOTE" ]; then
   warn "origin is not the SSH URL; switching to $SSH_REMOTE (HTTPS push has no credentials on this Mac)"
   run git remote set-url origin "$SSH_REMOTE"
 fi
-git fetch origin "$BRANCH" 2>&1 | tail -1 || die "git fetch failed — check SSH access"
+# A failed fetch is NOT fatal any more.
+#
+# It used to `die` here, which made the whole script unusable from the zoho-connections MCP: that
+# server cannot unlock the login Keychain the way a terminal can, so `ssh-add --apple-load-keychain`
+# fails and the fetch with it — even for a deploy that needs no network at all (2026-10-20).
+#
+# What the fetch is actually for is `origin/$BRANCH`: change detection and the ahead/behind counts.
+# So when it fails we keep going with those two capabilities switched off, and nothing else:
+#   • pushing is disabled outright — pushing without a fetch risks clobbering a remote we have not
+#     seen, and this script's whole contract is that it never force-pushes;
+#   • target detection is refused, because "no changes found" and "cannot compare" must not look
+#     alike. --only or --all is then required.
+FETCH_OK=1
+if ! git fetch origin "$BRANCH" >/dev/null 2>&1; then
+  FETCH_OK=0
+  warn "git fetch failed (no SSH access from here) — deploying from the working tree only; push disabled"
+fi
 
-AHEAD=$(git rev-list --count "origin/$BRANCH..$BRANCH")
-BEHIND=$(git rev-list --count "$BRANCH..origin/$BRANCH")
+if [ "$FETCH_OK" = 1 ]; then
+  AHEAD=$(git rev-list --count "origin/$BRANCH..$BRANCH")
+  BEHIND=$(git rev-list --count "$BRANCH..origin/$BRANCH")
+else
+  AHEAD="?"; BEHIND="?"
+  DO_PUSH=0
+fi
 DIRTY=$(git status --porcelain | wc -l | tr -d ' ')
-echo "branch=$BRANCH ahead=$AHEAD behind=$BEHIND dirty_paths=$DIRTY"
+echo "branch=$BRANCH ahead=$AHEAD behind=$BEHIND dirty_paths=$DIRTY fetch_ok=$FETCH_OK"
 
 # ---------------------------------------------------------------- detect targets
 CONFIGURED_FUNCS=$(node -e 'console.log((require("./catalyst.json").functions.targets||[]).join(" "))')
@@ -67,6 +88,7 @@ elif [ "$ALL" = 1 ]; then
   TARGETS="client"
   for f in $CONFIGURED_FUNCS; do TARGETS="$TARGETS,functions:$f"; done
 else
+  [ "$FETCH_OK" = 0 ] && die "cannot detect changed targets without origin/$BRANCH (git fetch failed) — pass --only or --all"
   # union of: paths changed in unpushed commits + paths changed/untracked in the working tree
   CHANGED=$( { git diff --name-only "origin/$BRANCH...$BRANCH"; git status --porcelain | awk '{print $NF}'; } | sort -u )
   TARGETS=""
