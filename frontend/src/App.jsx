@@ -14,8 +14,7 @@ import CompareDpias from './views/CompareDpias';
 import Ask from './views/Ask';
 import DependencyNotifier from './views/DependencyNotifier';
 import FollowUps from './views/FollowUps';
-import HacksawViolations from './views/HacksawViolations';
-import HacksawComponents from './views/HacksawComponents';
+import HacksawReport from './views/HacksawReport';
 
 /**
  * App shell — rail, top bar and the route switch. Everything below AuthGate can assume a
@@ -64,8 +63,7 @@ const GROUPS = [
     key: 'hacksaw',
     label: 'Hacksaw',
     items: [
-      { path: '/hacksaw-violations', label: 'Code Violation Review' },
-      { path: '/hacksaw-components', label: 'Vulnerability Components' },
+      { path: '/hacksaw-report', label: 'Hacksaw Report' },
     ],
   },
 ];
@@ -92,8 +90,7 @@ const CRUMBS = {
   '/compare-dpias': 'Compliance Manager · Compare vs. DPIA',
   '/ask': 'Compliance Manager · Ask',
   '/dependency-upgrade-notifier': 'VM Manager · Dependency Upgrade notifier',
-  '/hacksaw-violations': 'Hacksaw · Code Violation Review',
-  '/hacksaw-components': 'Hacksaw · Vulnerability Components',
+  '/hacksaw-report': 'Hacksaw · Hacksaw Report',
   '/follow-ups': 'Follow-ups · Chase list',
   '/connections': 'Settings',
   '/compliance-config': 'Settings',
@@ -381,8 +378,7 @@ function Shell({ user: sessionUser }) {
               {path === '/compare-dpias' && <CompareDpias />}
               {path === '/ask' && <Ask />}
               {path === '/dependency-upgrade-notifier' && <DependencyNotifier onNotice={onNotice} />}
-              {path === '/hacksaw-violations' && <HacksawViolations onNotice={onNotice} />}
-              {path === '/hacksaw-components' && <HacksawComponents onNotice={onNotice} />}
+              {path === '/hacksaw-report' && <HacksawReport onNotice={onNotice} />}
               {path === '/follow-ups' && <FollowUps onNotice={onNotice} />}
             </>
           )}

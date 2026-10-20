@@ -36,11 +36,14 @@ const sevClass = (n) => (
   n === null ? 'tag tag-muted' : n >= 9 ? 'tag tag-bad' : n >= 7 ? 'tag tag-bad' : n >= 4 ? 'tag summary-chip-attn' : 'tag tag-muted'
 );
 
-export default function HacksawComponents({ onNotice }) {
+export default function HacksawComponents({ onNotice, product: fixedProduct, label: fixedLabel }) {
+  const embedded = Boolean(fixedProduct !== undefined);
   const [products, setProducts] = useState([]);
-  const [product, setProduct] = useState('');
+  const [ownProduct, setProduct] = useState('');
   const [reports, setReports] = useState([]);
-  const [label, setLabel] = useState('');
+  const [ownLabel, setLabel] = useState('');
+  const product = embedded ? fixedProduct : ownProduct;
+  const label = embedded ? fixedLabel : ownLabel;
 
   const [rows, setRows] = useState([]);
   const [blocking, setBlocking] = useState(0);
@@ -54,6 +57,7 @@ export default function HacksawComponents({ onNotice }) {
   const fail = (err, fallback) => setError(err instanceof ApiError ? err.message : fallback);
 
   useEffect(() => {
+    if (embedded) return undefined;
     let live = true;
     (async () => {
       try {
@@ -69,7 +73,7 @@ export default function HacksawComponents({ onNotice }) {
   }, []);
 
   useEffect(() => {
-    if (!product) return undefined;
+    if (embedded || !product) return undefined;
     let live = true;
     setStatus('loading'); setError(''); setReports([]); setLabel('');
     (async () => {
@@ -129,21 +133,25 @@ export default function HacksawComponents({ onNotice }) {
   return (
     <div className="wsm-dms">
       <div className="wsm-dms-bar">
-        <label className="wsm-dms-filter">
-          <span className="wsm-label">Product</span>
-          <select className="wsm-dms-select-on" value={product} onChange={(e) => setProduct(e.target.value)}>
-            {products.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
-          </select>
-        </label>
+        {!embedded && (
+          <label className="wsm-dms-filter">
+            <span className="wsm-label">Product</span>
+            <select className="wsm-dms-select-on" value={product} onChange={(e) => setProduct(e.target.value)}>
+              {products.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+            </select>
+          </label>
+        )}
 
-        <label className="wsm-dms-filter">
-          <span className="wsm-label">Report</span>
-          <select className={label ? 'wsm-dms-select-on' : ''} value={label} onChange={(e) => setLabel(e.target.value)}>
-            {reports.map((r) => (
-              <option key={r.label} value={r.label}>{r.is_deployed ? '● deployed — ' : ''}{r.label}</option>
-            ))}
-          </select>
-        </label>
+        {!embedded && (
+          <label className="wsm-dms-filter">
+            <span className="wsm-label">Report</span>
+            <select className={label ? 'wsm-dms-select-on' : ''} value={label} onChange={(e) => setLabel(e.target.value)}>
+              {reports.map((r) => (
+                <option key={r.label} value={r.label}>{r.is_deployed ? '● deployed — ' : ''}{r.label}</option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <span className="wsm-count wsm-dms-shown">
           {status === 'loading'

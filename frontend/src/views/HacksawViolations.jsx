@@ -43,12 +43,17 @@ const priorityClass = (p) => (
   p === 'ERROR' ? 'tag tag-bad' : p === 'WARNING' ? 'summary-chip-attn tag' : 'tag tag-muted'
 );
 
-export default function HacksawViolations({ onNotice }) {
+export default function HacksawViolations({ onNotice, product: fixedProduct, label: fixedLabel, initialScan }) {
+  // When Hacksaw Report drives the pickers (v7's two-tab shape), product and report arrive as
+  // props and this panel renders findings only. Standalone, it still owns its own pickers.
+  const embedded = Boolean(fixedProduct !== undefined);
   const [products, setProducts] = useState([]);
-  const [product, setProduct] = useState('');
+  const [ownProduct, setProduct] = useState('');
   const [reports, setReports] = useState([]);
-  const [label, setLabel] = useState('');
-  const [scan, setScan] = useState('CODE_VIOLATIONS');
+  const [ownLabel, setLabel] = useState('');
+  const product = embedded ? fixedProduct : ownProduct;
+  const label = embedded ? fixedLabel : ownLabel;
+  const [scan, setScan] = useState(initialScan || 'CODE_VIOLATIONS');
   const [fileType, setFileType] = useState('java');
 
   const [stats, setStats] = useState(null);
@@ -75,6 +80,7 @@ export default function HacksawViolations({ onNotice }) {
 
   /* Products — 28 of them for this org; the 3,717-product org list is never fetched. */
   useEffect(() => {
+    if (embedded) return undefined;
     let live = true;
     (async () => {
       try {
@@ -91,7 +97,7 @@ export default function HacksawViolations({ onNotice }) {
 
   /* Reports for the chosen product — deployed first, else the newest. */
   useEffect(() => {
-    if (!product) return undefined;
+    if (embedded || !product) return undefined;
     let live = true;
     setStatus('loading'); setError(''); setReports([]); setLabel('');
     (async () => {
@@ -200,25 +206,29 @@ export default function HacksawViolations({ onNotice }) {
   return (
     <div className="wsm-dms">
       <div className="wsm-dms-bar">
-        {select('Product', product, setProduct, products, (p) => p.name || p)}
+        {!embedded && select('Product', product, setProduct, products, (p) => p.name || p)}
 
-        <label className="wsm-dms-filter">
-          <span className="wsm-label">Report</span>
-          <select className={label ? 'wsm-dms-select-on' : ''} value={label} onChange={(e) => setLabel(e.target.value)}>
-            {reports.map((r) => (
-              <option key={r.label} value={r.label}>
-                {r.is_deployed ? '● deployed — ' : ''}{r.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        {!embedded && (
+          <label className="wsm-dms-filter">
+            <span className="wsm-label">Report</span>
+            <select className={label ? 'wsm-dms-select-on' : ''} value={label} onChange={(e) => setLabel(e.target.value)}>
+              {reports.map((r) => (
+                <option key={r.label} value={r.label}>
+                  {r.is_deployed ? '● deployed — ' : ''}{r.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
-        <label className="wsm-dms-filter">
-          <span className="wsm-label">Scan</span>
-          <select className="wsm-dms-select-on" value={scan} onChange={(e) => setScan(e.target.value)}>
-            {SCANS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-          </select>
-        </label>
+        {!embedded && (
+          <label className="wsm-dms-filter">
+            <span className="wsm-label">Scan</span>
+            <select className="wsm-dms-select-on" value={scan} onChange={(e) => setScan(e.target.value)}>
+              {SCANS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+            </select>
+          </label>
+        )}
 
         {/* Not a convenience — Hacksaw rejects CODE_VIOLATIONS without it. */}
         {scan === 'CODE_VIOLATIONS' && select('Language', fileType, setFileType, FILE_TYPES)}

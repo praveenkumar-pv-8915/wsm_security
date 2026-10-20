@@ -3026,3 +3026,11 @@ ul.wsm-conn-sub { margin-top: 0; }
   font-size: 11px;
   text-wrap: pretty;
 }
+
+/* v7's category row inside Hacksaw Report — vuln is a category here, not a nav item. */
+.wsm-hs-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 14px 10px;
+}
