@@ -13,6 +13,7 @@ import DraftRisk from './views/DraftRisk';
 import CompareDpias from './views/CompareDpias';
 import Ask from './views/Ask';
 import DependencyNotifier from './views/DependencyNotifier';
+import FollowUps from './views/FollowUps';
 
 /**
  * App shell — rail, top bar and the route switch. Everything below AuthGate can assume a
@@ -41,6 +42,13 @@ const GROUPS = [
       { path: '/draft-risk', label: 'Draft new risk' },
       { path: '/compare-dpias', label: 'Compare vs. DPIA' },
       { path: '/ask', label: 'Ask' },
+    ],
+  },
+  {
+    key: 'followups',
+    label: 'Follow-ups',
+    items: [
+      { path: '/follow-ups', label: 'Chase list' },
     ],
   },
   {
@@ -74,6 +82,7 @@ const CRUMBS = {
   '/compare-dpias': 'Compliance Manager · Compare vs. DPIA',
   '/ask': 'Compliance Manager · Ask',
   '/dependency-upgrade-notifier': 'VM Manager · Dependency Upgrade notifier',
+  '/follow-ups': 'Follow-ups · Chase list',
   '/connections': 'Settings',
   '/compliance-config': 'Settings',
 };
@@ -360,6 +369,7 @@ function Shell({ user: sessionUser }) {
               {path === '/compare-dpias' && <CompareDpias />}
               {path === '/ask' && <Ask />}
               {path === '/dependency-upgrade-notifier' && <DependencyNotifier onNotice={onNotice} />}
+              {path === '/follow-ups' && <FollowUps onNotice={onNotice} />}
             </>
           )}
         </div>

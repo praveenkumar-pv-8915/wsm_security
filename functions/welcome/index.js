@@ -35,6 +35,10 @@ const ask = require('./ask-service');
 const vm = require('./vm-service');
 const vmScan = require('./vm-scan-service');
 const vmNotifications = require('./vm-notifications-service');
+const followups = require('./followup-service');
+const followupNotify = require('./followup-notify-service');
+const scheduler = require('./scheduled-tasks');
+const directory = require('./directory-service');
 
 const app = express();
 app.use(express.json({ limit: '256kb' }));
@@ -387,6 +391,160 @@ app.post('/api/vm/run', wrap(async (req, res) => {
   const body = req.body || {};
   const depKeys = Array.isArray(body.dependencies) ? body.dependencies.map(String) : [];
   send(res, await vmScan.runScan(req, { depKeys, trigger: 'manual' }));
+}));
+
+
+/* ------------------------------------------------------------------ follow-ups */
+
+/**
+ * Follow-ups — the chase list. A row is a task, its doc/ticket link, an ETA, a DRI, who to ping on
+ * Cliq, a status and its evidence. Reminders go out three ways and all three land in the same
+ * `remindOne`: the button below, the pre-ETA window, and the overdue repeat.
+ *
+ * Team-wide, like the VM watch list: everyone reads and edits the same board. Only DELETE is
+ * narrowed, to the row's owner or an admin — see followup-service.js.
+ */
+
+/** GET /api/followups?scope=open|mine|closed|all  (default: open) */
+app.get('/api/followups', wrap(async (req, res) => {
+  const scope = ['open', 'mine', 'closed', 'all'].includes((req.query || {}).scope)
+    ? req.query.scope : 'open';
+  res.json({ success: true, scope, follow_ups: await followups.listFollowUps(req, { scope }) });
+}));
+
+/** The vocabulary the form's dropdowns render, so they cannot drift from what the API accepts. */
+app.get('/api/followups/meta', (_req, res) => {
+  res.json({ success: true, statuses: followups.STATUSES, target_types: followups.TARGET_TYPES });
+});
+
+/**
+ * GET /api/followups/members?q= — the people the notify picker offers.
+ *
+ * Cliq's own user directory, `{ id: <zuid>, name }` and **never email**. Read live on every call;
+ * nothing about a person is persisted by this feature. `?q=` is handed to Cliq's own `search`
+ * filter, because the org is larger than any list this would fetch.
+ *
+ * It used to read Catalyst User Management, which returned only the five people who had signed into
+ * this app while the team is thirteen — see directory-service.js (2026-10-20).
+ *
+ * Doubles as the resolver the reminder-history view uses to turn a logged `user:<zuid>` into a name.
+ */
+app.get('/api/followups/members', wrap(async (req, res) => {
+  const q = req.query || {};
+  res.json({
+    success: true,
+    members: await directory.listPeople(req, { query: String(q.q || ''), fresh: String(q.fresh || '') === '1' }),
+  });
+}));
+
+/**
+ * GET /api/followups/channels — the Cliq channels the notify picker offers.
+ *
+ * Only channels the SHARED connection has joined (`joined=true`), because that is the credential
+ * the cron posts with: a channel only the signed-in person is in would accept the pick and then
+ * fail every scheduled reminder. `?fresh=1` skips the 60-second memo for a channel created moments
+ * ago — used sparingly, since Cliq locks this endpoint for ten minutes after 20 calls a minute.
+ *
+ * Answers 424 if the stored connection predates the `ZohoCliq.Channels.READ` scope, with the
+ * reauthorize instruction in the message.
+ */
+/**
+ * GET /api/followups/people?ids=a,b,c — resolve stored ZUIDs to `{ id, name, email }`.
+ *
+ * What the table and the picker chips use: a row holds only a ZUID, and "USER 60040410285" is not
+ * a name. Looked up live through Cliq, capped at 25 ids, and an id that no longer resolves is
+ * simply absent from the response so the UI can mark it rather than break.
+ */
+app.get('/api/followups/people', wrap(async (req, res) => {
+  const ids = String((req.query || {}).ids || '').split(',').map(s => s.trim()).filter(Boolean);
+  res.json({ success: true, people: await directory.resolvePeople(req, ids) });
+}));
+
+app.get('/api/followups/channels', wrap(async (req, res) => {
+  const fresh = String((req.query || {}).fresh || '') === '1';
+  const channels = await directory.listChannels(req, { fresh });
+  // `truncated` tells the UI the cap was hit, so it can say so instead of implying a channel
+  // beyond the cap does not exist.
+  res.json({ success: true, channels, truncated: Boolean(channels.truncated) });
+}));
+
+/**
+ * Body: { task, ref_url?, eta?, dri?, notify_targets?, status?, evidence?,
+ *         remind_before_days?, overdue_every_days?, is_active? }
+ * `notify_targets` takes either the raw textarea ("#wsm-security, someone@zohocorp.com") or an
+ * already-parsed array — see parseTargets.
+ */
+app.post('/api/followups', wrap(async (req, res) => {
+  res.status(201).json({ success: true, follow_up: await followups.createFollowUp(req, req.body || {}) });
+}));
+
+/** Partial update — the status dropdown and the pause toggle each send one field. */
+app.patch('/api/followups/:id', wrap(async (req, res) => {
+  res.json({ success: true, follow_up: await followups.updateFollowUp(req, req.params.id, req.body || {}) });
+}));
+
+app.delete('/api/followups/:id', wrap(async (req, res) => {
+  res.json({ success: true, ...(await followups.deleteFollowUp(req, req.params.id)) });
+}));
+
+/** What has been sent for this row, newest first. */
+app.get('/api/followups/:id/reminders', wrap(async (req, res) => {
+  res.json({ success: true, reminders: await followups.listReminders(req, req.params.id) });
+}));
+
+/**
+ * POST /api/followups/:id/remind — the "Remind now" button.
+ *
+ * Forced: it skips the once-a-day dedupe and a paused row, because a person pressing the button
+ * means it. It still refuses a done/cancelled row and one with nobody listed.
+ */
+app.post('/api/followups/:id/remind', wrap(async (req, res) => {
+  const row = followups.toDto(await followups.getRow(req, req.params.id));
+  res.json({ success: true, ...(await followupNotify.remindOne(req, row, { trigger: 'manual', force: true })) });
+}));
+
+/**
+ * POST /api/followups/sweep — run the daily pass now instead of waiting for the 09:00 job.
+ *
+ * Body: { dry_run?: true } answers "who would be chased today" without posting anything, which is
+ * the safe way to check a schedule change. Runs the SAME `sweep` the job runs, in this request —
+ * deliberately, for the reason POST /api/vm/run gives: a manual path exercising different code
+ * would not tell you whether the scheduled one works.
+ */
+app.post('/api/followups/sweep', wrap(async (req, res) => {
+  const body = req.body || {};
+  res.json(await scheduler.runTask(req, {
+    task: 'followup_reminders',
+    dryRun: body.dry_run === true,
+    force: true, // a person asked for it now; the interval floor and a stale lease shouldn't block
+  }));
+}));
+
+/* ------------------------------------------------------------------ scheduler */
+
+/**
+ * The scheduled-task registry, with each task's last run. One screen can list every recurring job
+ * in the app instead of each feature growing its own status corner.
+ */
+app.get('/api/scheduler/tasks', wrap(async (req, res) => {
+  res.json({ success: true, tasks: await scheduler.listTasks(req) });
+}));
+
+/**
+ * POST /api/scheduler/tasks/:key/run — run a registered task in this request.
+ *
+ * Body: { dry_run?: true, force?: true }. Runs the SAME `runTask` the job function runs, which is
+ * what makes this a real test of the scheduled path rather than a parallel one. `force` is how a
+ * person overrides the interval floor and a stale lease; a dry run takes no lease and stamps
+ * nothing.
+ */
+app.post('/api/scheduler/tasks/:key/run', wrap(async (req, res) => {
+  const body = req.body || {};
+  res.json(await scheduler.runTask(req, {
+    task: req.params.key,
+    dryRun: body.dry_run === true,
+    force: body.force === true,
+  }));
 }));
 
 /* ------------------------------------------------------------------ errors */

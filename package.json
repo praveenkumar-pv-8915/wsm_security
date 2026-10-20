@@ -14,7 +14,7 @@
     "sync:job": "node scripts/sync-job-modules.js",
     "check:job": "node scripts/sync-job-modules.js --check",
     "predeploy": "node scripts/sync-job-modules.js --check",
-    "deploy:vm-job": ".claude/skills/deploy/deploy.sh --only functions:vm_notifier_job",
-    "predeploy:vm-job": "node scripts/sync-job-modules.js --check"
+    "deploy:scheduler-job": ".claude/skills/deploy/deploy.sh --only functions:scheduler_job",
+    "predeploy:scheduler-job": "node scripts/sync-job-modules.js --check"
   }
 }

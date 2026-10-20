@@ -88,8 +88,30 @@ const SERVICES = [
   {
     key: 'zoho-cliq', label: 'Zoho Cliq', auth_type: AUTH_TYPES.OAUTH,
     host: '@cliq', default_dc: 'in', redirect_port: 8485,
-    description: 'Read messages and create webhooks for alerting.',
-    scopes: ['ZohoCliq.Messages.READ', 'ZohoCliq.Webhooks.CREATE'],
+    description: 'Read messages and channels, and post reminders and alerts.',
+    // Webhooks.CREATE covers Cliq's whole v2 messaging surface — channel, buddy and bot posts
+    // alike. Channels.READ was added 2026-10-13 for the Follow-ups notify picker: posting to a
+    // channel never needed it, but LISTING channels does, so a connection made before that date
+    // must be reauthorized before the picker can load (directory-service.js says so in its 424).
+    // Channels.READ (2026-10-13) lists channels for the notify picker; posting never needed it.
+    //
+    // Users.READ + the three ZohoPeople scopes (2026-10-20) list PEOPLE for that picker.
+    //
+    // The ZohoPeople scopes are here under protest and are recorded as such. `GET /api/v2/users`
+    // was tried with `ZohoCliq.Users.READ` alone and Cliq answered
+    // `401 OAUTHTOKEN_SCOPE_INVALID`, so the scope string the Cliq docs print really is a
+    // mandatory bundle, not a superset — the endpoint cannot be reached without granting HR-data
+    // read access to a reminder tool. The user accepted that on 2026-10-20 to get a people picker
+    // covering the whole org rather than the five who had signed into this app.
+    //
+    // All three are READ-only and NOTHING in this codebase calls a ZohoPeople API — grep for
+    // `zohopeople` and you will find no caller. They exist solely to satisfy Cliq's consent check.
+    // If Zoho ever unbundles them, delete the three lines and re-consent; nothing else changes.
+    scopes: [
+      'ZohoCliq.Messages.READ', 'ZohoCliq.Webhooks.CREATE',
+      'ZohoCliq.Channels.READ', 'ZohoCliq.Users.READ',
+      'ZohoPeople.forms.READ', 'ZohoPeople.employee.READ', 'ZohoPeople.attendance.READ',
+    ],
   },
   {
     key: 'zoho-projects', label: 'Zoho Projects', auth_type: AUTH_TYPES.OAUTH,

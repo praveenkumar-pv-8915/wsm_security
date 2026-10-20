@@ -1,0 +1,10 @@
+{
+  "name": "scheduler_job",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Generic Catalyst Job Function — runs any task in the scheduled-task registry.",
+  "main": "index.js",
+  "dependencies": {
+    "zcatalyst-sdk-node": "^1.12.0"
+  }
+}

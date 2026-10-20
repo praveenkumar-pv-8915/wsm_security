@@ -1,0 +1,14 @@
+{
+	"deployment": {
+		"name": "scheduler_job",
+		"stack": "node18",
+		"type": "job",
+		"memory": 512,
+		"env_variables": {
+			"CRED_ENC_KEY": ""
+		}
+	},
+	"execution": {
+		"main": "index.js"
+	}
+}

@@ -7,7 +7,7 @@
     "targets": [
       "welcome",
       "task_manager",
-      "vm_notifier_job"
+      "scheduler_job"
     ]
   }
 }
