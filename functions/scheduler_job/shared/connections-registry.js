@@ -190,6 +190,19 @@ const SERVICES = [
     scopes: ['Hacksaw.ORGANISATION.READ', 'Hacksaw.PRODUCT.READ', 'Hacksaw.REPORT.READ',
              'Hacksaw.PRODUCTTAG.READ', 'Hacksaw.ORG_SUPPRESSION_RULE.READ',
              'Hacksaw.PRODUCT_SUPPRESSION_RULE.READ'],
+    // Almost every Hacksaw read takes an organisation, and most also take a product — the same two
+    // values on every call for a given team. The kit keeps them in its connections DB as
+    // `zoho-hacksaw.default_organisation` / `.default_product` (agent-knowledge-kit
+    // src/connections/zoho-hacksaw/API.md, "Defaults") and every script falls back to them; these
+    // fields are that mechanism here. Non-secret, so they live in EXTRA_CONFIG like PlatformAI's
+    // portal_id — but they are parameters, not headers, so they are pulled in by a param's
+    // `from_config` (see FETCH_OPERATIONS below) rather than `header_from_config`.
+    extra_config_fields: [
+      { name: 'default_organisation', label: 'Default organisation', required: false, placeholder: 'zoho',
+        help: 'Used when a call does not name one. The Hacksaw org, not the Zoho DC.' },
+      { name: 'default_product', label: 'Default product', required: false,
+        help: 'Product name within that organisation.' },
+    ],
   },
   {
     key: 'zoho-platformai', label: 'Zoho PlatformAI', auth_type: AUTH_TYPES.OAUTH,
@@ -313,6 +326,9 @@ function publicCatalogue() {
  *   in: 'body'    → JSON body field (POST only)
  * `query` holds fixed values the operation always sends.
  * `profileQuery` pulls values off the DC profile (appid/service/timezone) rather than the user.
+ * `from_config` names an extra_config field to fall back to when the caller leaves the param
+ *   blank — the param equivalent of `header_from_config`. A `required` param with a
+ *   `from_config` is satisfied by the saved value, so it only errors when both are empty.
  */
 const FETCH_OPERATIONS = {
   // kit: zoho-projects/list-portals.sh — GET /api/v3/portals
@@ -335,7 +351,8 @@ const FETCH_OPERATIONS = {
   'zoho-hacksaw': {
     label: 'Organisation stats', method: 'GET', path: '/api/orgs',
     query: { action: 'fetchstats' },
-    params: [{ name: 'organisation', in: 'query', label: 'Organisation', required: true }],
+    params: [{ name: 'organisation', in: 'query', label: 'Organisation', required: true,
+               from_config: 'default_organisation' }],
   },
 
   // kit: zoho-repository/get-groups.sh
@@ -443,6 +460,8 @@ function publicFetchOperation(key) {
     note: op.note || null,
     params: (op.params || []).map(x => ({
       name: x.name, label: x.label, required: Boolean(x.required), placeholder: x.placeholder || '',
+      // Tells the form this one may be left blank because the connection has a saved value for it.
+      from_config: x.from_config || null,
     })),
   };
 }

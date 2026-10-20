@@ -881,9 +881,17 @@ async function runFetch(req, id, inputs = {}) {
     const body = {};
     let resolvedPath = op.path;
 
+    // Saved non-secret config for this connection, used two ways below: as the fallback for a
+    // param declaring `from_config` (Hacksaw's organisation), and as config headers further down.
+    const savedConfig = parseExtraConfig(credential.EXTRA_CONFIG) || {};
+
+    const str = (v) => (v === undefined || v === null ? '' : String(v).trim());
+
     for (const spec of op.params || []) {
-      const raw = inputs[spec.name];
-      const value = raw === undefined || raw === null ? '' : String(raw).trim();
+      // A blank string counts as not given, not as an override of the saved value — the probe form
+      // posts every field it rendered, so an untouched input arrives as '' rather than absent.
+      const value = str(inputs[spec.name])
+        || (spec.from_config ? str(savedConfig[spec.from_config]) : '');
       if (!value) {
         if (spec.required) throw new Error(`'${spec.label || spec.name}' is required`);
         continue;
@@ -916,9 +924,8 @@ async function runFetch(req, id, inputs = {}) {
     // so the probe form doesn't need to ask for something already saved on the connection.
     const configHeaders = {};
     if (service.header_from_config?.length) {
-      const cfg = parseExtraConfig(credential.EXTRA_CONFIG) || {};
       for (const key of service.header_from_config) {
-        if (cfg[key]) configHeaders[key] = cfg[key];
+        if (savedConfig[key]) configHeaders[key] = savedConfig[key];
       }
     }
 
@@ -927,7 +934,7 @@ async function runFetch(req, id, inputs = {}) {
     // config so it can fall back to a default vendor/model without the caller retyping them.
     const hasBody = op.method === 'POST';
     const finalBody = typeof op.buildBody === 'function'
-      ? op.buildBody(body, parseExtraConfig(credential.EXTRA_CONFIG) || {})
+      ? op.buildBody(body, savedConfig)
       : body;
 
     const response = await fetch(url, {

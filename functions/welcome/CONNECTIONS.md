@@ -127,6 +127,12 @@ If a service also declares `header_from_config` (a list of field names), `callCo
 `zoho-platformai`'s `portal_id` rides along on every call without any caller having to know it
 exists. `toPublic()` returns `extra_config` as-is; none of it is secret.
 
+The param equivalent is `from_config` on a fetch-operation param: when the caller leaves that param
+blank, `runFetch()` falls back to the named `extra_config` field, so a `required` param is satisfied
+by the saved value and only errors when both are empty. `zoho-hacksaw` uses it for `organisation`
+(`default_organisation`), mirroring the kit's saved defaults — the probe form marks such a param
+optional and says the connection's saved value will be used.
+
 ## Re-authenticating
 
 An OAuth grant is frozen at consent time. When a scope is added to a service in the registry, the

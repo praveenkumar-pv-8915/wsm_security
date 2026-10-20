@@ -183,11 +183,12 @@ function FetchPanel({ service, credential, value, onChange, onRun, busy, result,
         <div className="form-grid">
           {params.map((param) => (
             <label key={param.name}>
-              <span>{param.label}{param.required ? '' : ' (optional)'}</span>
+              <span>{param.label}{param.required && !param.from_config ? '' : ' (optional)'}</span>
               <input
                 value={value(param.name)}
                 onChange={(e) => onChange(param.name, e.target.value)}
-                placeholder={param.placeholder || ''}
+                placeholder={param.placeholder
+                  || (param.from_config ? "defaults to this connection's saved value" : '')}
               />
             </label>
           ))}
