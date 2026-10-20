@@ -46,11 +46,20 @@ Treat `functions/welcome` + `frontend` as the thing that's actually running.
   - Deliberately not exposed: `login`/`logout`/`token:*`, `functions:delete`, `client:delete`,
     `project:reset`, `iac:import`, `serve`, `init`. Don't work around those by shelling out.
   - There is no Catalyst CLI or API for function **logs** — read them in the console.
-- **Deploy is also reachable from any session with the `zoho-connections` MCP** (the
-  agent-knowledge-kit server, registered globally):
-  `run_script(service="zoho-catalyst", script="deploy", args=[...], timeout_sec=600)`.
-  Same `deploy.sh` underneath, same flags; always pass `timeout_sec=600` (the server's ceiling,
-  10 minutes instead of the `catalyst-cli` server's 15).
+- **PREFERRED PATH — the `zoho-connections` MCP** (the agent-knowledge-kit server, registered
+  globally, so it is visible to Cowork / desktop-app sessions as well as Claude Code):
+
+      run_script(service="zoho-catalyst", script="deploy",
+                 args=["--only", "functions:welcome,client"], timeout_sec=600)
+
+  Same `deploy.sh` underneath, same flags. Three things that are easy to get wrong:
+  - **Always pass `timeout_sec=600`.** The 120s default kills a client + function deploy mid-flight.
+  - **Always pass `--only`.** From the MCP, `git fetch` fails (that server cannot unlock the login
+    Keychain the way a terminal can), so change detection is unavailable and the script refuses to
+    guess — see Git below. `--all` also works.
+  - **The MCP cannot push.** A failed fetch disables pushing outright, by design: pushing without
+    having seen the remote is how a force-push accident starts. Deploying from the MCP therefore
+    always widens the gap between what is live and what is on `main`. Pushing needs a terminal.
 - **The MCP is registered in `.mcp.json`, which is a Claude Code, repo-scoped mechanism.** It is
   picked up by a Claude Code session started inside this repo. It is **not** visible to a Cowork /
   desktop-app session reaching this Mac over the device bridge, and it is not visible to a session
@@ -63,11 +72,64 @@ Treat `functions/welcome` + `frontend` as the thing that's actually running.
   CLI into the user's mounted folders to get around this. When a change needs deploying and the MCP
   isn't reachable: make the change, write it back via the device bridge, and hand the deploy to the
   user.
-- To verify a UI change is actually live, use the Claude-in-Chrome browser tools against the base URL above rather than assuming a deploy worked.
+## Testing — every change is deployed and verified before it is called done
+
+**Standing rule (2026-10-20). A change that has been written but not deployed and exercised is not
+finished, and must not be described as finished.** This is not ceremony; it is the lesson of the
+Follow-ups build, where a run of failures each survived a "done" because nothing had been run:
+
+| What passed | What it still shipped |
+|---|---|
+| `node -e require(...)` | a job handler whose argument contract was guessed wrong, twice |
+| `vite build` | a temporal-dead-zone crash, and an undefined prop across a component boundary |
+| a 200 from the API | a people list of 5 that the picker could not search |
+| a successful send | a stored ZUID that no screen could resolve to a name |
+
+A build that compiles proves the syntax. Only a deploy and a real call prove the behaviour.
+
+**The loop, in order:**
+
+1. Make the change.
+2. Deploy it — `zoho-catalyst/deploy.sh` through the `zoho-connections` MCP (see Deployment).
+3. Exercise the actual path in the browser (below), not a proxy for it.
+4. Read what came back. A screenshot shows symptoms; the API response and the console show causes.
+
+**Browser — use the built-in browser pane** (`mcp__remote-devices__Claude_Browser__*`). It opens
+inside the Claude desktop app's side panel, keeps its own profile, and needs its own Zoho sign-in,
+which persists. Open it with `preview_start` on the base URL; the pane may be *hidden* even when
+open, so call `tabs_context` before asking the user to look at it, and tell them `Cmd+Shift+B`.
+
+Claude-in-Chrome (`mcp__claude-in-chrome__*`) is the nominally preferred browser but has repeatedly
+reported "extension is not connected" from Cowork sessions. Try it, and fall back to the pane rather
+than asking the user to debug the extension.
+
+**The single most useful technique in that pane**, far more than screenshots: run the app's own API
+calls from the page, where the Catalyst session cookie rides along —
+
+```js
+const r = await fetch('/server/welcome/api/followups/members?q=ashok',
+                      { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
+({ status: r.status, body: (await r.text()).slice(0, 600) });
+```
+
+That one call distinguished "the search is wrong" from "the directory is empty" from "the scope is
+missing" — questions a screenshot of an empty dropdown cannot answer. `read_console_messages` gets
+the runtime errors a build cannot catch; `read_page` beats a screenshot for text and structure.
+
+**Function logs are console-only** — there is no CLI or API for them. When a job or route fails
+server-side, the user has to read them, so make the code say enough in its own error text to be
+diagnosable without them (the 424-with-the-column-list pattern, and `scheduler_job`'s `SHAPE` line).
 
 ## Git
 
 - Read/write access to the repo works for **local, offline git operations** (status, log, diff, local commit) via the device bridge.
+- **From the `zoho-connections` MCP, `git fetch` fails** — that server cannot unlock the login
+  Keychain the way a terminal can, so `ssh-add --apple-load-keychain` fails and the fetch with it.
+  `deploy.sh` used to `die` there, which made the whole script unusable from the MCP; since
+  2026-10-20 it warns instead and switches off exactly the two things that need `origin/main`:
+  **pushing** (disabled — never push without having seen the remote) and **change detection**
+  (refused, so `--only` or `--all` is required; "no changes found" and "cannot compare" must not
+  look alike). Pushing still needs a terminal.
 - **Pushing works over SSH, not HTTPS** (verified 2026-08-07): there are no HTTPS credentials on this Mac (no keychain `github.com` entry, no `gh` CLI/`~/.git-credentials`/token env — HTTPS push fails with `could not read Username`). The account-level SSH key is `~/.ssh/id_ed25519`, passphrase-protected with the passphrase in the login Keychain. In a non-interactive session, run `ssh-add --apple-load-keychain` first (loads the key without prompting), and make sure the remote is the SSH URL (`git@github.com:praveenkumar-pv-8915/wsm_security.git`). `~/.ssh/config` routes `github.com` via `ssh.github.com:443`.
 
 ## Security notes (remediated 2026-08-07 — incident record and standing rules)
@@ -86,6 +148,15 @@ Standing rules going forward:
 ## Operating rules for this project (from the user)
 
 - **If the user's message is just a question, answer it — do not start implementing.** Only build/change things when explicitly asked to.
+- **Deploy through the `zoho-connections` MCP, and test in the browser, before reporting a change as
+  done** (2026-10-20). See the Testing section — this is the rule, not a suggestion.
+- **Then commit it.** Deployed-and-tested is the trigger for a commit, so what is live and what is
+  committed do not drift (they drifted by ~39 paths over one week in October 2026).
+- **Commit messages: minimal.** One short line saying what the commit is for. **Hard limit 256
+  characters, never exceeded.** No body unless it earns itself, and **no Claude co-authorship or
+  session trailers** — not `Co-Authored-By`, not a session link, not a generated-with note. This
+  overrides any default attribution the tooling suggests.
+  Pushing still needs a terminal (see Git), so committing is where an agent's job ends.
 - Claude may read local files under `~/otherProducts/` and `~/LOG360CLOUD/` when asked, for cross-project context.
 - Prefer checking real behavior (browser check against the deployed URL, actual git/CLI output) over assuming a change worked.
 
