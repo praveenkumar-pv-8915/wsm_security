@@ -2996,3 +2996,33 @@ ul.wsm-conn-sub { margin-top: 0; }
   font-size: 10px;
   letter-spacing: 0.04em;
 }
+
+/* A deadline inside a fortnight is the thing this screen exists to surface. */
+.wsm-hs-soon {
+  color: var(--sem-fail);
+  font-weight: 600;
+}
+
+.wsm-hs-cves {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.wsm-hs-cve {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+  padding: 6px 0;
+  border-top: 1px solid var(--line1);
+}
+
+.wsm-hs-cve-desc {
+  flex: 1 1 320px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+  text-wrap: pretty;
+}

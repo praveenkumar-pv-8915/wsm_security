@@ -593,6 +593,21 @@ app.get('/api/hacksaw/violations', wrap(async (req, res) => {
   }));
 }));
 
+/** SCA: components with known vulnerabilities in one report. Small set, no paging. */
+app.get('/api/hacksaw/components', wrap(async (req, res) => {
+  res.json(await hacksaw.listComponents(req, { product: req.query.product, label: req.query.label }));
+}));
+
+/** The CVEs behind one component. `component_id` must be an id this app itself returned. */
+app.get('/api/hacksaw/component-vulnerabilities', wrap(async (req, res) => {
+  res.json(await hacksaw.listComponentVulnerabilities(req, {
+    product: req.query.product,
+    label: req.query.label,
+    component_id: req.query.component_id,
+    component_type: req.query.component_type,
+  }));
+}));
+
 app.get('/api/hacksaw/violation-filters', wrap(async (req, res) => {
   res.json(await hacksaw.listViolationFilters(req, {
     product: req.query.product,

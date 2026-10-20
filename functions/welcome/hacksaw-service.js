@@ -375,8 +375,137 @@ async function listViolationFilters(req, { product, label, scan, file_type: file
   return { success: true, product, label, scan, file_type: ft || null, filters: out };
 }
 
+
+/* ------------------------------------------------------------------ vulnerable components (SCA) */
+
+/** The purl that identifies a component — the stable review key (see the design doc). */
+function mainIdentifier(c) {
+  const purls = c.IDENTIFIERS?.PURL_IDENTIFIERS || [];
+  const cpes = c.IDENTIFIERS?.CPE_IDENTIFIERS || [];
+  const main = purls.find(p => p.IS_MAIN_IDENTIFIER === 'YES') || purls[0] || cpes[0];
+  return main?.VALUE || `${c.NAME}@${c.VERSION}`;
+}
+
+/**
+ * SCA components with at least one known vulnerability, for one report.
+ *
+ * Small by nature — 7 for the sample report against 1,283 misconfigurations — so this endpoint
+ * does not page; Hacksaw returns the set in one CONTENT array.
+ *
+ * `UPCOMING_BLOCKING_TIME` is the field this screen exists for: it says when an open component
+ * starts failing builds, which is the one thing a team wants sorted and dated. Components that
+ * already block (`IS_BLOCKED`) come first, then those with a deadline soonest-first, then the
+ * rest by vulnerability count — Hacksaw's own order is by neither.
+ *
+ * The identifier list is NOT trimmed here: an uber jar legitimately carries 26 purls for what is
+ * bundled inside it, and that list is the evidence for why the component is flagged. The UI
+ * collapses it; the API keeps it.
+ */
+async function listComponents(req, { product, label } = {}) {
+  if (!product || !label) throw new HacksawError("'product' and 'label' are required", 400);
+  const organisation = await organisationFor(req);
+  const json = await hsGet(req, '/api/vulnerablecomponentsreport', {
+    action: 'fetchvulnerablecomponents',
+    organisation,
+    productname: product,
+    reportlabel: label,
+    // Documented as required; an empty object is Hacksaw's accepted "no filter".
+    filter: '{}',
+  });
+
+  const rows = (json.CONTENT || []).map(c => ({
+    id: c.COMPONENT_AUTO_ID,
+    name: c.NAME,
+    version: c.VERSION,
+    identifier: mainIdentifier(c),
+    identifiers: [
+      ...(c.IDENTIFIERS?.PURL_IDENTIFIERS || []).map(p => p.VALUE),
+      ...(c.IDENTIFIERS?.CPE_IDENTIFIERS || []).map(p => p.VALUE),
+    ],
+    path: c.PATH,
+    context: c.CONTEXT,
+    type: c.COMPONENT_TYPE,
+    origin: c.COMPONENT_ORIGIN,
+    ownership: c.OWNERSHIP,
+    confidence: c.COMPONENT_IDENTIFICATION_CONFIDENCE,
+    vulnerability_count: c.VULNERABILITY_COUNT || 0,
+    is_blocked: c.IS_BLOCKED === true,
+    status: c.STATUS,
+    blocking_at: c.UPCOMING_BLOCKING_TIME || null,
+    reachable: c.HAS_REACHABLE_VULNERABILITIES,
+    reachability: c.HIGHEST_VULNERABILITY_REACHABILITY_LEVEL,
+    age: c.COMPONENT_AGE || null,
+    released_on: c.RELEASED_DATE || null,
+    eol: c.EOL_STATUS,
+    packaging: c.PACKAGING_TYPE || [],
+    bundled_from: (c.BUNDLED_FROM || []).map(b => ({ name: b.NAME, version: b.VERSION })),
+    assignee: localPart(c.ASSIGNEE),
+    temporary_exclusions_left: c.REMAINING_TEMPORARY_EXCLUSION_COUNT,
+  }));
+
+  // Blocking first, then by deadline, then by how much is wrong with it.
+  const when = (r) => (r.blocking_at ? Date.parse(r.blocking_at.replace(' ', 'T')) || Infinity : Infinity);
+  rows.sort((a, b) => (
+    (b.is_blocked - a.is_blocked)
+    || (when(a) - when(b))
+    || (b.vulnerability_count - a.vulnerability_count)
+  ));
+
+  return {
+    success: true,
+    organisation,
+    product,
+    label,
+    total: rows.length,
+    blocking: rows.filter(r => r.is_blocked).length,
+    components: rows,
+  };
+}
+
+/** The CVEs behind one component. `component_id` is an id this app handed out, not a free path. */
+async function listComponentVulnerabilities(req, { product, label, component_id: componentId, component_type: componentType } = {}) {
+  if (!product || !label) throw new HacksawError("'product' and 'label' are required", 400);
+  if (!/^\d+$/.test(String(componentId || ''))) throw new HacksawError("'component_id' must be numeric", 400);
+
+  const organisation = await organisationFor(req);
+  const json = await hsGet(req, '/api/vulnerablecomponentsreport', {
+    action: 'fetchcomponentvulnerabilities',
+    organisation,
+    productname: product,
+    reportlabel: label,
+    componentautoid: componentId,
+    ...(componentType ? { componenttype: componentType } : {}),
+  });
+
+  const raw = Array.isArray(json.CONTENT) ? json.CONTENT : (json.DATA || []);
+  // Severity first, then EPSS: a 9.8 nobody is exploiting still outranks a 5.0 that is, for
+  // triage order, but the actively-exploited flag is what a reviewer actually acts on — so both
+  // travel and the UI shows the flag, rather than collapsing them into one number here.
+  const rows = raw.map(v => ({
+    id: v.VULNERABILITY_ID,
+    auto_id: v.VULNERABILITY_AUTO_ID,
+    severity: typeof v.SEVERITY_SCORE === 'number' ? v.SEVERITY_SCORE : null,
+    exploitability: typeof v.EXPLOITABILITY_SCORE === 'number' ? v.EXPLOITABILITY_SCORE : null,
+    actively_exploited: v.IS_ACTIVELY_EXPLOITED === true || v.IS_ACTIVELY_EXPLOITED === 'YES',
+    reachable: v.IS_REACHABLE === true || v.IS_REACHABLE === 'YES',
+    reachability: v.REACHABILITY_TYPE || null,
+    status: v.VULNERABILITY_STATUS || null,
+    cwe: v.CWE || null,
+    description: v.DESCRIPTION || null,
+    link: v.LINK || null,
+    source: v.SOURCE || null,
+    published_at: v.PUBLISHED_TIME || null,
+    affects: v.AFFECTED_IDENTIFIER || null,
+  })).sort((a, b) => (
+    (b.actively_exploited - a.actively_exploited)
+    || ((b.severity ?? -1) - (a.severity ?? -1))
+  ));
+  return { success: true, product, label, component_id: componentId, total: rows.length, vulnerabilities: rows };
+}
+
 module.exports = {
   SCANS, FILE_TYPES, PAGE_LIMITS,
   HacksawError, RateLimited,
   listProducts, listReports, getReportStats, listViolations, listViolationFilters,
+  listComponents, listComponentVulnerabilities,
 };
