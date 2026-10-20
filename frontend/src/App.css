@@ -3036,3 +3036,123 @@ ul.wsm-conn-sub { margin-top: 0; }
 }
 
 .wsm-hs-diffchips { display: inline-flex; gap: 6px; }
+
+/* ── hacksaw: the v7 report + reviewer screens ─────────────────────────────── */
+/* Built to design/WSM Security v7.bundled.html: a context bar of inline pickers, a tab strip
+   with counts, a filter toolbar, and findings as cards with a severity edge. */
+
+.wsm-hs { display: flex; flex-direction: column; min-height: 0; }
+
+.wsm-hs-ctx {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;
+  padding: 12px 16px; border-bottom: 1px solid var(--line1);
+}
+.wsm-hs-ctx-r { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+/* "LABEL value ▾" — a real <select> laid transparently over the rendered value. */
+.wsm-hs-pick {
+  position: relative; display: inline-flex; align-items: center; gap: 6px;
+  height: 28px; padding: 0 22px 0 10px; box-sizing: border-box; cursor: pointer;
+  border: 1px solid var(--line1); background: var(--surf); max-width: 280px;
+}
+.wsm-hs-pick:hover { border-color: var(--muted); }
+.wsm-hs-pick-l { font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.wsm-hs-pick-v {
+  font-size: 12px; font-weight: 700; color: var(--ink); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-width: 190px;
+}
+.wsm-hs-pick-c { position: absolute; right: 8px; font-size: 8px; color: var(--muted); pointer-events: none; }
+.wsm-hs-pick select { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; font-family: inherit; }
+
+.wsm-hs-tabs { display: flex; flex-wrap: wrap; align-items: stretch; border-bottom: 1px solid var(--line1); }
+.wsm-hs-tab {
+  appearance: none; cursor: pointer; display: flex; align-items: center; gap: 7px;
+  padding: 11px 16px; font-family: inherit; font-size: 12px; font-weight: 600;
+  border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted);
+}
+.wsm-hs-tab:hover { color: var(--ink); }
+.wsm-hs-tab-on { color: var(--ink); font-weight: 800; border-bottom-color: var(--ac); }
+.wsm-hs-tabn {
+  font-size: 10px; font-weight: 800; font-variant-numeric: tabular-nums;
+  padding: 1px 6px; border: 1px solid var(--line2); color: var(--muted);
+}
+.wsm-hs-tab-on .wsm-hs-tabn { color: var(--ac-text); border-color: var(--ac-tint); }
+.wsm-hs-tabs-r {
+  margin-left: auto; display: flex; align-items: center; gap: 10px; padding: 0 16px;
+  font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; color: var(--muted);
+}
+.wsm-hs-blk { color: var(--sem-fail); }
+
+.wsm-hs-tools {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;
+  padding: 10px 16px; border-bottom: 1px solid var(--line1); background: var(--chrome);
+}
+.wsm-hs-tools input[type="checkbox"] { accent-color: var(--ac); margin: 0; }
+.wsm-hs-tools-r { margin-left: auto; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.wsm-hs-sel { font-size: 12px; font-weight: 800; color: var(--ink); }
+.wsm-hs-clear { appearance: none; border: 0; background: transparent; cursor: pointer; font-family: inherit; font-size: 12px; color: var(--ac-text); }
+.wsm-hs-clear:hover { text-decoration: underline; }
+.wsm-hs-blkchip {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px;
+  box-sizing: border-box; cursor: pointer; font-size: 12px; font-weight: 700;
+  border: 1px solid var(--line1); color: var(--ink2);
+}
+
+.wsm-hs-list { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; overflow: auto; min-height: 0; }
+
+/* The severity edge is the card's left border — the design's one piece of colour per finding. */
+.wsm-hs-card { border: 1px solid var(--line1); border-left: 3px solid var(--line4); background: var(--surf); padding: 12px 14px; }
+.wsm-hs-sev-err { border-left-color: var(--sem-fail); }
+.wsm-hs-sev-warn { border-left-color: var(--ac); }
+.wsm-hs-sev-info { border-left-color: var(--line4); }
+
+.wsm-hs-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.wsm-hs-card-head input[type="checkbox"] { accent-color: var(--ac); margin: 0; }
+.wsm-hs-rule {
+  font-weight: 800; font-size: 13px; letter-spacing: 0.02em; color: var(--ink);
+  display: inline-flex; align-items: center; gap: 7px; min-width: 0; word-break: break-word;
+}
+.wsm-hs-blkmark { color: var(--sem-fail); font-size: 12px; }
+.wsm-hs-card-r { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.wsm-hs-who { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+.wsm-hs-av {
+  display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px;
+  font-size: 8px; font-weight: 800; letter-spacing: 0.04em;
+  background: var(--surf2); color: var(--ink3); border: 1px solid var(--line2);
+}
+.wsm-hs-dec { font-family: inherit; font-size: 11px; padding: 4px 8px; background: var(--chrome); color: var(--ink); border: 1px solid var(--line2); }
+.wsm-hs-sync { font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; padding: 3px 8px; border: 1px solid var(--line2); color: var(--muted); }
+.wsm-hs-sync-synced { color: var(--ink3); }
+.wsm-hs-sync-pending { color: var(--ac-text); border-color: var(--ac-tint); background: var(--ac-tint2); }
+
+.wsm-hs-path { display: block; margin: 7px 0 0; font-size: 11px; color: var(--ac-text); word-break: break-all; }
+.wsm-hs-path:hover { text-decoration: underline; }
+
+.wsm-hs-code {
+  display: flex; gap: 12px; margin-top: 9px; padding: 9px 12px;
+  border: 1px solid var(--line1); background: var(--chrome);
+  font-family: var(--font-mono, ui-monospace, monospace); font-size: 11.5px; color: var(--ink2);
+  overflow-x: auto;
+}
+.wsm-hs-ln { flex: none; color: var(--muted3); font-variant-numeric: tabular-nums; }
+.wsm-hs-code code { white-space: pre-wrap; word-break: break-word; }
+
+.wsm-hs-ok {
+  display: flex; align-items: center; gap: 10px; padding: 18px 16px; font-size: 13px;
+  border: 1px solid var(--line1); background: var(--surf); color: var(--ink2);
+}
+.wsm-hs-ok span { font-weight: 800; color: var(--sem-ok, #4ec9a5); }
+
+/* The code block scrolls on its own; without min-width:0 its content stretches the card, and
+   with it the whole screen, pushing the decision controls off the right edge. */
+.wsm-hs, .wsm-hs-list, .wsm-hs-card { min-width: 0; max-width: 100%; }
+.wsm-hs-code { min-width: 0; max-width: 100%; }
+.wsm-hs-card-head { min-width: 0; }
+.wsm-hs-tabs { overflow-x: auto; }
+
+.wsm-hs-rev .wsm-hs-card-r { gap: 8px; }
+.wsm-hs-revmeta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.wsm-hs-revvs { font-size: 11px; color: var(--muted); }
+.wsm-hs-st-pending { border-left-color: var(--ac); color: var(--ac-text); }
+.wsm-hs-st-approved { border-left-color: var(--sem-ok, #4ec9a5); color: var(--ink3); }
+.wsm-hs-st-changes { border-left-color: var(--sem-fail); color: var(--sem-fail); }

@@ -31,6 +31,7 @@
  */
 
 const conn = require('./connections-service');
+const { findingKey } = require('./hacksaw-review-service');
 
 const SERVICE_KEY = 'zoho-hacksaw';
 
@@ -309,6 +310,8 @@ async function listViolations(req, { product, label, scan, file_type: fileType, 
     limit: limitOf(limit),
     total: block.TOTAL_COUNT || 0,
     violations: (block.VALUES || []).map(v => ({
+      // Stable across builds, unlike VIOLATION_AUTO_ID — this is what a decision is filed under.
+      key: findingKey({ kind: 'violation', product, rule: v.RULE_NAME, file: v.FILE_NAME, snippet: v.SNIPPET }),
       id: v.VIOLATION_AUTO_ID,
       type_specific_id: v.TYPE_SPECIFIC_VIOLATION_AUTO_ID,
       rule: v.RULE_NAME,
@@ -414,6 +417,7 @@ async function listComponents(req, { product, label } = {}) {
   });
 
   const rows = (json.CONTENT || []).map(c => ({
+    key: findingKey({ kind: 'component', product, identifier: mainIdentifier(c) }),
     id: c.COMPONENT_AUTO_ID,
     name: c.NAME,
     version: c.VERSION,
@@ -621,6 +625,7 @@ async function listDiffViolations(req, {
     limit: limitOf(limit),
     total: json.TOTAL_VIOLATIONS_COUNT || 0,
     violations: rows.map(v => ({
+      key: findingKey({ kind: 'violation', product, rule: v.RULE_NAME, file: v.FILE_NAME, snippet: v.SNIPPET }),
       id: v.VIOLATION_AUTO_ID,
       type_specific_id: v.TYPE_SPECIFIC_VIOLATION_AUTO_ID,
       rule: v.RULE_NAME,

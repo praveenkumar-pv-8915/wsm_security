@@ -14,6 +14,7 @@ import CompareDpias from './views/CompareDpias';
 import Ask from './views/Ask';
 import DependencyNotifier from './views/DependencyNotifier';
 import FollowUps from './views/FollowUps';
+import HacksawReviewer from './views/HacksawReviewer';
 import HacksawReport from './views/HacksawReport';
 
 /**
@@ -63,6 +64,7 @@ const GROUPS = [
     key: 'hacksaw',
     label: 'Hacksaw',
     items: [
+      { path: '/hacksaw-reviewer', label: 'Hacksaw Reviewer' },
       { path: '/hacksaw-report', label: 'Hacksaw Report' },
     ],
   },
@@ -90,6 +92,7 @@ const CRUMBS = {
   '/compare-dpias': 'Compliance Manager · Compare vs. DPIA',
   '/ask': 'Compliance Manager · Ask',
   '/dependency-upgrade-notifier': 'VM Manager · Dependency Upgrade notifier',
+  '/hacksaw-reviewer': 'Hacksaw · Hacksaw Reviewer',
   '/hacksaw-report': 'Hacksaw · Hacksaw Report',
   '/follow-ups': 'Follow-ups · Chase list',
   '/connections': 'Settings',
@@ -378,6 +381,7 @@ function Shell({ user: sessionUser }) {
               {path === '/compare-dpias' && <CompareDpias />}
               {path === '/ask' && <Ask />}
               {path === '/dependency-upgrade-notifier' && <DependencyNotifier onNotice={onNotice} />}
+              {path === '/hacksaw-reviewer' && <HacksawReviewer onNotice={onNotice} />}
               {path === '/hacksaw-report' && <HacksawReport onNotice={onNotice} />}
               {path === '/follow-ups' && <FollowUps onNotice={onNotice} />}
             </>

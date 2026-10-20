@@ -40,6 +40,7 @@ const followupNotify = require('./followup-notify-service');
 const scheduler = require('./scheduled-tasks');
 const directory = require('./directory-service');
 const hacksaw = require('./hacksaw-service');
+const hsReview = require('./hacksaw-review-service');
 
 const app = express();
 app.use(express.json({ limit: '256kb' }));
@@ -591,6 +592,36 @@ app.get('/api/hacksaw/violations', wrap(async (req, res) => {
     page: req.query.page,
     limit: req.query.limit,
   }));
+}));
+
+/* -- review state: the team's verdicts, and the review records that group them -------------- */
+
+/** Every recorded verdict, keyed by stable finding key, for the client to merge into its list. */
+app.get('/api/hacksaw/decisions', wrap(async (req, res) => {
+  res.json(await hsReview.listDecisions(req));
+}));
+
+/** One verdict. The client sends the finding's identity; the key is always computed server-side. */
+app.post('/api/hacksaw/decisions', wrap(async (req, res) => {
+  res.json(await hsReview.setDecision(req, req.body || {}));
+}));
+
+/** The same verdict across selected findings — the design's bulk action. */
+app.post('/api/hacksaw/decisions/bulk', wrap(async (req, res) => {
+  res.json(await hsReview.setDecisionsBulk(req, req.body || {}));
+}));
+
+app.get('/api/hacksaw/reviews', wrap(async (req, res) => {
+  res.json(await hsReview.listReviews(req));
+}));
+
+app.post('/api/hacksaw/reviews', wrap(async (req, res) => {
+  res.json(await hsReview.createReview(req, req.body || {}), 201);
+}));
+
+/** Approve / request changes / reopen / claim. */
+app.patch('/api/hacksaw/reviews/:id', wrap(async (req, res) => {
+  res.json(await hsReview.updateReview(req, req.params.id, req.body || {}));
 }));
 
 /** Diff: one build against a base build — the WIP-vs-base view the v7 design is built on. */
