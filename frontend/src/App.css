@@ -3156,3 +3156,83 @@ ul.wsm-conn-sub { margin-top: 0; }
 .wsm-hs-st-pending { border-left-color: var(--ac); color: var(--ac-text); }
 .wsm-hs-st-approved { border-left-color: var(--sem-ok, #4ec9a5); color: var(--ink3); }
 .wsm-hs-st-changes { border-left-color: var(--sem-fail); color: var(--sem-fail); }
+
+/* ── hacksaw reviewer: the v7 review queue table ───────────────────────────── */
+
+.wsm-hsr-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  padding: 10px 18px; border-bottom: 1px solid var(--line1);
+}
+.wsm-hsr-q {
+  flex: 0 1 280px; min-width: 160px; padding: 7px 10px; font-family: inherit; font-size: 13px;
+  background: var(--surf); border: 1px solid var(--line1); color: var(--ink);
+}
+.wsm-hsr-tabs { display: flex; border: 1px solid var(--line1); }
+.wsm-hsr-tab {
+  appearance: none; cursor: pointer; border: 0; background: transparent; color: var(--muted);
+  padding: 6px 11px; font-family: inherit; font-size: 10px; letter-spacing: 0.08em;
+  text-transform: uppercase; font-weight: 700;
+}
+.wsm-hsr-tab-on { background: var(--surf2); color: var(--ink); }
+.wsm-hsr-shown {
+  margin-left: auto; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+}
+
+.wsm-hsr-pane { overflow: auto; min-height: 0; }
+/* The design fixes a minimum so the numeric columns never collapse; the pane scrolls instead. */
+.wsm-hsr-grid { min-width: 1280px; }
+
+.wsm-hsr-head {
+  position: sticky; top: 0; z-index: 3; display: grid; align-items: center;
+  background: var(--chrome); border-bottom: 1px solid var(--line3);
+  font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted);
+}
+.wsm-hsr-head > div { padding: 11px 12px; }
+.wsm-hsr-head > div:first-child { padding-left: 18px; }
+.wsm-hsr-head > div:last-child { padding-right: 18px; }
+
+.wsm-hsr-row {
+  display: grid; align-items: start; cursor: pointer;
+  border-bottom: 1px solid var(--line0);
+}
+.wsm-hsr-row:hover { background: var(--surf); }
+.wsm-hsr-row > div { padding: 14px 12px; min-width: 0; }
+.wsm-hsr-row > div:first-child { padding-left: 18px; }
+.wsm-hsr-row > div:last-child { padding-right: 18px; }
+
+.wsm-hsr-num { text-align: center; border-left: 1px solid var(--line1); font-variant-numeric: tabular-nums; }
+.wsm-hsr-n { font-weight: 800; color: var(--sem-fail); }
+.wsm-hsr-n0 { color: var(--muted3); }
+
+.wsm-hsr-mark {
+  display: inline-grid; place-items: center; width: 18px; height: 18px;
+  font-size: 11px; font-weight: 800; border: 1px solid var(--line3);
+}
+.wsm-hsr-m-pending { color: var(--ac); border-color: var(--ac-tint); background: var(--ac-tint2); }
+.wsm-hsr-m-changes { color: var(--sem-fail); border-color: var(--sem-fail-line, var(--line3)); }
+.wsm-hsr-m-approved { color: var(--sem-ok, #4ec9a5); }
+
+.wsm-hsr-proj { font-weight: 700; font-size: 13px; color: var(--ink); display: flex; flex-direction: column; gap: 3px; }
+.wsm-hsr-id { font-size: 10px; font-weight: 500; color: var(--muted); }
+
+.wsm-hsr-rev { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.wsm-hsr-revn { font-size: 12px; color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wsm-hsr-assign {
+  appearance: none; cursor: pointer; padding: 4px 9px; font-family: inherit;
+  font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700;
+  border: 1px dashed var(--ac); background: transparent; color: var(--ac-text);
+}
+.wsm-hsr-assign:hover { background: var(--ac-tint2); }
+
+.wsm-hsr-repos { display: flex; flex-wrap: wrap; gap: 4px; }
+.wsm-hsr-repo, .wsm-hsr-vs {
+  font-family: var(--font-mono, ui-monospace, monospace); font-size: 10.5px;
+  padding: 3px 7px; border: 1px solid var(--line2); color: var(--ink3);
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.wsm-hsr-vs { border-style: dashed; color: var(--muted); }
+
+.wsm-hsr-sub { font-size: 12px; color: var(--ink2); display: flex; flex-direction: column; gap: 3px; }
+.wsm-hsr-at { font-size: 10px; color: var(--muted); }
+
+.wsm-hsr-detail { padding: 12px 18px 16px; border-bottom: 1px solid var(--line1); background: var(--surf); }

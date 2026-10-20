@@ -125,6 +125,34 @@ async function setDecisionsBulk(req, data = {}) {
   return { success: true, updated: out.length, keys: out.map(o => o.key) };
 }
 
+/**
+ * Catalyst user_id → display name, read live and never stored.
+ *
+ * A review records who raised it and who reviewed it as `user_id`, per the no-PII identity rule
+ * (datastore-conventions.md) — so the screen has an id and needs a name. The Follow-ups build
+ * shipped exactly this bug once already: "a stored ZUID that no screen could resolve to a name"
+ * (CLAUDE.md). Resolution is against Catalyst's own user list, not Cliq, because these are
+ * Catalyst ids; a failure degrades to the id rather than failing the list.
+ */
+async function nameMap(req) {
+  const app = req.catalystAdmin || req.catalystApp;
+  if (!app) return {};
+  try {
+    const users = await app.userManagement().getAllUsers();
+    const out = {};
+    for (const u of users || []) {
+      const id = String(u.user_id || u.zuid || '');
+      if (!id) continue;
+      const name = `${u.first_name || ''} ${u.last_name || ''}`.trim()
+        || String(u.email_id || '').split('@')[0];
+      if (name) out[id] = name;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 /* ------------------------------------------------------------------ review records */
 
 /**
@@ -132,9 +160,15 @@ async function setDecisionsBulk(req, data = {}) {
  * assigned reviewer. This is the unit the v7 "Hacksaw Reviewer" screen lists.
  */
 async function listReviews(req) {
-  const all = await listConfig(req, REVIEWS);
+  const [all, names] = await Promise.all([listConfig(req, REVIEWS), nameMap(req)]);
   const reviews = Object.entries(all)
-    .map(([id, r]) => ({ id, ...r }))
+    .map(([id, r]) => ({
+      id,
+      ...r,
+      // Names are attached per response, never written to the store.
+      raised_by_name: names[String(r.raised_by)] || null,
+      reviewer_name: r.reviewer_id ? (names[String(r.reviewer_id)] || null) : null,
+    }))
     .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
   return {
     success: true,
