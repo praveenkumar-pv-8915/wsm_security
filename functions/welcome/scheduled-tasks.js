@@ -84,6 +84,17 @@ const TASKS = {
       trigger: opts.trigger || 'schedule',
     }),
   },
+
+  hacksaw_review_purge: {
+    label: 'Hacksaw review retention',
+    summary: 'Delete review records closed more than two years ago (threads expire by NoSQL TTL at six months).',
+    // Retention is anchored on the close date (decided 2026-10-20). Data Store has no TTL, so this
+    // is the only thing that enforces the two-year window on the record itself.
+    suggestedCron: '15 2 * * *  (UTC — 07:45 IST)',
+    minIntervalMinutes: 60,
+    leaseMs: 10 * 60 * 1000,
+    run: (ctx, opts) => require('./hacksaw-review-service').purge(ctx, { dryRun: opts.dryRun === true }),
+  },
 };
 
 const taskKeys = () => Object.keys(TASKS);

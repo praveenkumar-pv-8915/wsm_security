@@ -594,34 +594,50 @@ app.get('/api/hacksaw/violations', wrap(async (req, res) => {
   }));
 }));
 
-/* -- review state: the team's verdicts, and the review records that group them -------------- */
-
-/** Every recorded verdict, keyed by stable finding key, for the client to merge into its list. */
-app.get('/api/hacksaw/decisions', wrap(async (req, res) => {
-  res.json(await hsReview.listDecisions(req));
-}));
-
-/** One verdict. The client sends the finding's identity; the key is always computed server-side. */
-app.post('/api/hacksaw/decisions', wrap(async (req, res) => {
-  res.json(await hsReview.setDecision(req, req.body || {}));
-}));
-
-/** The same verdict across selected findings — the design's bulk action. */
-app.post('/api/hacksaw/decisions/bulk', wrap(async (req, res) => {
-  res.json(await hsReview.setDecisionsBulk(req, req.body || {}));
-}));
+/* -- hacksaw reviewer: developer-submitted reviews, threads, AI verdicts ----------------------- */
+/* See hacksaw-review-service.js. Data Store `hacksaw_review` + NoSQL `hacksaw_review_item`;
+   both console-created, and every route answers 424 naming the table until they exist. */
 
 app.get('/api/hacksaw/reviews', wrap(async (req, res) => {
   res.json(await hsReview.listReviews(req));
 }));
 
+/** Body: { title?, repos: [{ product, base_label?, feature_label }] } — the developer creates. */
 app.post('/api/hacksaw/reviews', wrap(async (req, res) => {
-  res.json(await hsReview.createReview(req, req.body || {}), 201);
+  res.status(201).json(await hsReview.createReview(req, req.body || {}));
 }));
 
-/** Approve / request changes / reopen / claim. */
-app.patch('/api/hacksaw/reviews/:id', wrap(async (req, res) => {
-  res.json(await hsReview.updateReview(req, req.params.id, req.body || {}));
+app.get('/api/hacksaw/reviews/:key', wrap(async (req, res) => {
+  res.json(await hsReview.getReview(req, req.params.key));
+}));
+
+/** Body: { finding: {...identity}, finding_key?, body, dev_status?, parent_id? } — dev reply or reviewer response. */
+app.post('/api/hacksaw/reviews/:key/reply', wrap(async (req, res) => {
+  res.json(await hsReview.reply(req, req.params.key, req.body || {}));
+}));
+
+app.post('/api/hacksaw/reviews/:key/submit', wrap(async (req, res) => {
+  res.json(await hsReview.submitReview(req, req.params.key, req.body || {}));
+}));
+
+app.post('/api/hacksaw/reviews/:key/accept', wrap(async (req, res) => {
+  res.json(await hsReview.accept(req, req.params.key, req.body || {}));
+}));
+
+app.post('/api/hacksaw/reviews/:key/claim', wrap(async (req, res) => {
+  res.json(await hsReview.claim(req, req.params.key));
+}));
+
+app.post('/api/hacksaw/reviews/:key/push', wrap(async (req, res) => {
+  res.json(await hsReview.pushToHacksaw(req, req.params.key, req.body || {}));
+}));
+
+app.post('/api/hacksaw/reviews/:key/close', wrap(async (req, res) => {
+  res.json(await hsReview.closeReview(req, req.params.key, req.body || {}));
+}));
+
+app.post('/api/hacksaw/reviews/:key/reopen', wrap(async (req, res) => {
+  res.json(await hsReview.reopenReview(req, req.params.key));
 }));
 
 /** Diff: one build against a base build — the WIP-vs-base view the v7 design is built on. */
@@ -651,6 +667,13 @@ app.get('/api/hacksaw/diff-violations', wrap(async (req, res) => {
     filters,
     page: req.query.page,
     limit: req.query.limit,
+  }));
+}));
+
+/** One finding's Hacksaw history — the developer's exclusion reason lives here. 25/min; on expand only. */
+app.get('/api/hacksaw/activities', wrap(async (req, res) => {
+  res.json(await hacksaw.listActivities(req, {
+    product: req.query.product, violation_id: req.query.violation_id, scan: req.query.scan,
   }));
 }));
 

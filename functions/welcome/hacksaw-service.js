@@ -58,13 +58,12 @@ class RateLimited extends HacksawError {
   }
 }
 
-/** `someone@zohocorp.com` → `someone`. Everything else passes through unchanged. */
-const localPart = (v) => {
-  const s = String(v || '').trim();
-  if (!s || s === 'UNASSIGNED') return s;
-  const at = s.indexOf('@');
-  return at > 0 ? s.slice(0, at) : s;
-};
+/**
+ * Identity as shown on screen. Decided 2026-10-20 (Pk): full address, as the v7 design renders
+ * it — displayed live, never persisted. Earlier this trimmed to the local part; the name is kept
+ * so the one place the rule lives stays obvious.
+ */
+const localPart = (v) => String(v || '').trim();
 
 /**
  * The Hacksaw organisation for this connection. Saved as `default_organisation` in EXTRA_CONFIG
@@ -333,7 +332,9 @@ async function listViolations(req, { product, label, scan, file_type: fileType, 
       is_tracked: v.IS_TRACKED === 'YES' || v.IS_TRACKED === true,
       tags: v.TAGS || [],
       link: v.VIOLATION_LINK || null,
+      // The design's "R.T.E 1/3": remaining temporary exclusions over the limit.
       temporary_exclusions_left: v.REMAINING_TEMPORARY_EXCLUSION_COUNT,
+      temporary_exclusions_limit: v.MAXIMUM_TEMPORARY_EXCLUSION_LIMIT,
     })),
   };
 }
@@ -646,12 +647,50 @@ async function listDiffViolations(req, {
       // Hardcoded-secrets only: the matched secret and its Shannon entropy.
       secret: v.SECRET || null,
       entropy: typeof v.ENTROPY === 'number' ? v.ENTROPY : null,
+      temporary_exclusions_left: v.REMAINING_TEMPORARY_EXCLUSION_COUNT,
+      temporary_exclusions_limit: v.MAXIMUM_TEMPORARY_EXCLUSION_LIMIT,
+    })),
+  };
+}
+
+/* ------------------------------------------------------------------ activity history */
+
+/**
+ * What has happened to one finding in Hacksaw — status changes with the developer's REASON,
+ * assignments, tags. This is the developer's half of the review conversation, read live; the
+ * Reviewer shows it beside the finding so the reviewer sees what was already said in Hacksaw.
+ *
+ * 25/min with a 10-minute lock — the tightest throttle in the module — so it is fetched on expand
+ * for one finding, never for a list.
+ */
+async function listActivities(req, { product, violation_id: violationId, scan } = {}) {
+  if (!product) throw new HacksawError("'product' is required", 400);
+  if (!/^\d+$/.test(String(violationId || ''))) throw new HacksawError("'violation_id' must be numeric", 400);
+  if (!SCANS.includes(scan) && scan !== 'VULNERABLE_COMPONENTS') throw new HacksawError("'scan' is not valid", 400);
+  const organisation = await organisationFor(req);
+  const json = await hsGet(req, '/api/violations', {
+    action: 'fetchactivities', organisation, productname: product, violationautoid: violationId, scan,
+  });
+  const block = (json.DATA || [])[0] || {};
+  return {
+    success: true,
+    summary: block.SUMMARY || {},
+    activities: (block.DETAILS || []).map(a => ({
+      id: a.ACTIVITY_AUTO_ID,
+      type: a.ACTIVITY_TYPE,
+      at: a.DATE,
+      by: a.USER_DETAILS ? { name: a.USER_DETAILS.USER_NAME, email: a.USER_DETAILS.EMAILID } : null,
+      from_status: a.FROM_STATUS || null,
+      to_status: a.TO_STATUS || null,
+      reason: a.REASON || null,
+      action: a.ACTION || null,
+      tags: a.TAGS || null,
     })),
   };
 }
 
 module.exports = {
-  SCANS, FILE_TYPES, PAGE_LIMITS,
+  SCANS, FILE_TYPES, PAGE_LIMITS, listActivities,
   HacksawError, RateLimited,
   listProducts, listReports, getReportStats, listViolations, listViolationFilters,
   listComponents, listComponentVulnerabilities,

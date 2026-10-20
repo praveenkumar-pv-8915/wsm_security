@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { RefreshIcon } from '../lib/icons';
+import HacksawReviewDetail from './HacksawReviewDetail';
 
 /**
  * Hacksaw › Hacksaw Reviewer — the v7 design's `hreview` tool, as a review queue.
@@ -29,16 +30,16 @@ import { RefreshIcon } from '../lib/icons';
 
 const STATUS_TABS = [
   ['all', 'All'],
-  ['pending', 'Pending'],
-  ['changes', 'Changes requested'],
-  ['approved', 'Approved'],
+  ['draft', 'Draft'],
+  ['submitted', 'Pending review'],
+  ['closed', 'Closed'],
 ];
 
 /** The design marks state with a glyph in its own column, not a word. */
 const MARK = {
-  pending: { glyph: '⧗', cls: 'wsm-hsr-m-pending', title: 'Waiting on a reviewer' },
-  changes: { glyph: '✎', cls: 'wsm-hsr-m-changes', title: 'Changes requested before approval' },
-  approved: { glyph: '✓', cls: 'wsm-hsr-m-approved', title: 'Approved' },
+  draft: { glyph: '✎', cls: 'wsm-hsr-m-changes', title: 'Developer is still replying to findings' },
+  submitted: { glyph: '⧗', cls: 'wsm-hsr-m-pending', title: 'Waiting on a reviewer' },
+  closed: { glyph: '✓', cls: 'wsm-hsr-m-approved', title: 'Closed — every finding accepted' },
 };
 
 const SCAN_COLS = [
@@ -60,13 +61,12 @@ export default function HacksawReviewer({ onNotice }) {
   const [error, setError] = useState('');
   const [q, setQ] = useState('');
   const [tab, setTab] = useState('all');
-  const [openId, setOpenId] = useState(null);
-  const [busyId, setBusyId] = useState('');
 
   const [products, setProducts] = useState([]);
-  const [reports, setReports] = useState([]);
-  const [draft, setDraft] = useState({ product: '', label: '', base_label: '' });
+  const [reportsBy, setReportsBy] = useState({});
+  const [repos, setRepos] = useState([]);
   const [adding, setAdding] = useState(false);
+  const [openKey, setOpenKey] = useState(null);
 
   const fail = (err, fallback) => setError(err instanceof ApiError ? err.message : fallback);
 
@@ -81,24 +81,27 @@ export default function HacksawReviewer({ onNotice }) {
         detail: { path: '/hacksaw-reviewer', count: r.pending || 0 },
       }));
 
-      // One diff call per review, sequentially — see the throttle note in the header.
+      // One diff call per repo, sequentially, summed per review — see the throttle note above.
       for (const rev of list) {
-        if (!rev.base_label) continue;
-        try {
-          const p = new URLSearchParams({
-            product: rev.product, label: rev.label, base_label: rev.base_label, diff_type: 'NEW',
-          });
-          const d = await api(`/hacksaw/diff?${p}`);
-          const flat = (d.diff?.scans || []).flatMap((s) => [s, ...(s.subscans || [])]);
-          const by = {};
-          for (const [key] of SCAN_COLS) {
-            const sc = flat.find((s) => s.name === key || s.display === key);
-            by[key] = sc ? (sc.ran ? sc.summary.TOTAL : (sc.uncomparable ? '—' : '·')) : null;
-          }
-          const comp = flat.find((s) => s.display === 'VULNERABLE_COMPONENTS');
-          by.COMPONENTS = comp && comp.ran ? comp.summary.TOTAL : null;
-          setCounts((m) => ({ ...m, [rev.id]: by }));
-        } catch { /* a row without counts still lists; the diff may simply not be comparable */ }
+        const sum = {};
+        for (const rp of rev.repos || []) {
+          if (!rp.base_label) continue;
+          try {
+            const p = new URLSearchParams({
+              product: rp.product, label: rp.feature_label, base_label: rp.base_label, diff_type: 'NEW',
+            });
+            const d = await api(`/hacksaw/diff?${p}`);
+            const flat = (d.diff?.scans || []).flatMap((s) => [s, ...(s.subscans || [])]);
+            for (const [key] of [...SCAN_COLS, ['VULNERABLE_COMPONENTS']]) {
+              const sc = flat.find((s) => s.name === key || s.display === key);
+              const col = key === 'VULNERABLE_COMPONENTS' ? 'COMPONENTS' : key;
+              if (!sc) continue;
+              if (sc.ran) sum[col] = (typeof sum[col] === 'number' ? sum[col] : 0) + sc.summary.TOTAL;
+              else if (sum[col] === undefined) sum[col] = sc.uncomparable ? '—' : '·';
+            }
+          } catch { /* a repo without counts still lists */ }
+        }
+        setCounts((m) => ({ ...m, [rev.key]: sum }));
       }
     } catch (err) {
       setStatus('error'); fail(err, 'Could not load reviews.');
@@ -113,58 +116,44 @@ export default function HacksawReviewer({ onNotice }) {
     (async () => {
       try {
         const r = await api('/hacksaw/products');
-        if (!live) return;
-        setProducts(r.products || []);
-        setDraft((d) => ({ ...d, product: d.product || (r.products || [])[0]?.name || '' }));
+        if (live) setProducts(r.products || []);
       } catch (err) { if (live) fail(err, 'Could not reach Hacksaw.'); }
     })();
     return () => { live = false; };
   }, [adding]);
 
-  useEffect(() => {
-    if (!adding || !draft.product) return undefined;
-    let live = true;
-    (async () => {
-      try {
-        const r = await api(`/hacksaw/reports?product=${encodeURIComponent(draft.product)}&limit=50`);
-        if (!live) return;
-        const list = r.reports || [];
-        setReports(list);
-        setDraft((d) => ({ ...d, label: (list[0] || {}).label || '', base_label: (list[1] || {}).label || '' }));
-      } catch (err) { if (live) fail(err, 'Could not list reports.'); }
-    })();
-    return () => { live = false; };
-  }, [adding, draft.product]);
+  const reportsFor = useCallback(async (product) => {
+    if (!product || reportsBy[product]) return;
+    try {
+      const r = await api(`/hacksaw/reports?product=${encodeURIComponent(product)}&limit=50`);
+      setReportsBy((m) => ({ ...m, [product]: r.reports || [] }));
+    } catch (err) { fail(err, 'Could not list reports.'); }
+  }, [reportsBy]);
+
+  const addRepo = () => {
+    const product = products[0]?.name || '';
+    setRepos((list) => [...list, { product, feature_label: '', base_label: '' }]);
+    reportsFor(product);
+  };
+  const setRepo = (i, patch) => setRepos((list) => list.map((r, j) => (j === i ? { ...r, ...patch } : r)));
 
   const create = async () => {
-    if (!draft.product || !draft.label) return;
+    const ready = repos.filter((r) => r.product && r.feature_label);
+    if (!ready.length) return;
     try {
-      await api('/hacksaw/reviews', { method: 'POST', body: draft });
-      setAdding(false); onNotice?.('Review raised.'); await load();
-    } catch (err) { fail(err, 'Could not raise the review.'); }
-  };
-
-  const decide = async (rev, next) => {
-    setBusyId(rev.id);
-    try {
-      await api(`/hacksaw/reviews/${encodeURIComponent(rev.id)}`, { method: 'PATCH', body: { status: next } });
-      onNotice?.(next === 'approved' ? `${rev.id} approved.` : `${rev.id} sent back for changes.`);
+      await api('/hacksaw/reviews', { method: 'POST', body: { repos: ready } });
+      setAdding(false); setRepos([]);
+      onNotice?.('Review created — reply to each finding, then submit it.');
       await load();
-    } catch (err) { fail(err, 'Could not update the review.'); } finally { setBusyId(''); }
-  };
-
-  const claim = async (rev) => {
-    try {
-      await api(`/hacksaw/reviews/${encodeURIComponent(rev.id)}`, { method: 'PATCH', body: { claim: true } });
-      await load();
-    } catch (err) { fail(err, 'Could not assign the review.'); }
+    } catch (err) { fail(err, 'Could not create the review.'); }
   };
 
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return reviews.filter((r) => (
-      (tab === 'all' || (r.status || 'pending') === tab)
-      && (!needle || [r.id, r.product, r.label, r.reviewer_name, r.raised_by_name, r.reviewer_id, r.raised_by]
+      (tab === 'all' || (r.status || 'draft') === tab)
+      && (!needle || [r.key, r.title, r.reviewer_person?.email, r.reviewer_person?.name, r.raised_by_person?.email,
+        r.raised_by_person?.name, ...(r.repos || []).flatMap((p) => [p.product, p.feature_label])]
         .some((x) => String(x || '').toLowerCase().includes(needle)))
     ));
   }, [reviews, q, tab]);
@@ -174,6 +163,12 @@ export default function HacksawReviewer({ onNotice }) {
     : v === '—' ? <span className="wsm-hsr-n0" title="The base build never ran this scan">—</span>
       : v === 0 ? <span className="wsm-hsr-n0">0</span>
         : <span className="wsm-hsr-n">{v}</span>);
+
+  if (openKey) {
+    return (
+      <HacksawReviewDetail reviewKey={openKey} onBack={() => setOpenKey(null)} onNotice={onNotice} onChanged={load} />
+    );
+  }
 
   return (
     <div className="wsm-hs">
@@ -194,37 +189,52 @@ export default function HacksawReviewer({ onNotice }) {
           <RefreshIcon />
         </button>
         <button type="button" className="btn btn-primary" onClick={() => setAdding((a) => !a)}>
-          {adding ? 'Cancel' : 'Raise a review'}
+          {adding ? 'Cancel' : 'New review'}
         </button>
       </div>
 
       {adding && (
-        <div className="wsm-hs-tools">
-          <label className="wsm-dms-filter">
-            <span className="wsm-label">Project</span>
-            <select className="wsm-dms-select-on" value={draft.product}
-                    onChange={(e) => setDraft((d) => ({ ...d, product: e.target.value }))}>
-              {products.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
-            </select>
-          </label>
-          <label className="wsm-dms-filter">
-            <span className="wsm-label">Build</span>
-            <select className="wsm-dms-select-on" value={draft.label}
-                    onChange={(e) => setDraft((d) => ({ ...d, label: e.target.value }))}>
-              {reports.map((r) => <option key={r.label} value={r.label}>{r.label}</option>)}
-            </select>
-          </label>
-          <label className="wsm-dms-filter">
-            <span className="wsm-label">Base</span>
-            <select className={draft.base_label ? 'wsm-dms-select-on' : ''} value={draft.base_label}
-                    onChange={(e) => setDraft((d) => ({ ...d, base_label: e.target.value }))}>
-              <option value="">none</option>
-              {reports.filter((r) => r.label !== draft.label).map((r) => (
-                <option key={r.label} value={r.label}>{r.label}</option>
-              ))}
-            </select>
-          </label>
-          <button type="button" className="btn btn-primary" onClick={create}>Raise</button>
+        <div className="wsm-hsr-new">
+          {repos.map((rp, i) => {
+            const reps = reportsBy[rp.product] || [];
+            return (
+              <div key={i} className="wsm-hs-tools">
+                <label className="wsm-dms-filter">
+                  <span className="wsm-label">Repo</span>
+                  <select className="wsm-dms-select-on" value={rp.product}
+                          onChange={(e) => { setRepo(i, { product: e.target.value, feature_label: '', base_label: '' }); reportsFor(e.target.value); }}>
+                    {products.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+                  </select>
+                </label>
+                <label className="wsm-dms-filter">
+                  <span className="wsm-label">Feature build</span>
+                  <select className={rp.feature_label ? 'wsm-dms-select-on' : ''} value={rp.feature_label}
+                          onChange={(e) => setRepo(i, { feature_label: e.target.value })}>
+                    <option value="">choose…</option>
+                    {reps.map((r) => <option key={r.label} value={r.label}>{r.label}</option>)}
+                  </select>
+                </label>
+                <label className="wsm-dms-filter">
+                  <span className="wsm-label">Base build</span>
+                  <select className={rp.base_label ? 'wsm-dms-select-on' : ''} value={rp.base_label}
+                          onChange={(e) => setRepo(i, { base_label: e.target.value })}>
+                    <option value="">none (whole build)</option>
+                    {reps.filter((r) => r.label !== rp.feature_label).map((r) => (
+                      <option key={r.label} value={r.label}>{r.is_deployed ? '● deployed — ' : ''}{r.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <button type="button" className="wsm-hs-clear" onClick={() => setRepos((l) => l.filter((_, j) => j !== i))}>Remove</button>
+              </div>
+            );
+          })}
+          <div className="wsm-hs-tools">
+            <button type="button" className="btn btn-small" onClick={addRepo} disabled={!products.length}>+ Add repo</button>
+            <span className="hint">Each repo compares a feature build against a base build; the review covers them together.</span>
+            <button type="button" className="btn btn-primary" onClick={create} disabled={!repos.some((r) => r.product && r.feature_label)}>
+              Create review
+            </button>
+          </div>
         </div>
       )}
 
@@ -243,75 +253,57 @@ export default function HacksawReviewer({ onNotice }) {
           </div>
 
           {shown.map((r) => {
-            const st = r.status || 'pending';
-            const mk = MARK[st] || MARK.pending;
-            const n = counts[r.id] || {};
-            const open = openId === r.id;
+            const st = r.status || 'draft';
+            const mk = MARK[st] || MARK.draft;
+            const n = counts[r.key] || {};
+            const rev = r.reviewer_person;
             return (
-              <div key={r.id}>
+              <div key={r.key}>
                 <div
                   className="wsm-hsr-row"
                   style={{ gridTemplateColumns: COLS }}
                   role="button"
                   tabIndex={0}
-                  onClick={() => setOpenId(open ? null : r.id)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpenId(open ? null : r.id); } }}
+                  onClick={() => setOpenKey(r.key)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpenKey(r.key); } }}
                 >
                   <div><span className={`wsm-hsr-mark ${mk.cls}`} title={mk.title}>{mk.glyph}</span></div>
-                  <div className="wsm-hsr-proj">{r.product}<span className="wsm-hsr-id">{r.id}</span></div>
+                  <div className="wsm-hsr-proj">{r.title}<span className="wsm-hsr-id">{r.key}</span></div>
                   <div onClick={(e) => e.stopPropagation()}>
                     {r.reviewer_id ? (
                       <span className="wsm-hsr-rev">
-                        <span className="wsm-hs-av">{initialsOf(r.reviewer_name || r.reviewer_id)}</span>
-                        <span className="wsm-hsr-revn" title={r.reviewer_name || r.reviewer_id}>
-                          {r.reviewer_name || r.reviewer_id}
-                        </span>
+                        <span className="wsm-hs-av">{initialsOf(rev?.name || rev?.email || r.reviewer_id)}</span>
+                        <span className="wsm-hsr-revn" title={rev?.email || r.reviewer_id}>{rev?.email || rev?.name || r.reviewer_id}</span>
                       </span>
+                    ) : r.role?.is_reviewer && st === 'submitted' ? (
+                      <button type="button" className="wsm-hsr-assign" onClick={() => claim(r)}>+ Assign me</button>
                     ) : (
-                      <button type="button" className="wsm-hsr-assign" onClick={() => claim(r)}>+ Assign</button>
+                      <span className="wsm-hsr-n0">—</span>
                     )}
                   </div>
                   <div className="wsm-hsr-repos">
-                    <span className="wsm-hsr-repo" title={r.label}>{r.label}</span>
-                    {r.base_label && <span className="wsm-hsr-vs" title={r.base_label}>vs {r.base_label}</span>}
+                    {(r.repos || []).map((rp) => (
+                      <span key={`${rp.product}|${rp.feature_label}`} className="wsm-hsr-repo"
+                            title={rp.base_label ? `${rp.feature_label} vs ${rp.base_label}` : rp.feature_label}>
+                        {rp.product}
+                      </span>
+                    ))}
                   </div>
                   {SCAN_COLS.map(([k]) => <div key={k} className="wsm-hsr-num">{cell(n[k])}</div>)}
                   <div className="wsm-hsr-num">{cell(n.COMPONENTS)}</div>
                   <div className="wsm-hsr-sub">
-                    {r.raised_by_name || r.raised_by}
-                    <span className="wsm-hsr-at">{new Date(r.created_at).toLocaleString()}</span>
+                    {r.raised_by_person?.email || r.raised_by_person?.name || r.raised_by}
+                    <span className="wsm-hsr-at">{r.submitted_on ? `submitted ${r.submitted_on}` : (r.created_at ? `created ${String(r.created_at).slice(0, 16)}` : '')}</span>
                   </div>
                 </div>
 
-                {open && (
-                  <div className="wsm-hsr-detail">
-                    <div className="wsm-hs-card-head">
-                      <span className="wsm-hs-rule">{r.id} · {r.product}</span>
-                      <span className="wsm-hs-card-r">
-                        <button type="button" className="btn btn-small" disabled={busyId === r.id}
-                                onClick={() => decide(r, 'changes')}>Request changes</button>
-                        <button type="button" className="btn btn-primary btn-small" disabled={busyId === r.id}
-                                onClick={() => decide(r, 'approved')}>Approve</button>
-                      </span>
-                    </div>
-                    <p className="hint">
-                      {r.base_label
-                        ? `${r.label} against ${r.base_label}.`
-                        : `${r.label} — no base build, so there is nothing to compare.`}
-                    </p>
-                    <p className="hint">
-                      Comment threads and the per-finding AI verdict attach here once the three
-                      review tables exist in the Catalyst console.
-                    </p>
-                  </div>
-                )}
               </div>
             );
           })}
 
           {status === 'ok' && shown.length === 0 && (
             <p className="wsm-empty">
-              {reviews.length === 0 ? 'No reviews yet. Raise one against a build to start.' : 'No reviews match this search or filter.'}
+              {reviews.length === 0 ? 'No reviews yet. Create one from a feature build to start.' : 'No reviews match this search or filter.'}
             </p>
           )}
           {status === 'loading' && <p className="wsm-empty">Loading…</p>}

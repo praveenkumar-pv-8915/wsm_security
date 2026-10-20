@@ -19,11 +19,9 @@ import { RefreshIcon } from '../lib/icons';
  * picker is kept from the earlier build: choosing one switches the whole screen to Hacksaw's
  * diff report (new / recurring / fixed). "Whole report" turns the diff off.
  *
- * **Sync means something different here.** The design shows SYNCED / SYNC · PENDING against each
- * finding. This app has no Hacksaw write scopes, so it cannot push anything. The chip therefore
- * reports whether the team's recorded decision already MATCHES Hacksaw's own status: `synced`
- * when it does, `pending` when someone still has to make that change in Hacksaw itself. That is
- * the only honest reading of the design in a read-only app — see hacksaw-review-service.js.
+ * **No review state here.** Replies, AI verdicts and accept/respond belong to Hacksaw Reviewer and
+ * its own tables (decided 2026-10-20). A finding card on this screen shows Hacksaw's own status
+ * and its remaining temporary exclusions (the design's "R.T.E 1/3"); it records nothing.
  */
 
 const CATEGORIES = [
@@ -34,7 +32,6 @@ const CATEGORIES = [
   { key: 'RUNTIME_CODE_VIOLATIONS', label: 'IAST' },
 ];
 
-const DECISIONS = ['Open', 'Needs fix', 'False positive', 'Temporarily excluded', 'Permanently excluded'];
 const FILE_TYPES = ['java', 'js', 'python', 'clang'];
 
 const sevClass = (p) => (p === 'ERROR' ? 'wsm-hs-sev-err' : p === 'WARNING' ? 'wsm-hs-sev-warn' : 'wsm-hs-sev-info');
@@ -68,12 +65,10 @@ export default function HacksawReport({ onNotice }) {
   const [stats, setStats] = useState(null);
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
-  const [decisions, setDecisions] = useState({});
   const [picked, setPicked] = useState({});
   const [q, setQ] = useState('');
   const [fSev, setFSev] = useState('All');
   const [fHs, setFHs] = useState('All');
-  const [fSync, setFSync] = useState('All');
   const [blockingOnly, setBlockingOnly] = useState(false);
 
   const [busy, setBusy] = useState(false);
@@ -151,17 +146,6 @@ export default function HacksawReport({ onNotice }) {
     return () => { live = false; };
   }, [product, label, baseLabel, diffing, diffCategory]);
 
-  useEffect(() => {
-    let live = true;
-    (async () => {
-      try {
-        const r = await api('/hacksaw/decisions');
-        if (live) setDecisions(r.decisions || {});
-      } catch { /* the list still works without recorded verdicts */ }
-    })();
-    return () => { live = false; };
-  }, []);
-
   /** One normalised row shape, whatever endpoint produced it. */
   const normalise = useCallback((v, kind) => (kind === 'component'
     ? {
@@ -170,7 +154,7 @@ export default function HacksawReport({ onNotice }) {
       snippet: v.identifier, priority: v.is_blocked ? 'ERROR' : 'WARNING',
       hacksaw_status: v.status, blocked: v.is_blocked, assignee: v.assignee,
       link: null, extra: `${v.vulnerability_count} CVE${v.vulnerability_count === 1 ? '' : 's'}`,
-      identifier: v.identifier,
+      identifier: v.identifier, rte: null,
     }
     : {
       key: v.key, id: v.id, kind: 'violation',
@@ -178,6 +162,7 @@ export default function HacksawReport({ onNotice }) {
       snippet: v.snippet, priority: v.priority,
       hacksaw_status: v.status, blocked: v.is_blocked, assignee: v.assignee,
       link: v.link, extra: null,
+      rte: v.temporary_exclusions_limit ? `${v.temporary_exclusions_left}/${v.temporary_exclusions_limit}` : null,
     }), []);
 
   const load = useCallback(async () => {
@@ -220,30 +205,19 @@ export default function HacksawReport({ onNotice }) {
 
   useEffect(() => { load(); }, [load]);
 
-  /** Hacksaw's status vs ours — the design's sync chip, read-only (see the header comment). */
-  const syncOf = useCallback((r) => {
-    const d = decisions[r.key];
-    if (!d) return 'none';
-    const hs = String(r.hacksaw_status || '').toUpperCase().replace(/\s+/g, '_');
-    const mine = String(d.decision).toUpperCase().replace(/\s+/g, '_');
-    if (mine === 'NEEDS_FIX') return hs === 'OPEN' ? 'synced' : 'pending';
-    return hs === mine ? 'synced' : 'pending';
-  }, [decisions]);
-
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((r) => (
       (!needle || [r.rule, r.file, r.snippet].some((x) => String(x || '').toLowerCase().includes(needle)))
       && (fSev === 'All' || r.priority === fSev)
       && (fHs === 'All' || r.hacksaw_status === fHs)
-      && (fSync === 'All' || syncOf(r) === fSync.toLowerCase())
       && (!blockingOnly || r.blocked)
     ));
-  }, [rows, q, fSev, fHs, fSync, blockingOnly, syncOf]);
+  }, [rows, q, fSev, fHs, blockingOnly]);
 
   const pickedKeys = Object.keys(picked).filter((k) => picked[k]);
   const allPicked = shown.length > 0 && shown.every((r) => picked[r.key]);
-  const filtersOn = Boolean(q || fSev !== 'All' || fHs !== 'All' || fSync !== 'All' || blockingOnly);
+  const filtersOn = Boolean(q || fSev !== 'All' || fHs !== 'All' || blockingOnly);
 
   const countFor = useCallback((catKey) => {
     const all = (stats?.scans || []).flatMap((s) => [s, ...(s.subscans || [])]);
@@ -252,32 +226,6 @@ export default function HacksawReport({ onNotice }) {
     if (!sc.ran) return sc.uncomparable ? '—' : '·';
     return diffing ? sc.summary.TOTAL : sc.summary.OPEN;
   }, [stats, diffing]);
-
-  const decide = async (r, decision) => {
-    try {
-      const body = {
-        kind: r.kind, product, decision, report_label: label,
-        ...(r.kind === 'component' ? { identifier: r.identifier } : { rule: r.rule, file: r.file, snippet: r.snippet }),
-      };
-      const res = await api('/hacksaw/decisions', { method: 'POST', body });
-      setDecisions((m) => ({ ...m, [res.key]: res.decision }));
-    } catch (err) { fail(err, 'Could not record that decision.'); }
-  };
-
-  const decideBulk = async (decision) => {
-    const items = shown.filter((r) => picked[r.key]).map((r) => ({
-      kind: r.kind, product, report_label: label,
-      ...(r.kind === 'component' ? { identifier: r.identifier } : { rule: r.rule, file: r.file, snippet: r.snippet }),
-    }));
-    if (!items.length) return;
-    try {
-      await api('/hacksaw/decisions/bulk', { method: 'POST', body: { findings: items, decision } });
-      const r = await api('/hacksaw/decisions');
-      setDecisions(r.decisions || {});
-      setPicked({});
-      onNotice?.(`${items.length} finding${items.length === 1 ? '' : 's'} marked “${decision}”.`);
-    } catch (err) { fail(err, 'Bulk update failed.'); }
-  };
 
   const blocking = shown.filter((r) => r.blocked).length;
 
@@ -337,14 +285,13 @@ export default function HacksawReport({ onNotice }) {
             <Picker label="Severity" value={fSev} onChange={setFSev} options={['All', 'ERROR', 'WARNING', 'INFO']} />
             <Picker label="Hacksaw" value={fHs} onChange={setFHs}
                     options={['All', ...Array.from(new Set(rows.map((r) => r.hacksaw_status).filter(Boolean)))]} />
-            <Picker label="Sync" value={fSync} onChange={setFSync} options={['All', 'Synced', 'Pending', 'None']} />
             <label className={`wsm-hs-blkchip${blockingOnly ? ' wsm-chipbtn-on' : ''}`}>
               <input type="checkbox" checked={blockingOnly} onChange={(e) => setBlockingOnly(e.target.checked)} />
               Blocking only
             </label>
             {filtersOn && (
               <button type="button" className="wsm-hs-clear"
-                      onClick={() => { setQ(''); setFSev('All'); setFHs('All'); setFSync('All'); setBlockingOnly(false); }}>
+                      onClick={() => { setQ(''); setFSev('All'); setFHs('All'); setBlockingOnly(false); }}>
                 Clear
               </button>
             )}
@@ -352,9 +299,7 @@ export default function HacksawReport({ onNotice }) {
         ) : (
           <>
             <span className="wsm-hs-sel">{pickedKeys.length} selected</span>
-            {['False positive', 'Permanently excluded', 'Needs fix'].map((d) => (
-              <button key={d} type="button" className="btn btn-small" onClick={() => decideBulk(d)}>{d}</button>
-            ))}
+            <span className="hint">Decisions are made in Hacksaw Reviewer — this screen records nothing.</span>
             <button type="button" className="wsm-hs-clear" onClick={() => setPicked({})}>Clear selection</button>
           </>
         )}
@@ -365,8 +310,6 @@ export default function HacksawReport({ onNotice }) {
 
       <div className="wsm-hs-list">
         {shown.map((r) => {
-          const d = decisions[r.key];
-          const sync = syncOf(r);
           return (
             <div key={r.key} className={`wsm-hs-card ${sevClass(r.priority)}`}>
               <div className="wsm-hs-card-head">
@@ -381,13 +324,10 @@ export default function HacksawReport({ onNotice }) {
                     <span className="wsm-hs-av">{initialsOf(r.assignee)}</span>
                     {r.assignee && r.assignee !== 'UNASSIGNED' ? r.assignee : 'unassigned'}
                   </span>
-                  <select className="wsm-hs-dec" value={d?.decision || 'Open'}
-                          onChange={(e) => decide(r, e.target.value)} aria-label={`Decision for ${r.rule}`}>
-                    {DECISIONS.map((x) => <option key={x} value={x}>{x}</option>)}
-                  </select>
-                  <span className={`wsm-hs-sync wsm-hs-sync-${sync}`}>
-                    {sync === 'synced' ? '⟳ Synced' : sync === 'pending' ? '⟳ Sync · pending' : '—'}
+                  <span className={`wsm-hs-sync${r.hacksaw_status === 'OPEN' ? ' wsm-hs-sync-pending' : ''}`}>
+                    {String(r.hacksaw_status || '—').replace(/_/g, ' ').toLowerCase()}
                   </span>
+                  {r.rte && <span className="wsm-hs-sync" title="Remaining temporary exclusions">R.T.E {r.rte}</span>}
                 </span>
               </div>
 
