@@ -46,6 +46,11 @@ Treat `functions/welcome` + `frontend` as the thing that's actually running.
   - Deliberately not exposed: `login`/`logout`/`token:*`, `functions:delete`, `client:delete`,
     `project:reset`, `iac:import`, `serve`, `init`. Don't work around those by shelling out.
   - There is no Catalyst CLI or API for function **logs** — read them in the console.
+- **Deploy is also reachable from any session with the `zoho-connections` MCP** (the
+  agent-knowledge-kit server, registered globally):
+  `run_script(service="zoho-catalyst", script="deploy", args=[...], timeout_sec=600)`.
+  Same `deploy.sh` underneath, same flags; always pass `timeout_sec=600` (the server's ceiling,
+  10 minutes instead of the `catalyst-cli` server's 15).
 - **The MCP is registered in `.mcp.json`, which is a Claude Code, repo-scoped mechanism.** It is
   picked up by a Claude Code session started inside this repo. It is **not** visible to a Cowork /
   desktop-app session reaching this Mac over the device bridge, and it is not visible to a session
