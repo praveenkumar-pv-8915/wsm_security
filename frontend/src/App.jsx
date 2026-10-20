@@ -14,6 +14,7 @@ import CompareDpias from './views/CompareDpias';
 import Ask from './views/Ask';
 import DependencyNotifier from './views/DependencyNotifier';
 import FollowUps from './views/FollowUps';
+import HacksawViolations from './views/HacksawViolations';
 
 /**
  * App shell — rail, top bar and the route switch. Everything below AuthGate can assume a
@@ -58,6 +59,13 @@ const GROUPS = [
       { path: '/dependency-upgrade-notifier', label: 'Dependency Upgrade notifier' },
     ],
   },
+  {
+    key: 'hacksaw',
+    label: 'Hacksaw',
+    items: [
+      { path: '/hacksaw-violations', label: 'Code Violation Review' },
+    ],
+  },
 ];
 
 const SETTINGS_TABS = [
@@ -82,6 +90,7 @@ const CRUMBS = {
   '/compare-dpias': 'Compliance Manager · Compare vs. DPIA',
   '/ask': 'Compliance Manager · Ask',
   '/dependency-upgrade-notifier': 'VM Manager · Dependency Upgrade notifier',
+  '/hacksaw-violations': 'Hacksaw · Code Violation Review',
   '/follow-ups': 'Follow-ups · Chase list',
   '/connections': 'Settings',
   '/compliance-config': 'Settings',
@@ -369,6 +378,7 @@ function Shell({ user: sessionUser }) {
               {path === '/compare-dpias' && <CompareDpias />}
               {path === '/ask' && <Ask />}
               {path === '/dependency-upgrade-notifier' && <DependencyNotifier onNotice={onNotice} />}
+              {path === '/hacksaw-violations' && <HacksawViolations onNotice={onNotice} />}
               {path === '/follow-ups' && <FollowUps onNotice={onNotice} />}
             </>
           )}

@@ -39,6 +39,7 @@ const followups = require('./followup-service');
 const followupNotify = require('./followup-notify-service');
 const scheduler = require('./scheduled-tasks');
 const directory = require('./directory-service');
+const hacksaw = require('./hacksaw-service');
 
 const app = express();
 app.use(express.json({ limit: '256kb' }));
@@ -544,6 +545,60 @@ app.post('/api/scheduler/tasks/:key/run', wrap(async (req, res) => {
     task: req.params.key,
     dryRun: body.dry_run === true,
     force: body.force === true,
+  }));
+}));
+
+/* ------------------------------------------------------------------ hacksaw */
+
+/**
+ * Hacksaw — read-only. See claude/hacksaw-module-design.md and hacksaw-service.js.
+ *
+ * Two things are deliberately absent from every signature here: a path and an organisation. The
+ * service builds the path from a literal and reads the org from the connection's saved config, so
+ * a caller can neither proxy arbitrary Hacksaw endpoints nor read an org this team does not own.
+ *
+ * These throw rather than return a result object; the error handler at the foot of this file
+ * honours `status`, which is how a Hacksaw rate-limit reaches the browser as a 429 saying so.
+ */
+app.get('/api/hacksaw/products', wrap(async (req, res) => {
+  res.json(await hacksaw.listProducts(req, { ownership: req.query.ownership }));
+}));
+
+app.get('/api/hacksaw/reports', wrap(async (req, res) => {
+  res.json(await hacksaw.listReports(req, {
+    product: req.query.product, page: req.query.page, limit: req.query.limit,
+  }));
+}));
+
+app.get('/api/hacksaw/report', wrap(async (req, res) => {
+  res.json(await hacksaw.getReportStats(req, { product: req.query.product, label: req.query.label }));
+}));
+
+/** `filters` arrives as a JSON string; a malformed one is a 400, not a silent no-filter result. */
+app.get('/api/hacksaw/violations', wrap(async (req, res) => {
+  let filters;
+  if (req.query.filters) {
+    try { filters = JSON.parse(req.query.filters); } catch {
+      const e = new Error("'filters' must be a JSON object"); e.status = 400; throw e;
+    }
+  }
+  res.json(await hacksaw.listViolations(req, {
+    product: req.query.product,
+    label: req.query.label,
+    scan: req.query.scan,
+    file_type: req.query.file_type,
+    filters,
+    page: req.query.page,
+    limit: req.query.limit,
+  }));
+}));
+
+app.get('/api/hacksaw/violation-filters', wrap(async (req, res) => {
+  res.json(await hacksaw.listViolationFilters(req, {
+    product: req.query.product,
+    label: req.query.label,
+    scan: req.query.scan,
+    file_type: req.query.file_type,
   }));
 }));
 

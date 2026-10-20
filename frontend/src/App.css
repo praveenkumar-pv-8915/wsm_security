@@ -2926,3 +2926,73 @@ ul.wsm-conn-sub { margin-top: 0; }
   .wsm-conn-main { grid-template-columns: minmax(0, 1fr); }
   .wsm-conn-right { justify-content: flex-start; }
 }
+
+/* ── hacksaw › code violation review ──────────────────────────────────────── */
+/* Phase 1 of the Hacksaw module. Reuses the DMS table vocabulary (.wsm-dms-*) for the list and
+   adds only what that pattern has no equivalent for: the per-scan header strip, the expanded
+   finding, and the pager. */
+
+.wsm-hs-scans {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 0 14px 10px;
+}
+
+.wsm-hs-note {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.wsm-hs-filters { padding-top: 0; }
+
+.wsm-hs-row { cursor: pointer; }
+
+/* The file path is the one column that routinely overflows — clip from the left so the file name
+   stays readable and the package prefix is what goes. */
+.wsm-hs-file {
+  direction: rtl;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wsm-hs-detail {
+  padding: 10px 16px 14px;
+  border-bottom: 1px solid var(--line1);
+  background: var(--surf);
+}
+
+.wsm-hs-snippet {
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  background: var(--chrome);
+  color: var(--ink2);
+  font-size: 12px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.wsm-hs-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.wsm-hs-pager {
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.wsm-hs-prio {
+  display: inline-block;
+  white-space: nowrap;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}

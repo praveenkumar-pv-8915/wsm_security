@@ -1099,5 +1099,5 @@ module.exports = {
   startOAuth, startBulkOAuth, handleCallback, reauthorize, saveStaticToken, saveRefreshToken,
   revokeConnection,
   runFetch, setExtraConfig, chatCompletion, AiUnavailable,
-  resolveCredential, getAccessToken, callConnection,
+  resolveCredential, getAccessToken, callConnection, parseExtraConfig,
 };
