@@ -304,7 +304,9 @@ export default function Connections({ user, onNotice }) {
           service_key: service.key,
           dc: field(service.key, 'dc') || service.default_dc,
           client_id: field(service.key, 'client_id').trim(),
-          client_secret: field(service.key, 'client_secret'),
+          // Trimmed like the others: a copied secret often carries a trailing newline,
+          // and Zoho answers `invalid_code` for it with no hint that whitespace is the cause.
+          client_secret: field(service.key, 'client_secret').trim(),
           scope_level: field(service.key, 'scope_level') || 'user',
           ...(extraConfig ? { extra_config: extraConfig } : {}),
         },
@@ -327,7 +329,7 @@ export default function Connections({ user, onNotice }) {
         body: {
           service_key: service.key,
           dc: field(service.key, 'dc') || service.default_dc,
-          token: field(service.key, 'token'),
+          token: field(service.key, 'token').trim(),
           scope_level: field(service.key, 'scope_level') || 'user',
         },
       });
@@ -361,7 +363,9 @@ export default function Connections({ user, onNotice }) {
           service_key: service.key,
           dc: field(service.key, 'dc') || service.default_dc,
           client_id: field(service.key, 'client_id').trim(),
-          client_secret: field(service.key, 'client_secret'),
+          // Trimmed like the others: a copied secret often carries a trailing newline,
+          // and Zoho answers `invalid_code` for it with no hint that whitespace is the cause.
+          client_secret: field(service.key, 'client_secret').trim(),
           refresh_token: field(service.key, 'refresh_token').trim(),
           scope_level: field(service.key, 'scope_level') || 'user',
           ...(extraConfig ? { extra_config: extraConfig } : {}),
@@ -823,6 +827,12 @@ export default function Connections({ user, onNotice }) {
                       </label>
                     )}
                   </div>
+
+                  {/* The page-level banner sits far above an expanded card, so a failure here used to
+                      scroll out of sight and the button looked dead. Repeat it where the click was. */}
+                  {error && openKey === service.key && (
+                    <div className="banner banner-err" role="alert">{error}</div>
+                  )}
 
                   <div className="form-foot">
                     {(() => {
