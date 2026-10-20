@@ -503,9 +503,152 @@ async function listComponentVulnerabilities(req, { product, label, component_id:
   return { success: true, product, label, component_id: componentId, total: rows.length, vulnerabilities: rows };
 }
 
+
+/* ------------------------------------------------------------------ diff reports (WIP vs base) */
+
+/** What a diff asks about: findings NEW in the WIP build, still RECURRING, or FIXED since base. */
+const DIFF_CATEGORIES = ['NEW', 'RECURRING', 'FIXED'];
+
+/**
+ * Statistics for one build compared against a base build.
+ *
+ * This is the endpoint the v7 design is built on — "scan findings new in WIP vs base". It was
+ * listed as unverified in the design doc (the docs disagree on its action parameter); verified
+ * working 2026-10-20 against Logs360cloud, pre-release-13.3 vs the Oct 16 deployed build.
+ *
+ * A scan can FAIL here for a reason that is not a failure of this build: `ZHE403
+ * SCAN_RESULT_NOT_AVAILABLE_IN_COMPARED_REPORT` means the BASE never ran that scan, so there is
+ * nothing to compare. That is surfaced as its own state — treating it as "no new findings" would
+ * be a lie by omission on a security screen.
+ */
+async function getDiffStats(req, { product, label, base_label: baseLabel, diff_type: diffType } = {}) {
+  if (!product || !label || !baseLabel) {
+    throw new HacksawError("'product', 'label' and 'base_label' are required", 400);
+  }
+  const type = DIFF_CATEGORIES.includes(diffType) ? diffType : 'NEW';
+  const organisation = await organisationFor(req);
+  const json = await hsGet(req, '/api/diffreports', {
+    action: 'fetchdiffstatistics',
+    organisation,
+    productname: product,
+    reportlabel: label,
+    basereportlabel: baseLabel,
+    difftype: type,
+  });
+  const r = (json.DATA || [])[0];
+  if (!r) throw new HacksawError('No diff statistics for that pair', 404);
+
+  const scanOfDiff = (sc) => ({
+    name: sc.SCAN_NAME,
+    display: sc.DISPLAY_NAME,
+    status: sc.STATUS,
+    ran: sc.STATUS === 'SUCCESS',
+    // The base lacking the scan is a different thing from the scan failing.
+    uncomparable: sc.FAILURE_DETAILS?.ERROR_CODE === 'ZHE403',
+    note: sc.NOTES || sc.FAILURE_DETAILS?.REASON || null,
+    blocking_status: sc.BLOCKING_STATUS || null,
+    summary: sc.STATUS === 'SUCCESS' ? summaryOf(sc.SUMMARY) : null,
+    subscans: (sc.SUBSCANS || []).map(scanOfDiff),
+  });
+
+  return {
+    success: true,
+    organisation,
+    product,
+    diff: {
+      label: r.REPORT_LABEL,
+      base_label: r.BASE_REPORT_LABEL,
+      diff_type: type,
+      generation_status: r.DIFF_REPORT_GENERATION_STATUS,
+      blocking_status: r.DIFF_REPORT_BLOCKING_STATUS,
+      blocking_violations: r.BLOCKING_VIOLATIONS_COUNT || 0,
+      notes: r.NOTES || null,
+      report_link: r.REPORT_LINK || null,
+      scans: (r.SCANS || []).map(scanOfDiff),
+    },
+  };
+}
+
+/**
+ * The findings themselves for a diff. `DIFF_CATEGORY` is required by Hacksaw, so it is always
+ * sent. The response shape differs from fetchviolations — `VIOLATIONS` / `TOTAL_VIOLATIONS_COUNT`
+ * at the top level rather than a DATA[0].VALUES block — and hardcoded-secret rows carry `SECRET`
+ * and `ENTROPY`, which the non-diff endpoint does not return.
+ */
+async function listDiffViolations(req, {
+  product, label, base_label: baseLabel, scan, diff_category: diffCategory,
+  file_type: fileType, filters, page, limit,
+} = {}) {
+  if (!product || !label || !baseLabel) {
+    throw new HacksawError("'product', 'label' and 'base_label' are required", 400);
+  }
+  if (!SCANS.includes(scan) && scan !== 'VULNERABLE_COMPONENTS') {
+    throw new HacksawError("'scan' is not one this diff supports", 400);
+  }
+  const category = DIFF_CATEGORIES.includes(diffCategory) ? diffCategory : 'NEW';
+
+  const applied = { ...cleanFilters(filters), DIFF_CATEGORY: [category] };
+  if (scan === 'CODE_VIOLATIONS') {
+    const ft = String(fileType || '').toLowerCase();
+    if (!FILE_TYPES.includes(ft)) {
+      throw new HacksawError("'file_type' is required for CODE_VIOLATIONS", 400);
+    }
+    applied.FILE_TYPE = [ft];
+  }
+
+  const organisation = await organisationFor(req);
+  const json = await hsGet(req, '/api/diffreports', {
+    action: 'fetchreport',
+    organisation,
+    productname: product,
+    reportlabel: label,
+    basereportlabel: baseLabel,
+    scan,
+    pageno: pageOf(page),
+    pagelimit: limitOf(limit),
+    filter: JSON.stringify(applied),
+  });
+
+  const rows = json.VIOLATIONS || [];
+  return {
+    success: true,
+    product,
+    label,
+    base_label: baseLabel,
+    scan,
+    diff_category: category,
+    page: pageOf(page),
+    limit: limitOf(limit),
+    total: json.TOTAL_VIOLATIONS_COUNT || 0,
+    violations: rows.map(v => ({
+      id: v.VIOLATION_AUTO_ID,
+      type_specific_id: v.TYPE_SPECIFIC_VIOLATION_AUTO_ID,
+      rule: v.RULE_NAME,
+      priority: v.PRIORITY,
+      type: v.TYPE,
+      status: v.STATUS,
+      is_blocked: v.IS_BLOCKED === 'YES' || v.IS_BLOCKED === true,
+      file_name: v.FILE_NAME,
+      file_type: v.FILE_TYPE,
+      line_no: v.LINE_NO,
+      snippet: v.SNIPPET,
+      context: v.CONTEXT,
+      author: localPart(v.AUTHOR),
+      assignee: localPart(v.ASSIGNEE),
+      standards: v.ASSOCIATED_SECURITY_STANDARD_RULES || [],
+      link: v.VIOLATION_LINK || null,
+      tags: v.TAGS || [],
+      // Hardcoded-secrets only: the matched secret and its Shannon entropy.
+      secret: v.SECRET || null,
+      entropy: typeof v.ENTROPY === 'number' ? v.ENTROPY : null,
+    })),
+  };
+}
+
 module.exports = {
   SCANS, FILE_TYPES, PAGE_LIMITS,
   HacksawError, RateLimited,
   listProducts, listReports, getReportStats, listViolations, listViolationFilters,
   listComponents, listComponentVulnerabilities,
+  DIFF_CATEGORIES, getDiffStats, listDiffViolations,
 };

@@ -3034,3 +3034,5 @@ ul.wsm-conn-sub { margin-top: 0; }
   gap: 6px;
   padding: 0 14px 10px;
 }
+
+.wsm-hs-diffchips { display: inline-flex; gap: 6px; }

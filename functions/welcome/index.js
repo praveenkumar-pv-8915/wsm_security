@@ -593,6 +593,36 @@ app.get('/api/hacksaw/violations', wrap(async (req, res) => {
   }));
 }));
 
+/** Diff: one build against a base build — the WIP-vs-base view the v7 design is built on. */
+app.get('/api/hacksaw/diff', wrap(async (req, res) => {
+  res.json(await hacksaw.getDiffStats(req, {
+    product: req.query.product,
+    label: req.query.label,
+    base_label: req.query.base_label,
+    diff_type: req.query.diff_type,
+  }));
+}));
+
+app.get('/api/hacksaw/diff-violations', wrap(async (req, res) => {
+  let filters;
+  if (req.query.filters) {
+    try { filters = JSON.parse(req.query.filters); } catch {
+      const e = new Error("'filters' must be a JSON object"); e.status = 400; throw e;
+    }
+  }
+  res.json(await hacksaw.listDiffViolations(req, {
+    product: req.query.product,
+    label: req.query.label,
+    base_label: req.query.base_label,
+    scan: req.query.scan,
+    diff_category: req.query.diff_category,
+    file_type: req.query.file_type,
+    filters,
+    page: req.query.page,
+    limit: req.query.limit,
+  }));
+}));
+
 /** SCA: components with known vulnerabilities in one report. Small set, no paging. */
 app.get('/api/hacksaw/components', wrap(async (req, res) => {
   res.json(await hacksaw.listComponents(req, { product: req.query.product, label: req.query.label }));
