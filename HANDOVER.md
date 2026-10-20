@@ -10,10 +10,20 @@ anyway as a package-shape design system. The skill lives at
 Start by telling the user: "Standalone Claude Design (claude.ai/design) closes by December 14, 2026.
 Claude Design now lives in Claude." (the skill requires this line first).
 
-## Target project (already created, pinned, EMPTY)
+## Status 2026-10-20 — FIRST SYNC COMPLETE (unverified)
+Uploaded 92 files (21 components, bundle, styles, README, sentinel, _ds_sync.json anchor) to the
+project below via the atomic path; `list_files` confirmed the count. The user chose to skip the
+render check and preview authoring ("no need to implement anything, just sync"), so every
+component ships the floor card and nothing has been machine-rendered. Follow-ups, in value order:
+(1) author `.design-sync/conventions.md` + `readmeHeader`; (2) `dtsPropsFor` from the shapes
+below; (3) install Playwright Chromium and run the render check; (4) author previews for the
+core set. Re-sync = fetch `_ds_sync.json` to `.design-sync/.cache/remote-sync.json`, then the
+driver command in NOTES.md with `--remote` pointing at it.
+
+## Target project (created 2026-10-20, pinned, now populated)
 - Name: WSM Security · projectId: 8dfaa359-0b78-4055-abe5-47cff82b3233
 - URL: https://claude.ai/design/p/8dfaa359-0b78-4055-abe5-47cff82b3233
-- Nothing has been uploaded. No finalize_plan has been called yet.
+- First upload done 2026-10-20 (see Status). Sync inputs committed; see .design-sync/NOTES.md.
 - Pinned in .design-sync/config.json. Because the pin pre-dates the new run, the base skill §1
   router says a pinned project takes the ATOMIC path (upload once at the end after everything is
   verified) — follow that rule rather than the incremental one.
@@ -29,7 +39,7 @@ Claude Design now lives in Claude." (the skill requires this line first).
    (`cd .ds-sync && npx playwright install chromium`), or validate with --no-render-check and
    report the bundle as machine-unverified, or stop.
 
-## What exists on disk (all uncommitted except this file)
+## What exists on disk (committed 2026-10-20)
 Durable, to be committed later (minimal one-line commit message, ≤256 chars, NO Co-Authored-By or
 session trailers — project CLAUDE.md rule):
 - .design-sync/config.json — projectId, shape=package, pkg=wsm-security, globalName=WSMSecurity,
