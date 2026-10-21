@@ -18,6 +18,16 @@ import { api, ApiError } from '../lib/api';
 
 const DEV_STATUSES = ['Open', 'False positive', 'Temporarily excluded', 'Permanently excluded'];
 const FILE_TYPES = ['java', 'js', 'python', 'clang'];
+/**
+ * How Hacksaw names each language's subscan in the statistics tree. Note `clang` is
+ * `C_LANG_CODE_VIOLATIONS`, not `CLANG_…` — read off a live diff response, 2026-10-21.
+ */
+const SUBSCAN_OF = {
+  java: 'JAVA_CODE_VIOLATIONS',
+  js: 'JS_CODE_VIOLATIONS',
+  python: 'PYTHON_CODE_VIOLATIONS',
+  clang: 'C_LANG_CODE_VIOLATIONS',
+};
 const SCANS = [
   ['CODE_VIOLATIONS', 'Code violations'],
   ['MISCONFIGURATIONS', 'Misconfigurations'],
@@ -44,6 +54,7 @@ export default function HacksawReviewDetail({ reviewKey, onBack, onNotice, onCha
   const [picked, setPicked] = useState({});
   const [busy, setBusy] = useState('');
   const [history, setHistory] = useState({});
+  const [counts, setCounts] = useState({});   // repoIdx -> { scan: n | null, _total, _sub: {ft: n} }
 
   const fail = (err, fallback) => setError(err instanceof ApiError ? err.message : fallback);
 
@@ -58,6 +69,65 @@ export default function HacksawReviewDetail({ reviewKey, onBack, onNotice, onCha
   const review = data?.review;
   const repo = review?.repos?.[repoIdx];
   const role = review?.role || {};
+
+  /**
+   * How many findings each repo holds, per scan — what the tabs count.
+   *
+   * One `fetchdiffstatistics` call per repo, which returns every scan at once, and sequentially:
+   * Hacksaw locks an endpoint for 5–10 minutes past 50 requests a minute, and a review with a
+   * dozen repos is exactly where a fan-out would trip it (the same rule the reviewer queue keeps).
+   *
+   * `null` for a scan means it never ran, which is not the same as zero and must not read as a
+   * clean pass — IAST comes back that way on these builds.
+   */
+  const repos = review?.repos;
+  useEffect(() => {
+    if (!repos?.length) return undefined;
+    let live = true;
+    (async () => {
+      for (let i = 0; i < repos.length && live; i += 1) {
+        const rp = repos[i];
+        try {
+          const q = new URLSearchParams({ product: rp.product, label: rp.feature_label });
+          if (rp.base_label) { q.set('base_label', rp.base_label); q.set('diff_type', 'NEW'); }
+          const r = await api(`/hacksaw/${rp.base_label ? 'diff' : 'report'}?${q}`);
+          const stats = (rp.base_label ? r.diff : r.report) || {};
+          const per = { _total: 0, _sub: {} };
+          for (const sc of stats.scans || []) {
+            const key = sc.display || sc.name;
+            const n = sc.ran ? (sc.summary?.TOTAL ?? 0) : null;
+            per[key] = n;
+            per._total += n || 0;
+            for (const sub of sc.subscans || []) {
+              per._sub[sub.display || sub.name] = sub.ran ? (sub.summary?.TOTAL ?? 0) : null;
+            }
+          }
+          if (live) setCounts((m) => ({ ...m, [i]: per }));
+        } catch { /* a repo whose stats fail just shows no count */ }
+      }
+    })();
+    return () => { live = false; };
+  }, [repos]);
+
+  const repoCount = (i) => counts[i]?._total;
+  const scanCount = (i, k) => counts[i]?.[k];
+  const langCount = (i, ft) => counts[i]?._sub?.[SUBSCAN_OF[ft]];
+
+  /** Land on a scan that actually has findings, rather than an empty tab the user must hunt past. */
+  useEffect(() => {
+    const per = counts[repoIdx];
+    if (!per || scanCount(repoIdx, scan)) return;
+    const first = SCANS.find(([k]) => per[k]);
+    if (first) setScan(first[0]);
+  }, [counts, repoIdx]);
+
+  /** Same for the language chips under Code violations. */
+  useEffect(() => {
+    if (scan !== 'CODE_VIOLATIONS') return;
+    if (langCount(repoIdx, fileType)) return;
+    const first = FILE_TYPES.find((f) => langCount(repoIdx, f));
+    if (first) setFileType(first);
+  }, [counts, repoIdx, scan]);
 
   /* Findings for the selected repo + scan: the diff when the repo has a base, else the whole build. */
   useEffect(() => {
@@ -197,25 +267,55 @@ export default function HacksawReviewDetail({ reviewKey, onBack, onNotice, onCha
 
       {/* Repos of this review, then the scan within the repo. */}
       <div className="wsm-hs-tabs" role="tablist" aria-label="Repo">
-        {review.repos.map((rp, i) => (
-          <button key={`${rp.product}|${rp.feature_label}`} type="button" role="tab" aria-selected={i === repoIdx}
-                  className={`wsm-hs-tab${i === repoIdx ? ' wsm-hs-tab-on' : ''}`} onClick={() => setRepoIdx(i)}
-                  title={rp.base_label ? `${rp.feature_label} vs ${rp.base_label}` : rp.feature_label}>
-            {rp.product}
-          </button>
-        ))}
+        {review.repos.map((rp, i) => {
+          const n = repoCount(i);
+          const empty = n === 0;
+          return (
+            <button key={`${rp.product}|${rp.feature_label}`} type="button" role="tab" aria-selected={i === repoIdx}
+                    disabled={empty && i !== repoIdx}
+                    className={`wsm-hs-tab${i === repoIdx ? ' wsm-hs-tab-on' : ''}`} onClick={() => setRepoIdx(i)}
+                    title={empty
+                      ? `Nothing ${rp.base_label ? 'new' : 'open'} in ${rp.product}`
+                      : (rp.base_label ? `${rp.feature_label} vs ${rp.base_label}` : rp.feature_label)}>
+              {rp.product}
+              {n !== undefined && <span className="wsm-hs-tabn">{n}</span>}
+            </button>
+          );
+        })}
         <span className="wsm-hs-tabs-r">
           {repo?.base_label ? 'new vs base' : 'whole build'} · {replied.length}/{allKeys.length} replied · {accepted.length}/{allKeys.length} accepted
         </span>
       </div>
       <div className="wsm-hs-cats">
-        {SCANS.map(([k, l]) => (
-          <button key={k} type="button" className={`btn btn-small${scan === k ? ' wsm-chipbtn-on' : ''}`} onClick={() => setScan(k)}>{l}</button>
-        ))}
+        {SCANS.map(([k, l]) => {
+          const n = scanCount(repoIdx, k);
+          const notRun = n === null;
+          const empty = n === 0 || notRun;
+          return (
+            <button key={k} type="button" disabled={empty && scan !== k}
+                    className={`btn btn-small${scan === k ? ' wsm-chipbtn-on' : ''}`}
+                    title={notRun ? `${l} has not been run on this build` : ''}
+                    onClick={() => setScan(k)}>
+              {l}
+              {n !== undefined && <span className="wsm-hs-tabn">{notRun ? '—' : n}</span>}
+            </button>
+          );
+        })}
         {scan === 'CODE_VIOLATIONS' && (
-          <select className="wsm-hs-dec" value={fileType} onChange={(e) => setFileType(e.target.value)} aria-label="Language">
-            {FILE_TYPES.map((f) => <option key={f} value={f}>{f}</option>)}
-          </select>
+          <span className="wsm-hs-langs">
+            {FILE_TYPES.map((f) => {
+              const n = langCount(repoIdx, f);
+              const empty = n === 0 || n === null;
+              return (
+                <button key={f} type="button" disabled={empty && fileType !== f}
+                        className={`btn btn-small${fileType === f ? ' wsm-chipbtn-on' : ''}`}
+                        onClick={() => setFileType(f)}>
+                  {f}
+                  {n !== undefined && <span className="wsm-hs-tabn">{n === null ? '—' : n}</span>}
+                </button>
+              );
+            })}
+          </span>
         )}
       </div>
 

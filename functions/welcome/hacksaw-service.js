@@ -757,7 +757,15 @@ function writeScanToken(scan, fileType) {
   if (!FILE_TYPES.includes(ft)) {
     throw new HacksawError("'file_type' is required to write against CODE_VIOLATIONS", 400);
   }
-  return `${ft.toUpperCase()}_CODE_VIOLATIONS`;
+  // Hacksaw's own subscan names, read off a live statistics tree (2026-10-21): `clang` is
+  // `C_LANG_CODE_VIOLATIONS`, not `CLANG_…`, which a straight upper-case would have produced.
+  const SUBSCAN = {
+    java: 'JAVA_CODE_VIOLATIONS',
+    js: 'JS_CODE_VIOLATIONS',
+    python: 'PYTHON_CODE_VIOLATIONS',
+    clang: 'C_LANG_CODE_VIOLATIONS',
+  };
+  return SUBSCAN[ft];
 }
 
 /** Shared by every write: the ids Hacksaw will act on. Its own ceiling is 1–200 (ZSE025). */

@@ -3380,3 +3380,8 @@ ul.wsm-conn-sub { margin-top: 0; }
 .wsm-hs-bulkpop { width: 320px; top: calc(100% + 6px); gap: 8px; }
 .wsm-hs-bulkpop textarea.wsm-ss-q { resize: vertical; font: inherit; font-size: 12px; }
 .wsm-hs-bulkfoot { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* review detail: language chips under the scan chips */
+.wsm-hs-langs { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; padding-left: 10px; border-left: 1px solid var(--line1); }
+.wsm-hs-cats .wsm-hs-tabn { margin-left: 6px; }
+.wsm-hs-cats button:disabled, .wsm-hs-tab:disabled { opacity: 0.4; cursor: not-allowed; }
