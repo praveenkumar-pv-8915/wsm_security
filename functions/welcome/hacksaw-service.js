@@ -54,6 +54,16 @@ const FILTER_KEYS = ['FILE_TYPE', 'TYPE', 'STATUS', 'PRIORITY', 'RULE', 'TAG', '
 
 const PAGE_LIMITS = [50, 100, 200];
 
+/**
+ * How many values Hacksaw takes for one filter key. Probed 2026-10-21, because it answers with
+ * two different errors and neither names the real limit: 11 values answers `ZSE025 The size of
+ * the array "Filters" should be in the range of "0-10"`, and FILE is single-valued — two file ids
+ * answer the same ZSE025 even though two is well inside 0-10. Clamped here so a caller gets a
+ * short list rather than a 400 with a misleading message.
+ */
+const MAX_FILTER_VALUES = 10;
+const SINGLE_VALUE_FILTER_KEYS = new Set(['FILE']);
+
 /** Hacksaw said no, and the reason matters to the caller. */
 class HacksawError extends Error {
   constructor(message, status) { super(message); this.status = status; }
@@ -264,7 +274,8 @@ function cleanFilters(raw) {
   for (const key of FILTER_KEYS) {
     const v = src[key];
     if (!Array.isArray(v) || !v.length) continue;
-    let vals = v.map(x => String(x).trim()).filter(Boolean).slice(0, 50);
+    let vals = v.map(x => String(x).trim()).filter(Boolean)
+      .slice(0, SINGLE_VALUE_FILTER_KEYS.has(key) ? 1 : MAX_FILTER_VALUES);
     // FILE is keyed by the numeric FILE_AUTO_ID, not the path: a string there answers
     // `ZSE027 Unable to parse the data type`, and FILE_NAME/FILE_PATH are not keys at all
     // (ZSE016). Verified against Hacksaw 2026-10-21.
@@ -941,7 +952,7 @@ async function componentDelta(req, { product, base_label: baseLabel, label } = {
 }
 
 module.exports = {
-  SCANS, FILE_TYPES, PAGE_LIMITS, listActivities,
+  SCANS, FILE_TYPES, PAGE_LIMITS, MAX_FILTER_VALUES, SINGLE_VALUE_FILTER_KEYS, listActivities,
   HacksawError, RateLimited,
   listProducts, listReports, getReportStats, listViolations, listViolationFilters, listViolationFiles,
   listComponents, listComponentVulnerabilities,

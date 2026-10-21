@@ -3373,3 +3373,4 @@ ul.wsm-conn-sub { margin-top: 0; }
 .wsm-fm-opt { display: flex; align-items: baseline; gap: 8px; }
 .wsm-fm-opt-l { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .wsm-fm-opt-n { flex: 0 0 auto; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.wsm-fm-tick { flex: 0 0 11px; color: var(--ac); font-size: 11px; line-height: 1; }

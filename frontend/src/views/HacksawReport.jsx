@@ -100,7 +100,7 @@ export default function HacksawReport({ onNotice }) {
   const [vocabError, setVocabError] = useState('');
   const [files, setFiles] = useState(null);    // { files, truncated } — derived, see the effect
   const [vocabBusy, setVocabBusy] = useState(false);
-  const [sel, setSel] = useState({});          // KEY -> chosen value ('' means no filter)
+  const [sel, setSel] = useState({});          // KEY -> chosen values; [] or absent means no filter
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -197,7 +197,8 @@ export default function HacksawReport({ onNotice }) {
         const v = r.filters || {};
         setVocab(v); setVocabError('');
         setSel((cur) => Object.fromEntries(Object.entries(cur)
-          .filter(([k, val]) => !val || (v[k] || []).includes(val))));
+          .map(([k, vals]) => [k, k === 'FILE' ? vals : (vals || []).filter((x) => (v[k] || []).includes(x))])
+          .filter(([, vals]) => (vals || []).length)));
       } catch (err) {
         if (!live) return;
         setVocab({}); setSel({});
@@ -235,26 +236,25 @@ export default function HacksawReport({ onNotice }) {
       return {
         key: k,
         label: FILTER_LABELS.FILE,
+        max: 1,                       // Hacksaw rejects a second file id — see FilterMenu
         note: files.truncated
           ? 'Rolled up from the first 2,000 findings — a file past that is not listed.' : '',
-        values: [{ value: '', label: 'All' },
-          ...files.list.map((f) => ({ value: f.id, label: f.name, tail: String(f.count) }))],
+        values: files.list.map((f) => ({ value: f.id, label: f.name, tail: String(f.count) })),
       };
     }
     if (!(vocab[k] || []).length) return null;
     return {
       key: k,
       label: FILTER_LABELS[k] || k,
-      values: [{ value: '', label: 'All' },
-        ...vocab[k].map((v) => ({ value: v, label: RAW_VALUES.has(k) ? v : prettyVal(v) }))],
+      values: vocab[k].map((v) => ({ value: v, label: RAW_VALUES.has(k) ? v : prettyVal(v) })),
     };
   }).filter(Boolean), [vocab, files]);
 
   /** The selection as Hacksaw wants it: { KEY: [value] }, omitted entirely when nothing is set. */
   const activeFilters = useMemo(() => Object.fromEntries(
-    Object.entries(sel).filter(([, v]) => v).map(([k, v]) => [k, [v]]),
+    Object.entries(sel).filter(([, v]) => (v || []).length),
   ), [sel]);
-  const filterCount = Object.keys(activeFilters).length;
+  const filterCount = Object.values(activeFilters).reduce((n, v) => n + v.length, 0);
 
   /** One normalised row shape, whatever endpoint produced it. */
   const normalise = useCallback((v, kind) => (kind === 'component'
@@ -393,7 +393,7 @@ export default function HacksawReport({ onNotice }) {
             <input type="search" className="wsm-search" placeholder="Search file, rule, endpoint"
                    aria-label="Search findings" value={q} onChange={(e) => setQ(e.target.value)} />
             <FilterMenu groups={filterGroups} sel={sel} count={filterCount} busy={vocabBusy}
-                        onPick={(k, v) => setSel((m) => ({ ...m, [k]: v }))}
+                        onChange={(k, vals) => setSel((m) => ({ ...m, [k]: vals }))}
                         onClear={() => setSel({})} />
             {vocabError && <span className="tag tag-bad" title={vocabError}>Filters unavailable</span>}
             {filtersOn && (
