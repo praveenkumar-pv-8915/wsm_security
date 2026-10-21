@@ -3321,3 +3321,55 @@ ul.wsm-conn-sub { margin-top: 0; }
   display: flex; justify-content: flex-end; gap: 8px;
   margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line1);
 }
+
+/* ── one filter menu (Hacksaw Report) ───────────────────────────────────────────────────────
+   Ten filters as ten chips wrapped the toolbar and still could not hold a 226-name list, so they
+   live behind one button: a key list, then that key's searchable values. */
+.wsm-fm { position: relative; display: inline-flex; }
+.wsm-fm-btn {
+  display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 10px;
+  font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; color: var(--ink);
+  background: var(--surf); border: 1px solid var(--line1);
+}
+.wsm-fm-btn:hover { border-color: var(--muted); }
+.wsm-fm-btn-on { border-color: var(--ac); background: var(--ac-tint3); color: var(--ac-soft); }
+.wsm-fm-n {
+  min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; font-size: 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--ac); color: #231a00;
+}
+.wsm-fm-pop {
+  position: absolute; z-index: 60; top: calc(100% + 4px); left: 0; width: 360px; max-width: 80vw;
+  background: var(--chrome); border: 1px solid var(--line3); border-radius: 9px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42); padding: 7px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.wsm-fm-head {
+  display: flex; align-items: center; gap: 8px; padding: 2px 6px 6px;
+  border-bottom: 1px solid var(--line1);
+  font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted);
+}
+.wsm-fm-head .wsm-hs-clear { margin-left: auto; letter-spacing: 0; text-transform: none; }
+.wsm-fm-back {
+  appearance: none; border: 0; background: transparent; cursor: pointer; font: inherit;
+  font-size: 15px; line-height: 1; color: var(--ink2); padding: 0 4px; border-radius: 5px;
+}
+.wsm-fm-back:hover { background: var(--surf); }
+.wsm-fm-list { max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
+.wsm-fm-row {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  appearance: none; border: 0; background: transparent; font: inherit; font-size: 12px;
+  color: var(--ink2); padding: 7px 8px; border-radius: 6px; cursor: pointer;
+}
+.wsm-fm-row:hover { background: var(--surf); }
+.wsm-fm-row-l { flex: 0 0 96px; color: var(--muted); }
+.wsm-fm-row-v {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--ink);
+}
+.wsm-fm-row-v-on { color: var(--ac-soft); font-weight: 700; }
+.wsm-fm-row-c { color: var(--muted); font-size: 13px; }
+.wsm-fm-note { margin: 0 6px; }
+.wsm-fm-opt { display: flex; align-items: baseline; gap: 8px; }
+.wsm-fm-opt-l { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.wsm-fm-opt-n { flex: 0 0 auto; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }

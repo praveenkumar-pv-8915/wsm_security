@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { RefreshIcon } from '../lib/icons';
-import SearchSelect from '../components/SearchSelect';
+import FilterMenu from '../components/FilterMenu';
 
 /**
  * Hacksaw › Hacksaw Report — built to the v7 design (design/WSM Security v7.bundled.html).
@@ -53,10 +53,12 @@ const FILTER_LABELS = {
   TAG: 'Tag',
   ASSIGNEE: 'Assignee',
   AUTHOR: 'Author',
+  FILE: 'File',
 };
 const FILTER_ORDER = ['PRIORITY', 'STATUS', 'TYPE', 'TRACKING_STATUS', 'CONTEXT',
-  'ASSIGNEE', 'AUTHOR', 'RULE', 'TAG'];
-const LONG_FILTERS = new Set(['RULE', 'TAG', 'ASSIGNEE', 'AUTHOR']);
+  'FILE', 'ASSIGNEE', 'AUTHOR', 'RULE', 'TAG'];
+/** Keys whose values read better as-is: paths, addresses and rule names, not Sentence case. */
+const RAW_VALUES = new Set(['FILE', 'ASSIGNEE', 'AUTHOR', 'RULE', 'TAG']);
 /** Components are not a violation scan, so Hacksaw has no filter vocabulary for them. */
 const FILTERABLE = (cat) => cat !== 'VULNERABLE_COMPONENTS';
 const prettyVal = (v) => String(v).replace(/_/g, ' ').toLowerCase().replace(/^./, (c) => c.toUpperCase());
@@ -96,6 +98,8 @@ export default function HacksawReport({ onNotice }) {
   const [q, setQ] = useState('');
   const [vocab, setVocab] = useState({});      // Hacksaw's filter keys -> allowed values
   const [vocabError, setVocabError] = useState('');
+  const [files, setFiles] = useState(null);    // { files, truncated } — derived, see the effect
+  const [vocabBusy, setVocabBusy] = useState(false);
   const [sel, setSel] = useState({});          // KEY -> chosen value ('' means no filter)
 
   const [busy, setBusy] = useState(false);
@@ -179,8 +183,11 @@ export default function HacksawReport({ onNotice }) {
    * A value that is no longer offered is dropped from the selection rather than silently sent on.
    */
   useEffect(() => {
-    if (!product || !label || !FILTERABLE(category)) { setVocab({}); setSel({}); setVocabError(''); return undefined; }
+    if (!product || !label || !FILTERABLE(category)) {
+      setVocab({}); setSel({}); setVocabError(''); setFiles(null); return undefined;
+    }
     let live = true;
+    setVocabBusy(true);
     (async () => {
       try {
         const p = new URLSearchParams({ product, label, scan: category });
@@ -195,10 +202,53 @@ export default function HacksawReport({ onNotice }) {
         if (!live) return;
         setVocab({}); setSel({});
         setVocabError(err instanceof ApiError ? err.message : 'Could not load Hacksaw\u2019s filters.');
-      }
+      } finally { if (live) setVocabBusy(false); }
     })();
     return () => { live = false; };
   }, [product, label, category, fileType]);
+
+  /**
+   * The File filter's vocabulary. Hacksaw exposes no list of a report's files, so the server
+   * rolls it up from the violations — a few hundred rows, two or three calls. Kept out of the
+   * effect above so a slow roll-up never holds up the other nine filters.
+   */
+  useEffect(() => {
+    if (!product || !label || !FILTERABLE(category)) return undefined;
+    let live = true;
+    setFiles(null);
+    (async () => {
+      try {
+        const p = new URLSearchParams({ product, label, scan: category });
+        if (category === 'CODE_VIOLATIONS') p.set('file_type', fileType);
+        if (diffing) { p.set('base_label', baseLabel); p.set('diff_category', diffCategory); }
+        const r = await api(`/hacksaw/violation-files?${p}`);
+        if (live) setFiles({ list: r.files || [], truncated: Boolean(r.truncated) });
+      } catch { if (live) setFiles({ list: [], truncated: false, failed: true }); }
+    })();
+    return () => { live = false; };
+  }, [product, label, category, fileType, diffing, baseLabel, diffCategory]);
+
+  /** One group per filter key, in display order, with Hacksaw's own values under each. */
+  const filterGroups = useMemo(() => FILTER_ORDER.map((k) => {
+    if (k === 'FILE') {
+      if (!files || !files.list.length) return null;
+      return {
+        key: k,
+        label: FILTER_LABELS.FILE,
+        note: files.truncated
+          ? 'Rolled up from the first 2,000 findings — a file past that is not listed.' : '',
+        values: [{ value: '', label: 'All' },
+          ...files.list.map((f) => ({ value: f.id, label: f.name, tail: String(f.count) }))],
+      };
+    }
+    if (!(vocab[k] || []).length) return null;
+    return {
+      key: k,
+      label: FILTER_LABELS[k] || k,
+      values: [{ value: '', label: 'All' },
+        ...vocab[k].map((v) => ({ value: v, label: RAW_VALUES.has(k) ? v : prettyVal(v) }))],
+    };
+  }).filter(Boolean), [vocab, files]);
 
   /** The selection as Hacksaw wants it: { KEY: [value] }, omitted entirely when nothing is set. */
   const activeFilters = useMemo(() => Object.fromEntries(
@@ -342,23 +392,9 @@ export default function HacksawReport({ onNotice }) {
           <>
             <input type="search" className="wsm-search" placeholder="Search file, rule, endpoint"
                    aria-label="Search findings" value={q} onChange={(e) => setQ(e.target.value)} />
-            {FILTER_ORDER.filter((k) => (vocab[k] || []).length).map((k) => (LONG_FILTERS.has(k)
-              ? (
-                <SearchSelect
-                  key={k} label={FILTER_LABELS[k] || k} value={sel[k] || ''} placeholder="All" variant="chip"
-                  options={[{ value: '', label: 'All' },
-                    ...vocab[k].map((v) => ({ value: v, label: v }))]}
-                  onChange={(v) => setSel((m) => ({ ...m, [k]: v }))}
-                />
-              )
-              : (
-                <Picker
-                  key={k} label={FILTER_LABELS[k] || k} value={sel[k] || ''}
-                  onChange={(v) => setSel((m) => ({ ...m, [k]: v }))}
-                  options={['', ...vocab[k]]}
-                  render={(v) => (v ? prettyVal(v) : 'All')} keyOf={(v) => v}
-                />
-              )))}
+            <FilterMenu groups={filterGroups} sel={sel} count={filterCount} busy={vocabBusy}
+                        onPick={(k, v) => setSel((m) => ({ ...m, [k]: v }))}
+                        onClear={() => setSel({})} />
             {vocabError && <span className="tag tag-bad" title={vocabError}>Filters unavailable</span>}
             {filtersOn && (
               <button type="button" className="wsm-hs-clear" onClick={() => { setQ(''); setSel({}); }}>

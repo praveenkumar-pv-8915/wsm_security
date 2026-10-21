@@ -50,7 +50,7 @@ const FILE_TYPES = ['java', 'js', 'python', 'clang'];
  * filter bar now uses the searchable select, so they are forwarded like any other key.
  */
 const FILTER_KEYS = ['FILE_TYPE', 'TYPE', 'STATUS', 'PRIORITY', 'RULE', 'TAG', 'TRACKING_STATUS',
-  'CONTEXT', 'ASSIGNEE', 'AUTHOR'];
+  'CONTEXT', 'ASSIGNEE', 'AUTHOR', 'FILE'];
 
 const PAGE_LIMITS = [50, 100, 200];
 
@@ -264,7 +264,11 @@ function cleanFilters(raw) {
   for (const key of FILTER_KEYS) {
     const v = src[key];
     if (!Array.isArray(v) || !v.length) continue;
-    const vals = v.map(x => String(x).trim()).filter(Boolean).slice(0, 50);
+    let vals = v.map(x => String(x).trim()).filter(Boolean).slice(0, 50);
+    // FILE is keyed by the numeric FILE_AUTO_ID, not the path: a string there answers
+    // `ZSE027 Unable to parse the data type`, and FILE_NAME/FILE_PATH are not keys at all
+    // (ZSE016). Verified against Hacksaw 2026-10-21.
+    if (key === 'FILE') vals = vals.map(x => (/^\d+$/.test(x) ? Number(x) : x));
     if (vals.length) out[key] = vals;
   }
   return out;
@@ -794,6 +798,83 @@ async function updateViolationStatus(req, {
   };
 }
 
+/**
+ * The files a scan has findings in, for the screen's File filter.
+ *
+ * Derived, not fetched: `fetchfilters` has no FILE key and there is no files action on
+ * /api/reports — fetchfiles, fetchfilelist, fetchviolatedfiles, fetchviolationfiles, fetchallfiles
+ * and fetchfiledetails all answer `ZSE003 Given url doesn't exist` (probed 2026-10-21). So the
+ * list is rolled up from the violations themselves, 200 at a time.
+ *
+ * Grouped by PATH, not by FILE_AUTO_ID. One path can carry several ids — the same source file
+ * built into several modules of a product — and Hacksaw's FILE filter matches the path behind the
+ * id, so any one of them returns the findings of all of them (verified 2026-10-21:
+ * APIServlet.java has three ids, each of which returns the same six findings). Keying the picker
+ * by id listed that file three times, each claiming 2 of the 6.
+ *
+ * Capped at MAX_FILE_PAGES. A truncated list is reported as such rather than passed off as the
+ * whole set: a file missing from the picker for no stated reason is the same trap as an empty
+ * dropdown with two causes.
+ */
+const MAX_FILE_PAGES = 10;
+
+async function listViolationFiles(req, {
+  product, label, base_label: baseLabel, scan, diff_category: diffCategory,
+  file_type: fileType, filters,
+} = {}) {
+  if (!product || !label) throw new HacksawError("'product' and 'label' are required", 400);
+  if (!SCANS.includes(scan)) throw new HacksawError(`'scan' must be one of ${SCANS.join(', ')}`, 400);
+
+  const applied = cleanFilters(filters);
+  delete applied.FILE;                       // the File filter must not narrow its own vocabulary
+  if (scan === 'CODE_VIOLATIONS') {
+    const ft = String(fileType || '').toLowerCase();
+    if (!FILE_TYPES.includes(ft)) throw new HacksawError("'file_type' is required for CODE_VIOLATIONS", 400);
+    applied.FILE_TYPE = [ft];
+  }
+
+  // The list has to describe what is on screen: in diff mode that is the diff's rows, not the
+  // whole report's, or the picker offers files the view cannot show.
+  const diffing = Boolean(baseLabel);
+  if (diffing) applied.DIFF_CATEGORY = [DIFF_CATEGORIES.includes(diffCategory) ? diffCategory : 'NEW'];
+
+  const organisation = await organisationFor(req);
+  const seen = new Map();
+  let truncated = false;
+  let total = 0;
+
+  for (let page = 1; page <= MAX_FILE_PAGES; page += 1) {
+    const json = await hsGet(req, diffing ? '/api/diffreports' : '/api/reports', {
+      action: diffing ? 'fetchdiffviolations' : 'fetchviolations',
+      organisation,
+      productname: product,
+      reportlabel: label,
+      ...(diffing ? { baselinereportlabel: baseLabel } : {}),
+      scan,
+      pageno: page,
+      pagelimit: 200,
+      responsetype: 'JSON',
+      ...(Object.keys(applied).length ? { filters: JSON.stringify(applied) } : {}),
+    });
+    const block = (json.DATA || [])[0] || {};
+    const rows = block.VALUES || [];
+    total = block.TOTAL_COUNT || total;
+    for (const v of rows) {
+      const name = v.FILE_NAME;
+      const id = v.FILE_AUTO_ID;
+      if (!name || id === undefined || id === null) continue;
+      const cur = seen.get(name);
+      if (cur) { cur.count += 1; if (!cur.ids.includes(String(id))) cur.ids.push(String(id)); }
+      else seen.set(name, { id: String(id), ids: [String(id)], name, count: 1 });
+    }
+    if (rows.length < 200) break;
+    if (page === MAX_FILE_PAGES && rows.length === 200) truncated = true;
+  }
+
+  const files = [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return { success: true, product, label, scan, file_type: fileType || null, total, truncated, files };
+}
+
 /* ------------------------------------------------------------------ component inventory delta */
 
 const tsvc = require('./tool-state-service');
@@ -862,7 +943,7 @@ async function componentDelta(req, { product, base_label: baseLabel, label } = {
 module.exports = {
   SCANS, FILE_TYPES, PAGE_LIMITS, listActivities,
   HacksawError, RateLimited,
-  listProducts, listReports, getReportStats, listViolations, listViolationFilters,
+  listProducts, listReports, getReportStats, listViolations, listViolationFilters, listViolationFiles,
   listComponents, listComponentVulnerabilities,
   DIFF_CATEGORIES, getDiffStats, listDiffViolations,
   WRITE_SCOPES, updateViolationStatus, componentDelta,

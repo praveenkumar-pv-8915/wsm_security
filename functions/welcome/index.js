@@ -708,6 +708,24 @@ app.get('/api/hacksaw/violation-filters', wrap(async (req, res) => {
   }));
 }));
 
+app.get('/api/hacksaw/violation-files', wrap(async (req, res) => {
+  let filters;
+  if (req.query.filters) {
+    try { filters = JSON.parse(req.query.filters); } catch {
+      const e = new Error("'filters' must be a JSON object"); e.status = 400; throw e;
+    }
+  }
+  res.json(await hacksaw.listViolationFiles(req, {
+    product: req.query.product,
+    label: req.query.label,
+    base_label: req.query.base_label,
+    diff_category: req.query.diff_category,
+    scan: req.query.scan,
+    file_type: req.query.file_type,
+    filters,
+  }));
+}));
+
 /* ------------------------------------------------------------------ errors */
 
 app.use((_req, res) => res.status(404).json({ success: false, error: 'No such route' }));
