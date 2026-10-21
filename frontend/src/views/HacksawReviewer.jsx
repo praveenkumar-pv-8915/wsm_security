@@ -92,14 +92,20 @@ export default function HacksawReviewer({ onNotice }) {
             });
             const d = await api(`/hacksaw/diff?${p}`);
             const flat = (d.diff?.scans || []).flatMap((s) => [s, ...(s.subscans || [])]);
-            for (const [key] of [...SCAN_COLS, ['VULNERABLE_COMPONENTS']]) {
+            for (const [key] of SCAN_COLS) {
               const sc = flat.find((s) => s.name === key || s.display === key);
-              const col = key === 'VULNERABLE_COMPONENTS' ? 'COMPONENTS' : key;
               if (!sc) continue;
-              if (sc.ran) sum[col] = (typeof sum[col] === 'number' ? sum[col] : 0) + sc.summary.TOTAL;
-              else if (sum[col] === undefined) sum[col] = sc.uncomparable ? '—' : '·';
+              if (sc.ran) sum[key] = (typeof sum[key] === 'number' ? sum[key] : 0) + sc.summary.TOTAL;
+              else if (sum[key] === undefined) sum[key] = sc.uncomparable ? '—' : '·';
             }
           } catch { /* a repo without counts still lists */ }
+          try {
+            // Jar deltas — two inventory fetches per pair the first time, then served from tool_state.
+            const q2 = new URLSearchParams({ product: rp.product, label: rp.feature_label, base_label: rp.base_label });
+            const d2 = await api(`/hacksaw/component-delta?${q2}`);
+            const c = sum.DELTA || { added: 0, updated: 0, removed: 0 };
+            sum.DELTA = { added: c.added + (d2.added || 0), updated: c.updated + (d2.updated || 0), removed: c.removed + (d2.removed || 0) };
+          } catch { /* the column shows a dot */ }
         }
         setCounts((m) => ({ ...m, [rev.key]: sum }));
       }
@@ -290,7 +296,15 @@ export default function HacksawReviewer({ onNotice }) {
                     ))}
                   </div>
                   {SCAN_COLS.map(([k]) => <div key={k} className="wsm-hsr-num">{cell(n[k])}</div>)}
-                  <div className="wsm-hsr-num">{cell(n.COMPONENTS)}</div>
+                  <div className="wsm-hsr-num wsm-hsr-delta">
+                    {n.DELTA ? (
+                      <>
+                        <span className={n.DELTA.added ? 'wsm-hsr-add' : 'wsm-hsr-n0'}>+{n.DELTA.added}</span>
+                        <span className={n.DELTA.updated ? 'wsm-hsr-upd' : 'wsm-hsr-n0'}>~{n.DELTA.updated}</span>
+                        <span className={n.DELTA.removed ? 'wsm-hsr-rem' : 'wsm-hsr-n0'}>−{n.DELTA.removed}</span>
+                      </>
+                    ) : <span className="wsm-hsr-n0">·</span>}
+                  </div>
                   <div className="wsm-hsr-sub">
                     {r.raised_by_person?.email || r.raised_by_person?.name || r.raised_by}
                     <span className="wsm-hsr-at">{r.submitted_on ? `submitted ${r.submitted_on}` : (r.created_at ? `created ${String(r.created_at).slice(0, 16)}` : '')}</span>

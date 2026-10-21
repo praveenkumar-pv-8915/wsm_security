@@ -640,6 +640,13 @@ app.post('/api/hacksaw/reviews/:key/reopen', wrap(async (req, res) => {
   res.json(await hsReview.reopenReview(req, req.params.key));
 }));
 
+/** Jar changes between two builds (+added ~updated −removed), cached per pair in tool_state. */
+app.get('/api/hacksaw/component-delta', wrap(async (req, res) => {
+  res.json(await hacksaw.componentDelta(req, {
+    product: req.query.product, label: req.query.label, base_label: req.query.base_label,
+  }));
+}));
+
 /** Diff: one build against a base build — the WIP-vs-base view the v7 design is built on. */
 app.get('/api/hacksaw/diff', wrap(async (req, res) => {
   res.json(await hacksaw.getDiffStats(req, {

@@ -400,6 +400,11 @@ async function reply(req, reviewKey, data = {}) {
     if (data.finding) {
       patch.PRODUCT = data.finding.product || null;
       patch.SCAN = data.finding.scan || null;
+      // What a later push to Hacksaw needs: the id in THIS build, the build, Hacksaw's scan name.
+      patch.VIOLATION_ID = data.finding.violation_id ? String(data.finding.violation_id) : null;
+      patch.REPORT_LABEL = data.finding.report_label || null;
+      patch.HS_SCAN = data.finding.hs_scan || null;
+      patch.KIND = data.finding.kind || 'violation';
     }
   } else {
     patch.REVIEW_STATE = 'responded';
@@ -572,34 +577,51 @@ async function pushToHacksaw(req, reviewKey, data = {}) {
   const keys = Array.isArray(data.finding_keys) ? data.finding_keys.map(String) : [];
   if (!keys.length) throw new ReviewError("'finding_keys' is required");
 
-  const { credential } = await conn.resolveCredential(req, 'zoho-hacksaw');
-  const scopes = String(credential.GRANTED_SCOPES || '');
-  if (!/Hacksaw\.REPORT\.UPDATE/i.test(scopes)) {
-    throw new ReviewError(
-      'The Hacksaw connection has no write scope. Re-mint its token with Hacksaw.REPORT.UPDATE ' +
-      '(kit: setup.sh --reconfigure) and reconnect, then push again.',
-      424,
-    );
-  }
   const hacksaw = require('./hacksaw-service');
-  if (typeof hacksaw.updateViolationStatus !== 'function') {
-    throw new ReviewError('Status write-back to Hacksaw is not wired yet (endpoint unverified).', 424);
-  }
-  const items = await queryItems(req, reviewKey, 'F#');
-  const byKey = Object.fromEntries(items.map(i => [String(i.ITEM_KEY).slice(2), i]));
+  const items = await queryItems(req, reviewKey);
+  const fItems = Object.fromEntries(items.filter(i => String(i.ITEM_KEY).startsWith('F#')).map(i => [String(i.ITEM_KEY).slice(2), i]));
+  const replies = items.filter(i => String(i.ITEM_KEY).startsWith('C#') && i.KIND === 'reply');
+  const latestReply = (fk) => replies.filter(c => String(c.FINDING_KEY) === fk).sort((x, y) => String(y.AT).localeCompare(String(x.AT)))[0];
+
+  // Batch by what Hacksaw's call is scoped to: one product + build + scan + target status per call,
+  // ≤200 ids, 10 calls a minute. Grouping is what keeps a 24-finding push to a handful of requests.
+  const groups = new Map();
   const results = [];
   for (const fk of keys) {
-    const f = byKey[fk];
-    if (!f || f.REVIEW_STATE !== 'accepted') { results.push({ finding_key: fk, skipped: 'not accepted' }); continue; }
+    const f = fItems[fk];
+    if (!f) { results.push({ finding_key: fk, skipped: 'not in this review' }); continue; }
+    if (f.REVIEW_STATE !== 'accepted') { results.push({ finding_key: fk, skipped: 'not accepted' }); continue; }
+    if (!f.VIOLATION_ID || !f.REPORT_LABEL || !f.HS_SCAN) { results.push({ finding_key: fk, skipped: 'missing Hacksaw identity on the item' }); continue; }
+    const status = String(f.DEV_STATUS || 'Open').toUpperCase().replace(/\s+/g, '_');
+    const g = `${f.PRODUCT}|${f.REPORT_LABEL}|${f.HS_SCAN}|${status}|${f.KIND || 'violation'}`;
+    if (!groups.has(g)) groups.set(g, { product: f.PRODUCT, report_label: f.REPORT_LABEL, scan: f.HS_SCAN, status, kind: f.KIND || 'violation', members: [] });
+    groups.get(g).members.push({ fk, id: String(f.VIOLATION_ID), reason: latestReply(fk)?.BODY || '' });
+  }
+
+  for (const g of groups.values()) {
+    // Hacksaw takes one reason per call; the developer's replies are the reason, joined when they differ.
+    const reasons = [...new Set(g.members.map(m => m.reason).filter(Boolean))];
+    const reason = (reasons.join(' | ') || `Accepted in WSM Security review ${reviewKey}`).slice(0, 2000);
     try {
-      await hacksaw.updateViolationStatus(req, { finding_key: fk, status: f.DEV_STATUS, ...data.targets?.[fk] });
-      await patchItem(req, reviewKey, F(fk), { SYNCED_AT: nowIso() });
-      results.push({ finding_key: fk, pushed: true });
+      const r = await hacksaw.updateViolationStatus(req, {
+        product: g.product, report_label: g.report_label, scan: g.scan, kind: g.kind,
+        violation_ids: g.members.map(m => m.id), to_status: g.status, reason,
+      });
+      const okIds = new Set(r.details.filter(d => d.ok).map(d => d.id));
+      for (const m of g.members) {
+        const d = r.details.find(x => x.id === m.id);
+        if (okIds.has(m.id)) {
+          await patchItem(req, reviewKey, F(m.fk), { SYNCED_AT: nowIso() });
+          results.push({ finding_key: m.fk, pushed: true });
+        } else {
+          results.push({ finding_key: m.fk, error: d?.reason || 'Hacksaw reported no result for this id' });
+        }
+      }
     } catch (e) {
-      results.push({ finding_key: fk, error: String(e && e.message || e) });
+      for (const m of g.members) results.push({ finding_key: m.fk, error: String(e && e.message || e) });
     }
   }
-  return { success: true, results };
+  return { success: true, pushed: results.filter(r => r.pushed).length, results };
 }
 
 /* ------------------------------------------------------------------ retention sweep */

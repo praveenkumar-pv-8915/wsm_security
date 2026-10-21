@@ -689,10 +689,169 @@ async function listActivities(req, { product, violation_id: violationId, scan } 
   };
 }
 
+
+/* ------------------------------------------------------------------ write-back: status changes */
+
+/**
+ * Change the status of findings in Hacksaw — the one write this module makes.
+ *
+ * Verified against the Hacksaw API docs (api-6, read 2026-10-21):
+ *   POST /api/violations  action=changestatus            tostatus OPEN | TEMPORARILY_EXCLUDED (+todate DD-MM-YYYY)
+ *                                                         scope Hacksaw.VIOLATION_STATUS_CHANGE
+ *   POST /api/violations  action=changestatuspermanently tostatus FALSE_POSITIVE | PERMANENTLY_EXCLUDED
+ *                                                         scope Hacksaw.VIOLATION_PERMANENT_STATUS_CHANGE
+ *   POST /api/componentstatuschange  (same two actions)   scope Hacksaw.VULNERABLE_FILE_STATUS_CHANGE
+ * Common: organisation, productname, reportlabel, scan (Hacksaw's own scan name — JAVA_CODE_VIOLATIONS,
+ * MISCONFIGURATIONS, HARDCODED_SECRETS …), violationautoidlist (JSON array, ≤200), reason (≤2000).
+ * Throttle 10/min with a 10-minute lock, so callers batch by (product, report, scan, status).
+ *
+ * The response is per violation: a SUCCESS, or a FAILED with a reason such as ZHE110
+ * CURRENT_STATUS_SAME_AS_NEW_STATUS — which is not an error for us, the state is already right.
+ *
+ * NOT YET EXERCISED LIVE: the connection's token carries read scopes only. The request shape
+ * follows the docs; the first real push will tell whether Hacksaw wants these as form fields
+ * (sent here) or query parameters — both are plausible for a POST on this API.
+ */
+const PERMANENT = new Set(['FALSE_POSITIVE', 'PERMANENTLY_EXCLUDED']);
+const TEMPORARY = new Set(['OPEN', 'TEMPORARILY_EXCLUDED']);
+
+const WRITE_SCOPES = {
+  violation_temporary: 'Hacksaw.VIOLATION_STATUS_CHANGE',
+  violation_permanent: 'Hacksaw.VIOLATION_PERMANENT_STATUS_CHANGE',
+  component: 'Hacksaw.VULNERABLE_FILE_STATUS_CHANGE',
+};
+
+async function updateViolationStatus(req, {
+  product, report_label: reportLabel, scan, violation_ids: ids, to_status: toStatus, reason, todate, kind,
+} = {}) {
+  if (!product || !reportLabel || !scan) throw new HacksawError("'product', 'report_label' and 'scan' are required", 400);
+  const list = (Array.isArray(ids) ? ids : []).map(String).filter(x => /^\d+$/.test(x)).slice(0, 200);
+  if (!list.length) throw new HacksawError("'violation_ids' must hold 1–200 numeric ids", 400);
+  const status = String(toStatus || '').toUpperCase().replace(/\s+/g, '_');
+  if (!PERMANENT.has(status) && !TEMPORARY.has(status)) {
+    throw new HacksawError(`'to_status' must be one of ${[...TEMPORARY, ...PERMANENT].join(', ')}`, 400);
+  }
+  const why = String(reason || '').trim().slice(0, 2000);
+  if (!why) throw new HacksawError("'reason' is required — Hacksaw records it against every status change", 400);
+
+  const { credential } = await conn.resolveCredential(req, SERVICE_KEY);
+  const granted = String(credential.GRANTED_SCOPES || '');
+  const needed = kind === 'component'
+    ? WRITE_SCOPES.component
+    : (PERMANENT.has(status) ? WRITE_SCOPES.violation_permanent : WRITE_SCOPES.violation_temporary);
+  if (!granted.includes(needed)) {
+    throw new HacksawError(
+      `The Hacksaw connection lacks ${needed}. Re-mint its token with that scope (kit: setup.sh --reconfigure), ` +
+      'reconnect, then push again.', 424,
+    );
+  }
+
+  const organisation = await organisationFor(req);
+  const path = kind === 'component' ? '/api/componentstatuschange' : '/api/violations';
+  const form = new URLSearchParams({
+    action: PERMANENT.has(status) ? 'changestatuspermanently' : 'changestatus',
+    organisation, productname: product, reportlabel: reportLabel, scan,
+    violationautoidlist: JSON.stringify(list.map(Number)),
+    reason: why, tostatus: status,
+    ...(status === 'TEMPORARILY_EXCLUDED' && todate ? { todate: String(todate) } : {}),
+  });
+  const resp = await conn.callConnection(req, SERVICE_KEY, path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: form.toString(),
+  });
+  const text = await resp.text();
+  if (resp.status === 429) throw new RateLimited(path);
+  let json = null;
+  try { json = JSON.parse(text); } catch { /* below */ }
+  if (!json || json.ERROR_MESSAGE || !resp.ok) {
+    const why2 = json?.DESCRIPTION || json?.ERROR_MESSAGE || `HTTP ${resp.status}`;
+    throw new HacksawError(`Hacksaw: ${why2}${json?.ERROR_CODE ? ` [${json.ERROR_CODE}]` : ''}`, 424);
+  }
+  const block = (json.DATA || [])[0] || {};
+  return {
+    success: true,
+    summary: block.SUMMARY || {},
+    details: (block.DETAILS || []).map(d => ({
+      id: String(d.VIOLATION_AUTO_ID || d.BASE_VIOLATION_AUTO_ID || ''),
+      status: d.STATUS,
+      // ZHE110 means Hacksaw already shows this status — for us that is a success.
+      ok: d.STATUS === 'SUCCESS' || d.REASON?.ERROR_CODE === 'ZHE110',
+      reason: d.REASON ? `${d.REASON.ERROR_CODE}: ${d.REASON.DESCRIPTION || d.REASON.ERROR_MESSAGE}` : null,
+    })),
+  };
+}
+
+/* ------------------------------------------------------------------ component inventory delta */
+
+const tsvc = require('./tool-state-service');
+const DELTA_TOOL = 'hacksaw_component_delta';
+
+/** Every SCA component of one report, paged. 500/min, so paging a 300-jar build is cheap. */
+async function allComponents(req, organisation, product, label) {
+  const out = [];
+  for (let page = 1; page <= 20; page++) {
+    const json = await hsGet(req, '/api/vulnerablecomponentsreport', {
+      action: 'fetchallcomponents', organisation, productname: product, reportlabel: label,
+      pageno: page, pagelimit: 100, filter: '{}',
+    });
+    const rows = Array.isArray(json.CONTENT) ? json.CONTENT : (json.CONTENT?.VALUES || json.DATA?.[0]?.VALUES || []);
+    for (const c of rows) {
+      const name = c.NAME || c.COMPONENT_NAME || '';
+      const version = c.VERSION || '';
+      const purl = (c.IDENTIFIERS?.PURL_IDENTIFIERS || [])[0]?.VALUE;
+      // Identity without the version, so a bump reads as "updated", not "removed + added".
+      const base = purl ? purl.replace(/@[^?]*/, '') : name.replace(/[-_.]?\d[\w.+-]*$/, '');
+      out.push({ id: base || name, name, version, vulnerable: (c.VULNERABILITY_COUNT || 0) > 0 });
+    }
+    if (rows.length < 100) break;
+  }
+  return out;
+}
+
+/**
+ * Jar changes between a base build and a feature build — the design's "+3 ~5 −1".
+ *
+ * Two inventory fetches per pair, so the result is cached in `tool_state` (TOOL_KEY
+ * hacksaw_component_delta) keyed by the pair: a report is immutable once SUCCESS, so the delta
+ * never goes stale and the cache needs no TTL.
+ */
+async function componentDelta(req, { product, base_label: baseLabel, label } = {}) {
+  if (!product || !label || !baseLabel) throw new HacksawError("'product', 'label' and 'base_label' are required", 400);
+  const stateKey = `${product}|${baseLabel}|${label}`.slice(0, 250);
+  const cached = await tsvc.getState(req, DELTA_TOOL, stateKey).catch(() => null);
+  if (cached?.value) return { success: true, cached: true, ...cached.value };
+
+  const organisation = await organisationFor(req);
+  const [a, b] = await Promise.all([
+    allComponents(req, organisation, product, baseLabel),
+    allComponents(req, organisation, product, label),
+  ]);
+  const byA = new Map(a.map(x => [x.id, x]));
+  const byB = new Map(b.map(x => [x.id, x]));
+  const added = [], updated = [], removed = [];
+  for (const [id, y] of byB) {
+    const x = byA.get(id);
+    if (!x) added.push(y);
+    else if (x.version !== y.version) updated.push({ ...y, from: x.version });
+  }
+  for (const [id, x] of byA) if (!byB.has(id)) removed.push(x);
+  const value = {
+    product, base_label: baseLabel, label,
+    added: added.length, updated: updated.length, removed: removed.length,
+    vulnerable: b.filter(x => x.vulnerable).length,
+    items: { added: added.slice(0, 200), updated: updated.slice(0, 200), removed: removed.slice(0, 200) },
+    computed_at: new Date().toISOString(),
+  };
+  await tsvc.setState(req, DELTA_TOOL, stateKey, { value }).catch(() => null);
+  return { success: true, cached: false, ...value };
+}
+
 module.exports = {
   SCANS, FILE_TYPES, PAGE_LIMITS, listActivities,
   HacksawError, RateLimited,
   listProducts, listReports, getReportStats, listViolations, listViolationFilters,
   listComponents, listComponentVulnerabilities,
   DIFF_CATEGORIES, getDiffStats, listDiffViolations,
+  WRITE_SCOPES, updateViolationStatus, componentDelta,
 };

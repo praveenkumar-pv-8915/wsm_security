@@ -101,10 +101,14 @@ export default function HacksawReviewDetail({ reviewKey, onBack, onNotice, onCha
   const accepted = allKeys.filter((k) => findings[k]?.review_state === 'accepted');
   const pickedKeys = Object.keys(picked).filter((k) => picked[k]);
 
-  const identityOf = (r) => (r.kind === 'component'
-    ? { kind: 'component', product: repo.product, identifier: r.identifier, scan, rule: r.rule, file: r.file_name, snippet: r.snippet }
-    : { kind: 'violation', product: repo.product, rule: r.rule, file: r.file_name, snippet: r.snippet, scan, line: r.line_no,
-        hacksaw_reason: history[r.key]?.find((a) => a.reason)?.reason || null });
+  const identityOf = (r) => ({
+    kind: r.kind === 'component' ? 'component' : 'violation',
+    product: repo.product, scan, rule: r.rule, file: r.file_name, snippet: r.snippet, line: r.line_no,
+    identifier: r.identifier || null,
+    // For the reviewer's later push: the id in this build, the build, and Hacksaw's own scan name.
+    violation_id: r.id, report_label: repo.feature_label, hs_scan: r.type || scan,
+    hacksaw_reason: history[r.key]?.find((a) => a.reason)?.reason || null,
+  });
 
   const send = async (r) => {
     const d = draft[r.key] || {};

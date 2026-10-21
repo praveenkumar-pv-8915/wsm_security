@@ -3257,3 +3257,8 @@ ul.wsm-conn-sub { margin-top: 0; }
 .wsm-hsr-ai { padding: 8px 10px; border: 1px dashed var(--line3); font-size: 12px; color: var(--ink2); }
 .wsm-hsr-compose { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
 .wsm-hsr-ta { flex: 1 1 320px; min-width: 0; font-family: inherit; font-size: 12px; padding: 6px 8px; background: var(--chrome); color: var(--ink); border: 1px solid var(--line2); resize: vertical; }
+
+.wsm-hsr-delta { display: flex; gap: 8px; justify-content: center; font-weight: 800; font-variant-numeric: tabular-nums; }
+.wsm-hsr-add { color: var(--ac2-text, #6fb7ff); }
+.wsm-hsr-upd { color: var(--ac-text); }
+.wsm-hsr-rem { color: var(--muted); }
