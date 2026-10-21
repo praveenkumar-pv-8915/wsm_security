@@ -3309,6 +3309,7 @@ ul.wsm-conn-sub { margin-top: 0; }
 .wsm-ss-none { margin: 6px 8px; }
 
 .wsm-ss-pop-up { top: auto; bottom: calc(100% + 4px); }
+.wsm-ss-pop-r { left: auto; right: 0; }
 
 /* new-review modal — `overflow-y: auto` on .modal clipped the pickers' popovers at the modal's
    edge, so this one does not scroll; the backdrop does. */

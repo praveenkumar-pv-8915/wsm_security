@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 export default function SearchSelect({ label, value, placeholder, options, disabled, variant, onChange }) {
   const [open, setOpen] = useState(false);
   const [up, setUp] = useState(false);
+  const [right, setRight] = useState(false);   // align to the trigger's right edge instead
   const [q, setQ] = useState('');
   const boxRef = useRef(null);
   const inputRef = useRef(null);
@@ -43,13 +44,15 @@ export default function SearchSelect({ label, value, placeholder, options, disab
                 onClick={(e) => {
                   const r = e.currentTarget.getBoundingClientRect();
                   setUp(r.bottom + 330 > window.innerHeight && r.top > 330);
+                  setRight(r.left + 340 > window.innerWidth);
                   setOpen((o) => !o);
                 }}>
           <span className="wsm-ss-val">{current ? current.label : (placeholder || 'choose…')}</span>
           <span className="wsm-ss-caret" aria-hidden="true">▾</span>
         </button>
         {open && (
-          <div className={`wsm-ss-pop${up ? ' wsm-ss-pop-up' : ''}`} role="listbox">
+          <div className={`wsm-ss-pop${up ? ' wsm-ss-pop-up' : ''}${right ? ' wsm-ss-pop-r' : ''}`}
+               role="listbox">
             <input ref={inputRef} type="search" className="wsm-ss-q" placeholder="Search…"
                    value={q} onChange={(e) => setQ(e.target.value)} aria-label={`Search ${label}`} />
             <div className="wsm-ss-list">

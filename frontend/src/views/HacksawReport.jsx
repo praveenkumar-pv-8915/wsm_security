@@ -51,9 +51,12 @@ const FILTER_LABELS = {
   CONTEXT: 'Context',
   RULE: 'Rule',
   TAG: 'Tag',
+  ASSIGNEE: 'Assignee',
+  AUTHOR: 'Author',
 };
-const FILTER_ORDER = ['PRIORITY', 'STATUS', 'TYPE', 'TRACKING_STATUS', 'CONTEXT', 'RULE', 'TAG'];
-const LONG_FILTERS = new Set(['RULE', 'TAG']);
+const FILTER_ORDER = ['PRIORITY', 'STATUS', 'TYPE', 'TRACKING_STATUS', 'CONTEXT',
+  'ASSIGNEE', 'AUTHOR', 'RULE', 'TAG'];
+const LONG_FILTERS = new Set(['RULE', 'TAG', 'ASSIGNEE', 'AUTHOR']);
 /** Components are not a violation scan, so Hacksaw has no filter vocabulary for them. */
 const FILTERABLE = (cat) => cat !== 'VULNERABLE_COMPONENTS';
 const prettyVal = (v) => String(v).replace(/_/g, ' ').toLowerCase().replace(/^./, (c) => c.toUpperCase());

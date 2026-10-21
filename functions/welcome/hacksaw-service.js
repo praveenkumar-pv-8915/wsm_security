@@ -41,8 +41,16 @@ const SCANS = ['CODE_VIOLATIONS', 'MISCONFIGURATIONS', 'HARDCODED_SECRETS', 'RUN
 /** CODE_VIOLATIONS is per-language and Hacksaw rejects it without one — ZHE164 FILE_TYPE_MANDATORY. */
 const FILE_TYPES = ['java', 'js', 'python', 'clang'];
 
-/** Filter keys we forward. AUTHOR/ASSIGNEE are deliberately absent — see rule 3. */
-const FILTER_KEYS = ['FILE_TYPE', 'TYPE', 'STATUS', 'PRIORITY', 'RULE', 'TAG', 'TRACKING_STATUS', 'CONTEXT'];
+/**
+ * Filter keys we forward.
+ *
+ * ASSIGNEE and AUTHOR were held back while identity was trimmed to the local part and the screen
+ * had only a native <select> to show them in — a 220-entry dropdown nobody can search. Both
+ * reasons are gone (2026-10-21): the 2026-10-20 decision renders the full address live, and the
+ * filter bar now uses the searchable select, so they are forwarded like any other key.
+ */
+const FILTER_KEYS = ['FILE_TYPE', 'TYPE', 'STATUS', 'PRIORITY', 'RULE', 'TAG', 'TRACKING_STATUS',
+  'CONTEXT', 'ASSIGNEE', 'AUTHOR'];
 
 const PAGE_LIMITS = [50, 100, 200];
 
@@ -344,9 +352,10 @@ async function listViolations(req, { product, label, scan, file_type: fileType, 
  * hardcoded list that drifts.
  *
  * Hacksaw's own response is ~56 KB, most of it AUTHOR and ASSIGNEE — about 220 colleague email
- * addresses each. Those two keys are dropped here rather than projected: a 220-entry dropdown is
- * not a usable control anyway, and shipping the list would put an org address book in the browser
- * for no gain (rule 3). Filtering by author becomes a server-side typeahead when someone needs it.
+ * addresses each. Both are forwarded since 2026-10-21 (Pk asked for the assignee filter): they are
+ * the same addresses the violation rows already carry under the 2026-10-20 identity decision, and
+ * the filter bar's searchable select makes a list that long usable. Still never persisted; the
+ * 200-value cap below applies to them as it does to RULE and TAG.
  */
 async function listViolationFilters(req, { product, label, scan, file_type: fileType } = {}) {
   if (!product || !label) throw new HacksawError("'product' and 'label' are required", 400);
@@ -373,7 +382,10 @@ async function listViolationFilters(req, { product, label, scan, file_type: file
     const values = (entry.VALUE || [])
       // CONTEXT and COMPONENT come back as objects; everything we forward is a plain string.
       .filter(v => typeof v === 'string')
-      .slice(0, 200);
+      // 500, not 200: ASSIGNEE and AUTHOR run to ~220 each and a silently truncated list is the
+      // worst kind of filter — the person you are looking for is simply not there, for no reason
+      // the screen can state.
+      .slice(0, 500);
     if (values.length) out[entry.KEY] = values;
   }
   return { success: true, product, label, scan, file_type: ft || null, filters: out };
