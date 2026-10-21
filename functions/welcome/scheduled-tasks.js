@@ -99,6 +99,18 @@ const TASKS = {
 
 const taskKeys = () => Object.keys(TASKS);
 
+/**
+ * Resolve a task key leniently: `HacksawReviewPurge`, `hacksaw-review-purge` and
+ * `hacksaw_review_purge` all name the same task. Console cron parameters are typed by people, and
+ * a PascalCase job name is the natural thing to type there; the registry key stays snake_case.
+ */
+const canonical = s => String(s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+function resolveTaskKey(raw) {
+  const wanted = canonical(raw);
+  if (!wanted) return '';
+  return taskKeys().find(k => canonical(k) === wanted) || String(raw || '').trim();
+}
+
 class UnknownTask extends Error {
   constructor(key) {
     super(`Unknown scheduled task '${key}'. Known: ${taskKeys().join(', ')}`);
@@ -131,7 +143,7 @@ function readValue(raw) {
  * error: `{ success: true, skipped: 'interval' | 'locked' }`.
  */
 async function runTask(ctx, { task, dryRun = false, force = false, budgetMs = DEFAULT_BUDGET_MS, ...rest } = {}) {
-  const key = String(task || '').trim();
+  const key = resolveTaskKey(task);
   const def = TASKS[key];
   if (!def) throw new UnknownTask(key);
 
@@ -219,4 +231,4 @@ async function listTasks(ctx) {
   });
 }
 
-module.exports = { TASKS, TOOL_KEY, runTask, listTasks, taskKeys, UnknownTask, DEFAULT_BUDGET_MS };
+module.exports = { TASKS, TOOL_KEY, runTask, listTasks, taskKeys, resolveTaskKey, UnknownTask, DEFAULT_BUDGET_MS };
