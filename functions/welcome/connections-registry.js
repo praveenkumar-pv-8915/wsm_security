@@ -181,9 +181,22 @@ const SERVICES = [
     key: 'zoho-hacksaw', label: 'Zoho Hacksaw', auth_type: AUTH_TYPES.OAUTH,
     host: '@hacksaw', default_dc: 'zcc', redirect_port: 8492,
     description: 'Security findings — organisations, products, reports and suppression rules.',
+    // The three write scopes were added 2026-10-21 so the Report screen can push a status change
+    // back to Hacksaw. They only take effect once the token is re-minted against this list
+    // (agent-knowledge-kit `setup.sh --reconfigure`, in a terminal — an MCP session cannot unlock
+    // the login Keychain). Until then `GRANTED_SCOPES` holds the six READ scopes and every write
+    // is refused before it leaves this app.
+    //
+    // Assign and tag have working endpoints (`assignviolation`, `addtags`) but their scope names
+    // are NOT known — the docs mirror lists only these three, and discovering a scope name needs
+    // a write to be attempted. They are deliberately not guessed: a wrong scope string costs
+    // another reconfigure. Hacksaw is left to be the authority for those two, and its error names
+    // the scope it wants.
     scopes: ['Hacksaw.ORGANISATION.READ', 'Hacksaw.PRODUCT.READ', 'Hacksaw.REPORT.READ',
              'Hacksaw.PRODUCTTAG.READ', 'Hacksaw.ORG_SUPPRESSION_RULE.READ',
-             'Hacksaw.PRODUCT_SUPPRESSION_RULE.READ'],
+             'Hacksaw.PRODUCT_SUPPRESSION_RULE.READ',
+             'Hacksaw.VIOLATION_STATUS_CHANGE', 'Hacksaw.VIOLATION_PERMANENT_STATUS_CHANGE',
+             'Hacksaw.VULNERABLE_FILE_STATUS_CHANGE'],
     // Almost every Hacksaw read takes an organisation, and most also take a product — the same two
     // values on every call for a given team. The kit keeps them in its connections DB as
     // `zoho-hacksaw.default_organisation` / `.default_product` (agent-knowledge-kit

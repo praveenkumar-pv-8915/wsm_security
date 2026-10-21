@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { RefreshIcon } from '../lib/icons';
 import FilterMenu from '../components/FilterMenu';
+import BulkActions from '../components/BulkActions';
 
 /**
  * Hacksaw › Hacksaw Report — built to the v7 design (design/WSM Security v7.bundled.html).
@@ -102,6 +103,8 @@ export default function HacksawReport({ onNotice }) {
   const [vocabBusy, setVocabBusy] = useState(false);
   const [sel, setSel] = useState({});          // KEY -> chosen values; [] or absent means no filter
 
+  const [caps, setCaps] = useState(null);      // what the Hacksaw grant allows
+  const [writing, setWriting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const seq = useRef(0);
@@ -117,6 +120,18 @@ export default function HacksawReport({ onNotice }) {
         setProducts(r.products || []);
         setProduct((p) => p || (r.products || [])[0]?.name || '');
       } catch (err) { if (live) fail(err, 'Could not reach Hacksaw.'); }
+    })();
+    return () => { live = false; };
+  }, []);
+
+  /** The connection's write grant, read once — it only changes when the token is re-minted. */
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const r = await api('/hacksaw/write-capabilities');
+        if (live) setCaps(r);
+      } catch { if (live) setCaps({ assign: false, tag: false, status_temporary: false, status_permanent: false, missing: [] }); }
     })();
     return () => { live = false; };
   }, []);
@@ -318,12 +333,43 @@ export default function HacksawReport({ onNotice }) {
 
   useEffect(() => { load(); }, [load]);
 
+  /**
+   * One write, against the findings ticked. Hacksaw keys these by VIOLATION_AUTO_ID — the
+   * per-report id, not the stable finding key the Reviewer files decisions under.
+   */
+  const runBulk = useCallback(async (kind, payload) => {
+    const ids = shownRef.current.filter((r) => pickedRef.current[r.key]).map((r) => r.id).filter(Boolean);
+    if (!ids.length) return;
+    setWriting(true); setError('');
+    try {
+      const body = {
+        product, report_label: label, scan: category, violation_ids: ids, ...payload,
+      };
+      if (category === 'CODE_VIOLATIONS') body.file_type = fileType;
+      const path = kind === 'assign' ? 'violation-assign' : kind === 'tag' ? 'violation-tags' : 'violation-status';
+      const r = await api(`/hacksaw/${path}`, { method: 'POST', body });
+      onNotice?.(kind === 'assign' ? `Assigned ${r.assigned ?? ids.length} findings in Hacksaw.`
+        : kind === 'tag' ? `Tagged ${r.tagged ?? ids.length} findings in Hacksaw.`
+          : `Pushed the status change for ${ids.length} findings.`);
+      setPicked({});
+      await load();
+    } catch (err) {
+      // Hacksaw's own message carries the scope name when a grant is the problem — surface it.
+      fail(err, 'Hacksaw refused the change.');
+    } finally { setWriting(false); }
+  }, [product, label, category, fileType, load, onNotice]);
+
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((r) => (
       !needle || [r.rule, r.file, r.snippet].some((x) => String(x || '').toLowerCase().includes(needle))
     ));
   }, [rows, q]);
+
+  const shownRef = useRef([]);
+  const pickedRef = useRef({});
+  useEffect(() => { shownRef.current = shown; }, [shown]);
+  useEffect(() => { pickedRef.current = picked; }, [picked]);
 
   const pickedKeys = Object.keys(picked).filter((k) => picked[k]);
   const allPicked = shown.length > 0 && shown.every((r) => picked[r.key]);
@@ -405,7 +451,9 @@ export default function HacksawReport({ onNotice }) {
         ) : (
           <>
             <span className="wsm-hs-sel">{pickedKeys.length} selected</span>
-            <span className="hint">Decisions are made in Hacksaw Reviewer — this screen records nothing.</span>
+            <BulkActions count={pickedKeys.length} caps={caps} busy={writing} onRun={runBulk}
+                         people={vocab.ASSIGNEE || []} tags={vocab.TAG || []} />
+            <span className="hint">Review decisions stay in Hacksaw Reviewer; these write to Hacksaw itself.</span>
             <button type="button" className="wsm-hs-clear" onClick={() => setPicked({})}>Clear selection</button>
           </>
         )}

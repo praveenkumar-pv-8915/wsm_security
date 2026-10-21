@@ -726,6 +726,50 @@ app.get('/api/hacksaw/violation-files', wrap(async (req, res) => {
   }));
 }));
 
+/* ------------------------------------------------- hacksaw: writes back to Hacksaw */
+
+/** What the connection's current grant allows — the screen disables against this. */
+app.get('/api/hacksaw/write-capabilities', wrap(async (req, res) => {
+  res.json(await hacksaw.writeCapabilities(req));
+}));
+
+/** Push a status change. `reason` is mandatory — Hacksaw records it against the change. */
+app.post('/api/hacksaw/violation-status', wrap(async (req, res) => {
+  res.json(await hacksaw.updateViolationStatus(req, {
+    product: req.body.product,
+    report_label: req.body.report_label,
+    scan: req.body.scan,
+    file_type: req.body.file_type,
+    violation_ids: req.body.violation_ids,
+    to_status: req.body.to_status,
+    reason: req.body.reason,
+    todate: req.body.todate,
+    kind: req.body.kind,
+  }));
+}));
+
+app.post('/api/hacksaw/violation-assign', wrap(async (req, res) => {
+  res.json(await hacksaw.assignViolations(req, {
+    product: req.body.product,
+    report_label: req.body.report_label,
+    scan: req.body.scan,
+    file_type: req.body.file_type,
+    violation_ids: req.body.violation_ids,
+    assignee: req.body.assignee,
+  }));
+}));
+
+app.post('/api/hacksaw/violation-tags', wrap(async (req, res) => {
+  res.json(await hacksaw.tagViolations(req, {
+    product: req.body.product,
+    report_label: req.body.report_label,
+    scan: req.body.scan,
+    file_type: req.body.file_type,
+    violation_ids: req.body.violation_ids,
+    tags: req.body.tags,
+  }));
+}));
+
 /* ------------------------------------------------------------------ errors */
 
 app.use((_req, res) => res.status(404).json({ success: false, error: 'No such route' }));

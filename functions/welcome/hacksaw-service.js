@@ -742,6 +742,49 @@ async function listActivities(req, { product, violation_id: violationId, scan } 
 const PERMANENT = new Set(['FALSE_POSITIVE', 'PERMANENTLY_EXCLUDED']);
 const TEMPORARY = new Set(['OPEN', 'TEMPORARILY_EXCLUDED']);
 
+/**
+ * The scan token the WRITE actions take, which is NOT the one the reads take.
+ *
+ * Probed 2026-10-21: `changestatus` / `assignviolation` / `addtags` accept MISCONFIGURATIONS,
+ * HARDCODED_SECRETS, RUNTIME_CODE_VIOLATIONS and VULNERABLE_COMPONENTS unchanged, but reject
+ * `CODE_VIOLATIONS` with `ZSE006 ... must match the pattern "scan"` — code violations are
+ * addressed per language on the write path, as `JAVA_CODE_VIOLATIONS` (verified). The read path
+ * takes `CODE_VIOLATIONS` plus a FILE_TYPE filter, so the two cannot share a value.
+ */
+function writeScanToken(scan, fileType) {
+  if (scan !== 'CODE_VIOLATIONS') return scan;
+  const ft = String(fileType || '').toLowerCase();
+  if (!FILE_TYPES.includes(ft)) {
+    throw new HacksawError("'file_type' is required to write against CODE_VIOLATIONS", 400);
+  }
+  return `${ft.toUpperCase()}_CODE_VIOLATIONS`;
+}
+
+/** Shared by every write: the ids Hacksaw will act on. Its own ceiling is 1–200 (ZSE025). */
+function writeIdList(ids) {
+  const list = (Array.isArray(ids) ? ids : []).map(String).filter(x => /^\d+$/.test(x)).slice(0, 200);
+  if (!list.length) throw new HacksawError("'violation_ids' must hold 1–200 numeric ids", 400);
+  return list;
+}
+
+/** POST a write action and read Hacksaw's answer the same way for all of them. */
+async function postViolationAction(req, form, path = '/api/violations') {
+  const resp = await conn.callConnection(req, SERVICE_KEY, path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: form.toString(),
+  });
+  const text = await resp.text();
+  if (resp.status === 429) throw new RateLimited(path);
+  let json = null;
+  try { json = JSON.parse(text); } catch { /* below */ }
+  if (!json || json.ERROR_MESSAGE || !resp.ok) {
+    const why = json?.DESCRIPTION || json?.ERROR_MESSAGE || `HTTP ${resp.status}`;
+    throw new HacksawError(`Hacksaw: ${why}${json?.ERROR_CODE ? ` [${json.ERROR_CODE}]` : ''}`, 424);
+  }
+  return (json.DATA || [])[0] || {};
+}
+
 const WRITE_SCOPES = {
   violation_temporary: 'Hacksaw.VIOLATION_STATUS_CHANGE',
   violation_permanent: 'Hacksaw.VIOLATION_PERMANENT_STATUS_CHANGE',
@@ -749,11 +792,11 @@ const WRITE_SCOPES = {
 };
 
 async function updateViolationStatus(req, {
-  product, report_label: reportLabel, scan, violation_ids: ids, to_status: toStatus, reason, todate, kind,
+  product, report_label: reportLabel, scan, file_type: fileType, violation_ids: ids,
+  to_status: toStatus, reason, todate, kind,
 } = {}) {
   if (!product || !reportLabel || !scan) throw new HacksawError("'product', 'report_label' and 'scan' are required", 400);
-  const list = (Array.isArray(ids) ? ids : []).map(String).filter(x => /^\d+$/.test(x)).slice(0, 200);
-  if (!list.length) throw new HacksawError("'violation_ids' must hold 1–200 numeric ids", 400);
+  const list = writeIdList(ids);
   const status = String(toStatus || '').toUpperCase().replace(/\s+/g, '_');
   if (!PERMANENT.has(status) && !TEMPORARY.has(status)) {
     throw new HacksawError(`'to_status' must be one of ${[...TEMPORARY, ...PERMANENT].join(', ')}`, 400);
@@ -777,7 +820,8 @@ async function updateViolationStatus(req, {
   const path = kind === 'component' ? '/api/componentstatuschange' : '/api/violations';
   const form = new URLSearchParams({
     action: PERMANENT.has(status) ? 'changestatuspermanently' : 'changestatus',
-    organisation, productname: product, reportlabel: reportLabel, scan,
+    organisation, productname: product, reportlabel: reportLabel,
+    scan: kind === 'component' ? scan : writeScanToken(scan, fileType),
     violationautoidlist: JSON.stringify(list.map(Number)),
     reason: why, tostatus: status,
     ...(status === 'TEMPORARILY_EXCLUDED' && todate ? { todate: String(todate) } : {}),
@@ -886,6 +930,98 @@ async function listViolationFiles(req, {
   return { success: true, product, label, scan, file_type: fileType || null, total, truncated, files };
 }
 
+/**
+ * Assign findings to a person, and add tags to them.
+ *
+ * Endpoints probed 2026-10-21 — `assignviolation` and `addtags` on /api/violations; the
+ * near-misses `changeassignee`, `changeassignment`, `addtag` and `changetags` all answer ZSE003.
+ *
+ * **Their scope names are not known.** The docs mirror lists write scopes for status changes only,
+ * and a scope name can only be learnt by attempting a write. Rather than guess one — a wrong
+ * scope string costs another `setup.sh --reconfigure` — these two check only that the connection
+ * carries SOME write scope, and let Hacksaw's own error name what it wants. That error surfaces
+ * verbatim, so the first real attempt tells us the scope to add.
+ */
+function assertSomeWriteScope(granted) {
+  const any = Object.values(WRITE_SCOPES).some(sc => granted.includes(sc));
+  if (!any) {
+    throw new HacksawError(
+      'The Hacksaw connection is read-only — it holds no write scope. Re-mint its token '
+      + '(kit: setup.sh --reconfigure), reconnect, then try again.', 424,
+    );
+  }
+}
+
+async function assignViolations(req, {
+  product, report_label: reportLabel, scan, file_type: fileType, violation_ids: ids, assignee,
+} = {}) {
+  if (!product || !reportLabel || !scan) throw new HacksawError("'product', 'report_label' and 'scan' are required", 400);
+  const list = writeIdList(ids);
+  const who = String(assignee || '').trim();
+  if (!who) throw new HacksawError("'assignee' is required", 400);
+
+  const { credential } = await conn.resolveCredential(req, SERVICE_KEY);
+  assertSomeWriteScope(String(credential.GRANTED_SCOPES || ''));
+
+  const organisation = await organisationFor(req);
+  const block = await postViolationAction(req, new URLSearchParams({
+    action: 'assignviolation',
+    organisation,
+    productname: product,
+    reportlabel: reportLabel,
+    scan: writeScanToken(scan, fileType),
+    violationautoidlist: JSON.stringify(list.map(Number)),
+    assignee: who,
+  }));
+  return { success: true, assigned: list.length, summary: block.SUMMARY || {} };
+}
+
+async function tagViolations(req, {
+  product, report_label: reportLabel, scan, file_type: fileType, violation_ids: ids, tags,
+} = {}) {
+  if (!product || !reportLabel || !scan) throw new HacksawError("'product', 'report_label' and 'scan' are required", 400);
+  const list = writeIdList(ids);
+  const clean = (Array.isArray(tags) ? tags : [tags])
+    .map(t => String(t || '').trim()).filter(Boolean).slice(0, 20);
+  if (!clean.length) throw new HacksawError("'tags' must hold at least one tag", 400);
+
+  const { credential } = await conn.resolveCredential(req, SERVICE_KEY);
+  assertSomeWriteScope(String(credential.GRANTED_SCOPES || ''));
+
+  const organisation = await organisationFor(req);
+  const block = await postViolationAction(req, new URLSearchParams({
+    action: 'addtags',
+    organisation,
+    productname: product,
+    reportlabel: reportLabel,
+    scan: writeScanToken(scan, fileType),
+    violationautoidlist: JSON.stringify(list.map(Number)),
+    tags: JSON.stringify(clean),
+  }));
+  return { success: true, tagged: list.length, tags: clean, summary: block.SUMMARY || {} };
+}
+
+/**
+ * What this connection can currently do, so the screen can disable precisely rather than offer a
+ * control that 424s. Reports the scopes that are missing by name — that is the whole remedy.
+ */
+async function writeCapabilities(req) {
+  const { credential } = await conn.resolveCredential(req, SERVICE_KEY);
+  const granted = String(credential.GRANTED_SCOPES || '');
+  const has = sc => granted.includes(sc);
+  const someWrite = Object.values(WRITE_SCOPES).some(has);
+  return {
+    success: true,
+    status_temporary: has(WRITE_SCOPES.violation_temporary),
+    status_permanent: has(WRITE_SCOPES.violation_permanent),
+    component_status: has(WRITE_SCOPES.component),
+    // Scope unknown (see assertSomeWriteScope) — offered once any write scope exists.
+    assign: someWrite,
+    tag: someWrite,
+    missing: Object.values(WRITE_SCOPES).filter(sc => !has(sc)),
+  };
+}
+
 /* ------------------------------------------------------------------ component inventory delta */
 
 const tsvc = require('./tool-state-service');
@@ -957,5 +1093,6 @@ module.exports = {
   listProducts, listReports, getReportStats, listViolations, listViolationFilters, listViolationFiles,
   listComponents, listComponentVulnerabilities,
   DIFF_CATEGORIES, getDiffStats, listDiffViolations,
-  WRITE_SCOPES, updateViolationStatus, componentDelta,
+  WRITE_SCOPES, updateViolationStatus, assignViolations, tagViolations, writeCapabilities,
+  componentDelta,
 };

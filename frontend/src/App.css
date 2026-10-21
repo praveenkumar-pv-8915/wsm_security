@@ -3374,3 +3374,9 @@ ul.wsm-conn-sub { margin-top: 0; }
 .wsm-fm-opt-l { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .wsm-fm-opt-n { flex: 0 0 auto; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .wsm-fm-tick { flex: 0 0 11px; color: var(--ac); font-size: 11px; line-height: 1; }
+
+/* bulk write actions on the Hacksaw Report selection */
+.wsm-hs-bulk { position: relative; display: inline-flex; align-items: center; gap: 6px; }
+.wsm-hs-bulkpop { width: 320px; top: calc(100% + 6px); gap: 8px; }
+.wsm-hs-bulkpop textarea.wsm-ss-q { resize: vertical; font: inherit; font-size: 12px; }
+.wsm-hs-bulkfoot { display: flex; justify-content: flex-end; gap: 8px; }
