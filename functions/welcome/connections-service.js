@@ -1094,8 +1094,42 @@ async function chatCompletion(req, { prompt, context, history, model, vendor, dc
   return { text, usage: json.data?.usage || null };
 }
 
+/**
+ * Re-stamp GRANTED_SCOPES from the registry, without touching the token.
+ *
+ * For the case the caveat on saveRefreshToken describes, in reverse: the token was minted with a
+ * WIDER grant than this app recorded, so its own pre-flight checks refused calls the token could
+ * have made. Correcting the registry and calling this fixes it — no re-consent, no new token.
+ *
+ * It records a claim, not a verification: Zoho does not expose a token's real scopes without a
+ * tokeninfo call. The authority remains the API's own answer, so a write refused by Hacksaw still
+ * surfaces its error verbatim. Only call this when the grant is known from the API console.
+ */
+async function syncGrantedScopes(req, serviceKey) {
+  const { table, zcql } = services(req);
+  const service = registry.getService(serviceKey);
+  if (service.auth_type !== AUTH_TYPES.OAUTH) {
+    throw new Error(`'${service.key}' does not use OAuth`);
+  }
+  const { credential } = await resolveCredential(req, serviceKey);
+  const before = String(credential.GRANTED_SCOPES || '');
+  const after = registry.scopeString(service);
+  if (before !== after) {
+    await table.updateRow({ ROWID: String(credential.ROWID), GRANTED_SCOPES: after });
+  }
+  void zcql;
+  return {
+    success: true,
+    service_key: service.key,
+    changed: before !== after,
+    before_count: before.split(/[\s,]+/).filter(Boolean).length,
+    after_count: after.split(/[\s,]+/).filter(Boolean).length,
+    scopes: after.split(','),
+  };
+}
+
 module.exports = {
-  listConnections, listProfiles,
+  listConnections, listProfiles, syncGrantedScopes,
   startOAuth, startBulkOAuth, handleCallback, reauthorize, saveStaticToken, saveRefreshToken,
   revokeConnection,
   runFetch, setExtraConfig, chatCompletion, AiUnavailable,

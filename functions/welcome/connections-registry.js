@@ -181,22 +181,26 @@ const SERVICES = [
     key: 'zoho-hacksaw', label: 'Zoho Hacksaw', auth_type: AUTH_TYPES.OAUTH,
     host: '@hacksaw', default_dc: 'zcc', redirect_port: 8492,
     description: 'Security findings — organisations, products, reports and suppression rules.',
-    // The three write scopes were added 2026-10-21 so the Report screen can push a status change
-    // back to Hacksaw. They only take effect once the token is re-minted against this list
-    // (agent-knowledge-kit `setup.sh --reconfigure`, in a terminal — an MCP session cannot unlock
-    // the login Keychain). Until then `GRANTED_SCOPES` holds the six READ scopes and every write
-    // is refused before it leaves this app.
+    // The scopes the existing token was actually minted with (Pk, 2026-10-21 — read off the
+    // Hacksaw API console). This list had drifted: it recorded six READ scopes, while the live
+    // grant already carried REPORT.UPDATE and both violation status-change scopes, so every write
+    // was refused by this app's own pre-flight check for no reason.
     //
-    // Assign and tag have working endpoints (`assignviolation`, `addtags`) but their scope names
-    // are NOT known — the docs mirror lists only these three, and discovering a scope name needs
-    // a write to be attempted. They are deliberately not guessed: a wrong scope string costs
-    // another reconfigure. Hacksaw is left to be the authority for those two, and its error names
-    // the scope it wants.
-    scopes: ['Hacksaw.ORGANISATION.READ', 'Hacksaw.PRODUCT.READ', 'Hacksaw.REPORT.READ',
-             'Hacksaw.PRODUCTTAG.READ', 'Hacksaw.ORG_SUPPRESSION_RULE.READ',
-             'Hacksaw.PRODUCT_SUPPRESSION_RULE.READ',
+    // `GRANTED_SCOPES` is only ever this string, stamped at connect time — it is never verified
+    // against the token (see connections-service.saveRefreshToken's caveat). Correcting it here and
+    // re-stamping the row with `syncGrantedScopes` is therefore the whole fix; no re-consent.
+    //
+    // NOT granted, so component status changes stay refused: Hacksaw.VULNERABLE_FILE_STATUS_CHANGE.
+    scopes: ['Hacksaw.ORGANISATION.READ', 'Hacksaw.PRODUCT.READ',
+             'Hacksaw.REPORT.READ', 'Hacksaw.REPORT.UPDATE', 'Hacksaw.REPORT.CREATE',
+             'Hacksaw.REPORT.DELETE',
              'Hacksaw.VIOLATION_STATUS_CHANGE', 'Hacksaw.VIOLATION_PERMANENT_STATUS_CHANGE',
-             'Hacksaw.VULNERABLE_FILE_STATUS_CHANGE'],
+             'Hacksaw.ORG_SUPPRESSION_RULE.READ', 'Hacksaw.PRODUCT_SUPPRESSION_RULE.READ',
+             'Hacksaw.BUILD.UPDATE',
+             'Hacksaw.PRODUCT_USER.READ', 'Hacksaw.PRODUCT_USER.UPDATE',
+             'Hacksaw.PRODUCT_USER.CREATE', 'Hacksaw.PRODUCT_USER.DELETE',
+             'Hacksaw.PRODUCTTAG.READ',
+             'ZohoFiles.files.CREATE'],
     // Almost every Hacksaw read takes an organisation, and most also take a product — the same two
     // values on every call for a given team. The kit keeps them in its connections DB as
     // `zoho-hacksaw.default_organisation` / `.default_product` (agent-knowledge-kit

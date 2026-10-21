@@ -789,6 +789,10 @@ const WRITE_SCOPES = {
   violation_temporary: 'Hacksaw.VIOLATION_STATUS_CHANGE',
   violation_permanent: 'Hacksaw.VIOLATION_PERMANENT_STATUS_CHANGE',
   component: 'Hacksaw.VULNERABLE_FILE_STATUS_CHANGE',
+  // Assign and tag have no scope of their own in the docs mirror. REPORT.UPDATE is the only scope
+  // in the grant that plausibly covers mutating a report's findings, so the UI gates on it — but
+  // Hacksaw remains the authority: if it wants something else, its error names it (2026-10-21).
+  report_update: 'Hacksaw.REPORT.UPDATE',
 };
 
 async function updateViolationStatus(req, {
@@ -946,8 +950,9 @@ function assertSomeWriteScope(granted) {
   const any = Object.values(WRITE_SCOPES).some(sc => granted.includes(sc));
   if (!any) {
     throw new HacksawError(
-      'The Hacksaw connection is read-only — it holds no write scope. Re-mint its token '
-      + '(kit: setup.sh --reconfigure), reconnect, then try again.', 424,
+      'The Hacksaw connection is read-only — it holds no write scope. If its token was minted '
+      + 'with a wider grant than this app recorded, POST /api/connections/zoho-hacksaw/sync-scopes '
+      + 'to re-stamp it; otherwise re-mint the token and reconnect.', 424,
     );
   }
 }
@@ -1015,9 +1020,10 @@ async function writeCapabilities(req) {
     status_temporary: has(WRITE_SCOPES.violation_temporary),
     status_permanent: has(WRITE_SCOPES.violation_permanent),
     component_status: has(WRITE_SCOPES.component),
-    // Scope unknown (see assertSomeWriteScope) — offered once any write scope exists.
-    assign: someWrite,
-    tag: someWrite,
+    // No scope of their own; gated on REPORT.UPDATE, with Hacksaw as the authority.
+    assign: has(WRITE_SCOPES.report_update) || someWrite,
+    tag: has(WRITE_SCOPES.report_update) || someWrite,
+    report_update: has(WRITE_SCOPES.report_update),
     missing: Object.values(WRITE_SCOPES).filter(sc => !has(sc)),
   };
 }

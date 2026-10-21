@@ -119,6 +119,11 @@ app.get('/api/connections', wrap(async (req, res) => {
 }));
 
 /** Data-centre profiles for the DC picker. */
+/** Re-stamp a connection's recorded scopes from the registry — see connections-service. */
+app.post('/api/connections/:key/sync-scopes', wrap(async (req, res) => {
+  res.json(await conn.syncGrantedScopes(req, req.params.key));
+}));
+
 app.get('/api/connections/profiles', (_req, res) => {
   send(res, conn.listProfiles());
 });
