@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { RefreshIcon } from '../lib/icons';
 import HacksawReviewDetail from './HacksawReviewDetail';
+import SearchSelect from '../components/SearchSelect';
 
 /**
  * Hacksaw › Hacksaw Reviewer — the v7 design's `hreview` tool, as a review queue.
@@ -49,7 +50,7 @@ const SCAN_COLS = [
   ['RUNTIME_CODE_VIOLATIONS', 'IAST'],
 ];
 
-const COLS = '56px minmax(140px, 1.1fr) minmax(150px, 1fr) minmax(170px, 1.2fr) repeat(4, 104px) 112px minmax(150px, 0.9fr)';
+const COLS = '78px minmax(140px, 1.1fr) minmax(150px, 1fr) minmax(170px, 1.2fr) repeat(4, 124px) 116px minmax(150px, 0.9fr)';
 
 const initialsOf = (v) => String(v || '').replace(/@.*/, '').split(/[._\s-]/).filter(Boolean)
   .slice(0, 2).map((x) => x[0]).join('').toUpperCase() || '··';
@@ -194,52 +195,63 @@ export default function HacksawReviewer({ onNotice }) {
                 title="Refresh" aria-label="Refresh reviews">
           <RefreshIcon />
         </button>
-        <button type="button" className="btn btn-primary" onClick={() => setAdding((a) => !a)}>
-          {adding ? 'Cancel' : 'New review'}
+        <button type="button" className="btn btn-primary" onClick={() => { setRepos([]); setAdding(true); }}>
+          New review
         </button>
       </div>
 
       {adding && (
-        <div className="wsm-hsr-new">
-          {repos.map((rp, i) => {
-            const reps = reportsBy[rp.product] || [];
-            return (
-              <div key={i} className="wsm-hs-tools">
-                <label className="wsm-dms-filter">
-                  <span className="wsm-label">Repo</span>
-                  <select className="wsm-dms-select-on" value={rp.product}
-                          onChange={(e) => { setRepo(i, { product: e.target.value, feature_label: '', base_label: '' }); reportsFor(e.target.value); }}>
-                    {products.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
-                  </select>
-                </label>
-                <label className="wsm-dms-filter">
-                  <span className="wsm-label">Feature build</span>
-                  <select className={rp.feature_label ? 'wsm-dms-select-on' : ''} value={rp.feature_label}
-                          onChange={(e) => setRepo(i, { feature_label: e.target.value })}>
-                    <option value="">choose…</option>
-                    {reps.map((r) => <option key={r.label} value={r.label}>{r.label}</option>)}
-                  </select>
-                </label>
-                <label className="wsm-dms-filter">
-                  <span className="wsm-label">Base build</span>
-                  <select className={rp.base_label ? 'wsm-dms-select-on' : ''} value={rp.base_label}
-                          onChange={(e) => setRepo(i, { base_label: e.target.value })}>
-                    <option value="">none (whole build)</option>
-                    {reps.filter((r) => r.label !== rp.feature_label).map((r) => (
-                      <option key={r.label} value={r.label}>{r.is_deployed ? '● deployed — ' : ''}{r.label}</option>
-                    ))}
-                  </select>
-                </label>
-                <button type="button" className="wsm-hs-clear" onClick={() => setRepos((l) => l.filter((_, j) => j !== i))}>Remove</button>
+        <div className="modal-backdrop" onClick={() => setAdding(false)}>
+          <div className="modal modal-lg wsm-hsr-newmodal" role="dialog" aria-modal="true"
+               aria-label="New review" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <h2>New review</h2>
+              <button type="button" className="modal-close" onClick={() => setAdding(false)}
+                      aria-label="Close" title="Close">×</button>
+            </div>
+
+            <div className="wsm-hsr-new">
+              {repos.map((rp, i) => {
+                const reps = reportsBy[rp.product] || [];
+                return (
+                  <div key={i} className="wsm-hs-tools">
+                    <SearchSelect
+                      label="Repo" value={rp.product} placeholder="choose a repo…"
+                      options={products.map((p) => ({ value: p.name, label: p.name }))}
+                      onChange={(v) => { setRepo(i, { product: v, feature_label: '', base_label: '' }); reportsFor(v); }}
+                    />
+                    <SearchSelect
+                      label="Feature build" value={rp.feature_label} disabled={!rp.product}
+                      options={reps.map((r) => ({ value: r.label, label: r.label }))}
+                      onChange={(v) => setRepo(i, { feature_label: v })}
+                    />
+                    <SearchSelect
+                      label="Base build" value={rp.base_label} placeholder="none (whole build)"
+                      disabled={!rp.product}
+                      options={[{ value: '', label: 'none (whole build)' },
+                        ...reps.filter((r) => r.label !== rp.feature_label)
+                          .map((r) => ({ value: r.label, label: r.label, sub: r.is_deployed ? '● deployed' : '' }))]}
+                      onChange={(v) => setRepo(i, { base_label: v })}
+                    />
+                    <button type="button" className="wsm-hs-clear"
+                            onClick={() => setRepos((l) => l.filter((_, j) => j !== i))}>Remove</button>
+                  </div>
+                );
+              })}
+              {!repos.length && <p className="hint">Add a repo to start the review.</p>}
+              <div className="wsm-hs-tools">
+                <button type="button" className="btn btn-small" onClick={addRepo} disabled={!products.length}>+ Add repo</button>
+                <span className="hint">Each repo compares a feature build against a base build; the review covers them together.</span>
               </div>
-            );
-          })}
-          <div className="wsm-hs-tools">
-            <button type="button" className="btn btn-small" onClick={addRepo} disabled={!products.length}>+ Add repo</button>
-            <span className="hint">Each repo compares a feature build against a base build; the review covers them together.</span>
-            <button type="button" className="btn btn-primary" onClick={create} disabled={!repos.some((r) => r.product && r.feature_label)}>
-              Create review
-            </button>
+            </div>
+
+            <div className="wsm-hsr-newfoot">
+              <button type="button" className="btn btn-ghost" onClick={() => setAdding(false)}>Cancel</button>
+              <button type="button" className="btn btn-primary" onClick={create}
+                      disabled={!repos.some((r) => r.product && r.feature_label)}>
+                Create review
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -253,7 +265,7 @@ export default function HacksawReviewer({ onNotice }) {
             <div>Project</div>
             <div>Reviewer</div>
             <div>Repos</div>
-            {SCAN_COLS.map(([k, l]) => <div key={k} className="wsm-hsr-num">{l}</div>)}
+            {SCAN_COLS.map(([k, l]) => <div key={k} className="wsm-hsr-num" title={l}>{l}</div>)}
             <div className="wsm-hsr-num">Components</div>
             <div>Submitted</div>
           </div>

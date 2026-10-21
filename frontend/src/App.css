@@ -3180,14 +3180,20 @@ ul.wsm-conn-sub { margin-top: 0; }
 
 .wsm-hsr-pane { overflow: auto; min-height: 0; }
 /* The design fixes a minimum so the numeric columns never collapse; the pane scrolls instead. */
-.wsm-hsr-grid { min-width: 1280px; }
+.wsm-hsr-grid { min-width: 1382px; }
 
 .wsm-hsr-head {
   position: sticky; top: 0; z-index: 3; display: grid; align-items: center;
   background: var(--chrome); border-bottom: 1px solid var(--line3);
   font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted);
 }
-.wsm-hsr-head > div { padding: 11px 12px; }
+.wsm-hsr-head > div { padding: 11px 12px; min-width: 0; overflow: hidden; }
+/* The scan headings ("Misconfigurations", "Hardcoded secrets") are longer than their numeric
+   columns are wide; without this they ran over each other. Wrap to two lines instead. */
+.wsm-hsr-head > .wsm-hsr-num {
+  padding: 9px 7px; letter-spacing: 0.06em; line-height: 1.3; white-space: normal;
+  overflow-wrap: anywhere; align-self: center;
+}
 .wsm-hsr-head > div:first-child { padding-left: 18px; }
 .wsm-hsr-head > div:last-child { padding-right: 18px; }
 
@@ -3262,3 +3268,55 @@ ul.wsm-conn-sub { margin-top: 0; }
 .wsm-hsr-add { color: var(--ac2-text, #6fb7ff); }
 .wsm-hsr-upd { color: var(--ac-text); }
 .wsm-hsr-rem { color: var(--muted); }
+
+/* ── searchable select (Hacksaw Reviewer › new review) ──────────────────────────────────────
+   A native <select> cannot be searched, and the build lists run to 50 labels differing only by a
+   date and a counter. Trigger + popover with its own search box, same footprint as the select. */
+.wsm-ss { position: relative; }
+/* chip variant — matches the report toolbar's inline pickers so the two sit level. */
+.wsm-ss-chip { display: inline-flex; align-items: center; gap: 6px; }
+.wsm-ss-chip .wsm-ss-trigger {
+  height: 28px; width: auto; max-width: 190px; padding: 0 9px; border-radius: 0;
+  border-color: var(--line1); background: var(--surf); color: var(--ink); font-weight: 700;
+}
+.wsm-ss-wrap { position: relative; }
+.wsm-ss-trigger {
+  display: flex; align-items: center; gap: 8px; width: 220px; max-width: 220px;
+  padding: 6px 9px; font: inherit; font-size: 12px; cursor: pointer; text-align: left;
+  background: var(--surf2, var(--surf)); color: var(--ink2);
+  border: 1px solid var(--line2); border-radius: 7px;
+}
+.wsm-ss-trigger:hover:not(:disabled) { border-color: var(--line3); }
+.wsm-ss-trigger:disabled { opacity: 0.5; cursor: not-allowed; }
+.wsm-ss-val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wsm-ss-caret { font-size: 9px; color: var(--muted); }
+.wsm-ss-pop {
+  position: absolute; z-index: 60; top: calc(100% + 4px); left: 0; width: 340px; max-width: 70vw;
+  background: var(--chrome); border: 1px solid var(--line3); border-radius: 9px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42); padding: 7px; display: flex;
+  flex-direction: column; gap: 6px;
+}
+.wsm-ss-q { width: 100%; padding: 6px 9px; font-size: 12px; }
+.wsm-ss-list { max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
+.wsm-ss-opt {
+  appearance: none; border: 0; background: transparent; font: inherit; font-size: 12px;
+  color: var(--ink2); text-align: left; padding: 6px 8px; border-radius: 6px; cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.wsm-ss-opt:hover { background: var(--surf); color: var(--ink); }
+.wsm-ss-opt-on { background: var(--ac-tint3); color: var(--ac-soft); }
+.wsm-ss-sub { color: var(--ac-text); margin-right: 6px; }
+.wsm-ss-none { margin: 6px 8px; }
+
+.wsm-ss-pop-up { top: auto; bottom: calc(100% + 4px); }
+
+/* new-review modal — `overflow-y: auto` on .modal clipped the pickers' popovers at the modal's
+   edge, so this one does not scroll; the backdrop does. */
+.wsm-hsr-newmodal { overflow: visible; }
+.modal-backdrop { overflow-y: auto; }
+.wsm-hsr-newmodal .wsm-hsr-new { border-bottom: 0; }
+.wsm-hsr-newmodal .wsm-hs-tools { flex-wrap: wrap; }
+.wsm-hsr-newfoot {
+  display: flex; justify-content: flex-end; gap: 8px;
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line1);
+}

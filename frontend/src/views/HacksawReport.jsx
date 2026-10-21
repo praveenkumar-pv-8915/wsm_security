@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { RefreshIcon } from '../lib/icons';
+import SearchSelect from '../components/SearchSelect';
 
 /**
  * Hacksaw › Hacksaw Report — built to the v7 design (design/WSM Security v7.bundled.html).
@@ -33,6 +34,29 @@ const CATEGORIES = [
 ];
 
 const FILE_TYPES = ['java', 'js', 'python', 'clang'];
+
+/**
+ * Hacksaw's own filter vocabulary, as `fetchfilters` returns it. The screen shows every key it
+ * sends rather than the three hardcoded ones it used to (2026-10-21) — FILE_TYPE excepted, which
+ * is a required request parameter and already the context bar's Language picker, not a filter.
+ *
+ * `long` keys (RULE, TAG) run to dozens or hundreds of values, so they get the searchable select;
+ * the rest fit a plain inline picker.
+ */
+const FILTER_LABELS = {
+  TYPE: 'Type',
+  STATUS: 'Status',
+  PRIORITY: 'Severity',
+  TRACKING_STATUS: 'Tracking',
+  CONTEXT: 'Context',
+  RULE: 'Rule',
+  TAG: 'Tag',
+};
+const FILTER_ORDER = ['PRIORITY', 'STATUS', 'TYPE', 'TRACKING_STATUS', 'CONTEXT', 'RULE', 'TAG'];
+const LONG_FILTERS = new Set(['RULE', 'TAG']);
+/** Components are not a violation scan, so Hacksaw has no filter vocabulary for them. */
+const FILTERABLE = (cat) => cat !== 'VULNERABLE_COMPONENTS';
+const prettyVal = (v) => String(v).replace(/_/g, ' ').toLowerCase().replace(/^./, (c) => c.toUpperCase());
 
 const sevClass = (p) => (p === 'ERROR' ? 'wsm-hs-sev-err' : p === 'WARNING' ? 'wsm-hs-sev-warn' : 'wsm-hs-sev-info');
 const initialsOf = (email) => String(email || '').replace(/@.*/, '').split(/[._-]/).filter(Boolean).slice(0, 2)
@@ -67,9 +91,9 @@ export default function HacksawReport({ onNotice }) {
   const [total, setTotal] = useState(0);
   const [picked, setPicked] = useState({});
   const [q, setQ] = useState('');
-  const [fSev, setFSev] = useState('All');
-  const [fHs, setFHs] = useState('All');
-  const [blockingOnly, setBlockingOnly] = useState(false);
+  const [vocab, setVocab] = useState({});      // Hacksaw's filter keys -> allowed values
+  const [vocabError, setVocabError] = useState('');
+  const [sel, setSel] = useState({});          // KEY -> chosen value ('' means no filter)
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -146,6 +170,39 @@ export default function HacksawReport({ onNotice }) {
     return () => { live = false; };
   }, [product, label, baseLabel, diffing, diffCategory]);
 
+  /**
+   * Hacksaw's filter vocabulary for the current scan. Fetched per product/label/scan/language
+   * because the values are scan-specific — the rules for `java` are not the rules for `python`.
+   * A value that is no longer offered is dropped from the selection rather than silently sent on.
+   */
+  useEffect(() => {
+    if (!product || !label || !FILTERABLE(category)) { setVocab({}); setSel({}); setVocabError(''); return undefined; }
+    let live = true;
+    (async () => {
+      try {
+        const p = new URLSearchParams({ product, label, scan: category });
+        if (category === 'CODE_VIOLATIONS') p.set('file_type', fileType);
+        const r = await api(`/hacksaw/violation-filters?${p}`);
+        if (!live) return;
+        const v = r.filters || {};
+        setVocab(v); setVocabError('');
+        setSel((cur) => Object.fromEntries(Object.entries(cur)
+          .filter(([k, val]) => !val || (v[k] || []).includes(val))));
+      } catch (err) {
+        if (!live) return;
+        setVocab({}); setSel({});
+        setVocabError(err instanceof ApiError ? err.message : 'Could not load Hacksaw\u2019s filters.');
+      }
+    })();
+    return () => { live = false; };
+  }, [product, label, category, fileType]);
+
+  /** The selection as Hacksaw wants it: { KEY: [value] }, omitted entirely when nothing is set. */
+  const activeFilters = useMemo(() => Object.fromEntries(
+    Object.entries(sel).filter(([, v]) => v).map(([k, v]) => [k, [v]]),
+  ), [sel]);
+  const filterCount = Object.keys(activeFilters).length;
+
   /** One normalised row shape, whatever endpoint produced it. */
   const normalise = useCallback((v, kind) => (kind === 'component'
     ? {
@@ -177,6 +234,7 @@ export default function HacksawReport({ onNotice }) {
           product, label, base_label: baseLabel, scan: category, diff_category: diffCategory, limit: '50',
         });
         if (category === 'CODE_VIOLATIONS') p.set('file_type', fileType);
+        if (filterCount) p.set('filters', JSON.stringify(activeFilters));
         const r = await api(`/hacksaw/diff-violations?${p}`);
         out = (r.violations || []).map((v) => normalise(v, 'violation'));
         count = r.total || 0;
@@ -187,6 +245,7 @@ export default function HacksawReport({ onNotice }) {
       } else {
         const p = new URLSearchParams({ product, label, scan: category, limit: '50' });
         if (category === 'CODE_VIOLATIONS') p.set('file_type', fileType);
+        if (filterCount) p.set('filters', JSON.stringify(activeFilters));
         const r = await api(`/hacksaw/violations?${p}`);
         out = (r.violations || []).map((v) => normalise(v, 'violation'));
         count = r.total || 0;
@@ -201,23 +260,21 @@ export default function HacksawReport({ onNotice }) {
     } finally {
       if (mine === seq.current) setBusy(false);
     }
-  }, [product, label, baseLabel, diffing, diffCategory, category, fileType, normalise, onNotice]);
+  }, [product, label, baseLabel, diffing, diffCategory, category, fileType, activeFilters, filterCount,
+    normalise, onNotice]);
 
   useEffect(() => { load(); }, [load]);
 
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((r) => (
-      (!needle || [r.rule, r.file, r.snippet].some((x) => String(x || '').toLowerCase().includes(needle)))
-      && (fSev === 'All' || r.priority === fSev)
-      && (fHs === 'All' || r.hacksaw_status === fHs)
-      && (!blockingOnly || r.blocked)
+      !needle || [r.rule, r.file, r.snippet].some((x) => String(x || '').toLowerCase().includes(needle))
     ));
-  }, [rows, q, fSev, fHs, blockingOnly]);
+  }, [rows, q]);
 
   const pickedKeys = Object.keys(picked).filter((k) => picked[k]);
   const allPicked = shown.length > 0 && shown.every((r) => picked[r.key]);
-  const filtersOn = Boolean(q || fSev !== 'All' || fHs !== 'All' || blockingOnly);
+  const filtersOn = Boolean(q || filterCount);
 
   const countFor = useCallback((catKey) => {
     const all = (stats?.scans || []).flatMap((s) => [s, ...(s.subscans || [])]);
@@ -282,17 +339,27 @@ export default function HacksawReport({ onNotice }) {
           <>
             <input type="search" className="wsm-search" placeholder="Search file, rule, endpoint"
                    aria-label="Search findings" value={q} onChange={(e) => setQ(e.target.value)} />
-            <Picker label="Severity" value={fSev} onChange={setFSev} options={['All', 'ERROR', 'WARNING', 'INFO']} />
-            <Picker label="Hacksaw" value={fHs} onChange={setFHs}
-                    options={['All', ...Array.from(new Set(rows.map((r) => r.hacksaw_status).filter(Boolean)))]} />
-            <label className={`wsm-hs-blkchip${blockingOnly ? ' wsm-chipbtn-on' : ''}`}>
-              <input type="checkbox" checked={blockingOnly} onChange={(e) => setBlockingOnly(e.target.checked)} />
-              Blocking only
-            </label>
+            {FILTER_ORDER.filter((k) => (vocab[k] || []).length).map((k) => (LONG_FILTERS.has(k)
+              ? (
+                <SearchSelect
+                  key={k} label={FILTER_LABELS[k] || k} value={sel[k] || ''} placeholder="All" variant="chip"
+                  options={[{ value: '', label: 'All' },
+                    ...vocab[k].map((v) => ({ value: v, label: v }))]}
+                  onChange={(v) => setSel((m) => ({ ...m, [k]: v }))}
+                />
+              )
+              : (
+                <Picker
+                  key={k} label={FILTER_LABELS[k] || k} value={sel[k] || ''}
+                  onChange={(v) => setSel((m) => ({ ...m, [k]: v }))}
+                  options={['', ...vocab[k]]}
+                  render={(v) => (v ? prettyVal(v) : 'All')} keyOf={(v) => v}
+                />
+              )))}
+            {vocabError && <span className="tag tag-bad" title={vocabError}>Filters unavailable</span>}
             {filtersOn && (
-              <button type="button" className="wsm-hs-clear"
-                      onClick={() => { setQ(''); setFSev('All'); setFHs('All'); setBlockingOnly(false); }}>
-                Clear
+              <button type="button" className="wsm-hs-clear" onClick={() => { setQ(''); setSel({}); }}>
+                Clear{filterCount ? ` (${filterCount})` : ''}
               </button>
             )}
           </>
