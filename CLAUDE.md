@@ -52,7 +52,15 @@ Treat `functions/welcome` + `frontend` as the thing that's actually running.
       run_script(service="zoho-catalyst", script="deploy",
                  args=["--only", "functions:welcome,client"], timeout_sec=600)
 
-  Same `deploy.sh` underneath, same flags. Three things that are easy to get wrong:
+  Same `deploy.sh` underneath, same flags. Since 2026-10-21 the same service also wraps **every
+  non-interactive Catalyst CLI command**, one script each (`whoami`, `project-list`,
+  `functions-config`, `ds-export`, `ds-status`, `pull`, `apig-status`, `iac-export`, ...): see
+  `list_scripts(service="zoho-catalyst")` or the service README in agent-knowledge-kit
+  (`src/connections/zoho-catalyst/README.md`). All take `--dry-run`; the destructive ones
+  (`functions-delete`, `client-delete`, `project-reset`, `iac-import`, `ds-import`, `token-*`,
+  `config-delete`, `apig-disable`, and `--overwrite`/`--force` on others) refuse without `--yes`.
+  `deploy-raw` is the unguarded `catalyst deploy`; keep using `deploy` for this repo.
+  Three things that are easy to get wrong with `deploy`:
   - **Always pass `timeout_sec=600`.** The 120s default kills a client + function deploy mid-flight.
   - **Always pass `--only`.** From the MCP, `git fetch` fails (that server cannot unlock the login
     Keychain the way a terminal can), so change detection is unavailable and the script refuses to
